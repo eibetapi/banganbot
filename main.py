@@ -44,7 +44,14 @@ DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 CHAT_ID = -1003972186058
 ADMIN_ID = 1407508561
 
-TICKETMASTER_LINKS = [
+session = requests.Session()
+session.headers.update({"User-Agent": "Mozilla/5.0"})
+
+# =========================
+# LINKS (NÃO REMOVIDO)
+# =========================
+
+TICKET_LINKS = [
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10",
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-30-10",
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-31-10"
@@ -56,15 +63,13 @@ BLUE_LINKS = [
 
 TOUR_URL = "https://ibighit.com/en/bts/tour/"
 
-session = requests.Session()
-session.headers.update({"User-Agent": "Mozilla/5.0"})
-
 # =========================
 # DISCORD
 # =========================
 
 intents = discord.Intents.default()
 intents.message_content = True
+
 discord_client = discord.Client(intents=intents)
 
 async def discord_send(msg):
@@ -79,9 +84,9 @@ async def discord_send(msg):
 # STATE
 # =========================
 
-tour_last_hash = None
-ticket_last_hash = {}
-blue_last_hash = {}
+ticket_hash = {}
+blue_hash = {}
+tour_hash = None
 
 panel_message_id = None
 panel_chat_id = None
@@ -113,39 +118,28 @@ def get_uptime():
 
 def fetch(url):
     try:
-        return session.get(url, timeout=10).text
+        return requests.get(url, timeout=10).text
     except:
         return None
 
 # =========================
-# TOUR PARSER (BTS)
+# TOUR PARSER
 # =========================
 
 def parse_tour(html):
-    soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text(" ", strip=True)
+    text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
 
     date = re.findall(r"\d{1,2}/\d{1,2}/\d{4}", text)
     city = re.findall(r"[A-Z][a-z]+,\s?[A-Z]{2}", text)
 
     return {
         "date": date[0] if date else "N/A",
-        "city": city[0] if city else "N/A",
-        "raw": text
+        "city": city[0] if city else "N/A"
     }
 
 # =========================
-# ALERTS (NÃO MEXER LAYOUT)
+# ALERTS (NÃO ALTERAR LAYOUT)
 # =========================
-
-async def alert_tour(data):
-    msg = f"""💜AGENDA TOUR UPDATE💜
-📅 Data: {data['date']}
-🏙️ Cidades: {data['city']}
-🌎 Países: USA
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-    await discord_send(msg)
 
 async def alert_ticket(url, data):
     text = f"""🔥ALERTA DE REPOSIÇÃO 🔥
@@ -165,7 +159,6 @@ async def alert_ticket(url, data):
 📊Qtd: {data.get('quantidade','N/A')}
 """
     await bot_ticket.send_message(chat_id=CHAT_ID, text=text)
-    await discord_send(text)
 
 async def alert_blue(url, data):
     text = f"""🔵REVENDA BLUE🔵
@@ -177,10 +170,17 @@ async def alert_blue(url, data):
 📦Status: {data.get('status','N/A')}
 """
     await bot_blue.send_message(chat_id=CHAT_ID, text=text)
-    await discord_send(text)
+
+async def alert_tour(data):
+    msg = f"""💜AGENDA TOUR UPDATE💜
+📅 Data: {data['date']}
+🏙️ Cidades: {data['city']}
+🌎 Países: USA
+"""
+    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
 
 # =========================
-# BOOT
+# BOOT (SEM ALERTA FALSO)
 # =========================
 
 async def send_boot():
@@ -191,7 +191,7 @@ async def send_boot():
     await discord_send(msg)
 
 # =========================
-# COMMANDS (TELEGRAM)
+# COMMANDS (TELEGRAM + DISCORD)
 # =========================
 
 TESTE_TEXT = """🌊TESTE🌊
@@ -223,15 +223,16 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def painel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global panel_message_id, panel_chat_id
+
     msg = await update.message.reply_text("👾 Painel ativado👾")
     panel_message_id = msg.message_id
     panel_chat_id = CHAT_ID
 
 # =========================
-# PANEL (COMPLETO)
+# PANEL UPDATE (CORRIGIDO)
 # =========================
 
-async def update_panel(tour_data=None):
+async def update_panel(data=None):
     global panel_message_id, panel_chat_id
 
     if not panel_message_id:
@@ -244,8 +245,8 @@ async def update_panel(tour_data=None):
 ⏰ Uptime: {get_uptime()}
 
 ✈️ PRÓXIMAS DATAS:
-🎫 Data: {tour_data['date'] if tour_data else 'N/A'}
-📍 Local: {tour_data['city'] if tour_data else 'N/A'}
+🎫 Data: {data['date'] if data else 'N/A'}
+📍 Local: {data['city'] if data else 'N/A'}
 ⏳ Faltam: N/A dias
 
 🇧🇷 RANKING POSSÍVEIS DATAS BR:
@@ -267,42 +268,41 @@ async def update_panel(tour_data=None):
         pass
 
 # =========================
-# MONITOR (SEPARAÇÃO REAL DE ALERTAS)
+# MONITOR (SEM DUPLICAÇÃO / SEM ALERTA FALSO)
 # =========================
 
 async def monitor():
-    global tour_last_hash, check_ticket, check_blue
+    global tour_hash, check_ticket, check_blue
 
     while True:
 
-        # TOUR
         html = fetch(TOUR_URL)
+
         if html:
             h = hashlib.md5(html.encode()).hexdigest()
             data = parse_tour(html)
 
-            if tour_last_hash != h:
-                tour_last_hash = h
+            if tour_hash != h:
+                tour_hash = h
                 await alert_tour(data)
 
             await update_panel(data)
 
-        # TICKETMASTER (SÓ SE MUDAR HASH POR LINK)
-        for url in TICKETMASTER_LINKS:
+        # TICKETMASTER
+        for url in TICKET_LINKS:
             html = fetch(url)
             if not html:
                 continue
 
             h = hashlib.md5(html.encode()).hexdigest()
 
-            if ticket_last_hash.get(url) != h:
-                ticket_last_hash[url] = h
-
+            if ticket_hash.get(url) != h:
+                ticket_hash[url] = h
                 await alert_ticket(url, {
                     "setor":"N/A",
                     "categorias":"N/A",
                     "tipo":"N/A",
-                    "status":"N/A",
+                    "status":"ATUALIZADO",
                     "date":"N/A",
                     "quantidade":"N/A"
                 })
@@ -315,14 +315,13 @@ async def monitor():
 
             h = hashlib.md5(html.encode()).hexdigest()
 
-            if blue_last_hash.get(url) != h:
-                blue_last_hash[url] = h
-
+            if blue_hash.get(url) != h:
+                blue_hash[url] = h
                 await alert_blue(url, {
                     "setor":"N/A",
                     "categorias":"N/A",
                     "tipo":"N/A",
-                    "status":"N/A",
+                    "status":"ATUALIZADO",
                     "valor":"N/A"
                 })
 
