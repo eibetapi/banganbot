@@ -5,7 +5,7 @@ import hashlib
 from bs4 import BeautifulSoup
 import os
 
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Bot, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # =========================
@@ -33,10 +33,13 @@ def keep_alive():
 
 BOT_TOKEN_TICKET = os.getenv("BOT_TOKEN_TICKET")
 BOT_TOKEN_BLUE = os.getenv("BOT_TOKEN_BLUE")
+
 CHAT_ID = -1003972186058
 ADMIN_ID = 1407508561
+
 bot_ticket = Bot(token=BOT_TOKEN_TICKET)
 bot_blue = Bot(token=BOT_TOKEN_BLUE)
+
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
 
@@ -127,17 +130,17 @@ def fetch(url):
         return None
 
 # =========================
-# ALERTAS
+# ALERTAS (CORRIGIDO)
 # =========================
 
-def alert_ticket(url):
-    bot_ticket.send_message(
+async def alert_ticket(url):
+    await bot_ticket.send_message(
         chat_id=CHAT_ID,
         text=f"🔥 ALERTA\n{url}"
     )
 
-def alert_blue(link):
-    bot_blue.send_message(
+async def alert_blue(link):
+    await bot_blue.send_message(
         chat_id=CHAT_ID,
         text=f"🔵 {link}"
     )
@@ -152,7 +155,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # =========================
-# MONITOR
+# MONITOR (CORRIGIDO)
 # =========================
 
 async def monitor():
@@ -165,14 +168,14 @@ async def monitor():
                 html = fetch(url)
                 if html and url not in last_state:
                     last_state[url] = True
-                    alert_ticket(url)
+                    await alert_ticket(url)
 
             for url in EVENTS_BLUE:
                 check_blue += 1
                 html = fetch(url)
                 if html and url not in last_state:
                     last_state[url] = True
-                    alert_blue(url)
+                    await alert_blue(url)
 
             await update_panel()
             await asyncio.sleep(30)
@@ -181,7 +184,7 @@ async def monitor():
             print("ERRO:", e)
 
 # =========================
-# MAIN
+# MAIN (ESTÁVEL)
 # =========================
 
 async def main():
@@ -196,15 +199,14 @@ async def main():
 
     print("🔥 Bots iniciando...")
 
-    # inicializa
+    # inicializa bots
     await app_ticket.initialize()
     await app_blue.initialize()
 
-    # inicia
     await app_ticket.start()
     await app_blue.start()
 
-    # monitor paralelo
+    # roda monitor
     asyncio.create_task(monitor())
 
     # mantém rodando
