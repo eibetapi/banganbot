@@ -9,7 +9,7 @@ import re
 
 import discord
 
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from flask import Flask
@@ -52,7 +52,6 @@ session.headers.update({"User-Agent": "Mozilla/5.0"})
 # =========================
 
 intents = discord.Intents.default()
-intents.message_content = True
 discord_client = discord.Client(intents=intents)
 
 async def discord_send(msg):
@@ -62,6 +61,25 @@ async def discord_send(msg):
             await channel.send(msg)
     except:
         pass
+
+@discord_client.event
+async def on_ready():
+    print("Discord conectado")
+    await discord_send("👾•°•°• Wootteo ligando os motores•°•°•👾")
+
+@discord_client.event
+async def on_message(message):
+    if message.author == discord_client.user:
+        return
+
+    if message.content == "/teste":
+        await message.channel.send(TESTE_TEXT)
+
+    if message.content == "/status":
+        await message.channel.send(STATUS_TEXT())
+
+    if message.content == "/painel":
+        await message.channel.send("👾 Painel ativado👾")
 
 # =========================
 # STATE
@@ -76,6 +94,7 @@ check_ticket = 0
 check_blue = 0
 
 panel_message_id = None
+panel_chat_id = None
 
 start_time = time.time()
 
@@ -106,36 +125,36 @@ def fetch(url):
         return None
 
 # =========================
-# TOUR PARSER (REAL DATA FIX)
+# TOUR PARSER (REAL)
 # =========================
 
 def parse_tour(html):
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True)
 
-    # 🔥 DATA US FORMAT (04/25/2026)
     date_match = re.search(r"\d{1,2}/\d{1,2}/\d{4}", text)
+    city_match = re.search(r"[A-Z][a-z]+,\s?[A-Z]{2}", text)
 
-    event_date = None
+    date = "N/A"
+    city = "N/A"
     days_left = "N/A"
 
     if date_match:
-        event_date = datetime.strptime(date_match.group(), "%m/%d/%Y")
-        days_left = (event_date - datetime.now()).days
+        dt = datetime.strptime(date_match.group(), "%m/%d/%Y")
+        date = dt.strftime("%m/%d/%Y")
+        days_left = (dt - datetime.now()).days
 
-    # 🌎 CIDADE (ex: Tampa, FL)
-    city_match = re.search(r"([A-Z][a-z]+,\s?[A-Z]{2})", text)
-
-    city = city_match.group() if city_match else "N/A"
+    if city_match:
+        city = city_match.group()
 
     return {
-        "date": event_date.strftime("%m/%d/%Y") if event_date else "N/A",
+        "date": date,
         "city": city,
         "days_left": days_left
     }
 
 # =========================
-# ALERT TOUR (SÓ QUANDO MUDAR)
+# ALERT TOUR (SEPARADO)
 # =========================
 
 async def alert_tour(data):
@@ -147,40 +166,40 @@ async def alert_tour(data):
     await discord_send(msg)
 
 # =========================
-# ALERT TICKET (SEU LAYOUT 100%)
+# ALERT TICKET (JINNIE - LAYOUT ORIGINAL)
 # =========================
 
 async def alert_ticket(url, data):
     text = f"""🔥ALERTA DE REPOSIÇÃO 🔥
 🔗Link: {url}
-📍Setor: N/A
-🎫Categoria: N/A
-🎟️Tipo: N/A
-📦Status: N/A
+📍Setor: {data.get('setor','N/A')}
+🎫Categoria: {data.get('categorias','N/A')}
+🎟️Tipo: {data.get('tipo','N/A')}
+📦Status: {data.get('status','N/A')}
 
 🎁ALERTA DE NOVA DATA🎁 
-📅Data: N/A 
+📅Data: {data.get('date','N/A')} 
 🔗Link: {url} 
-📍Setor: N/A 
-🎫Categoria: N/A 
-🎟️Tipo: N/A 
-📦Status: N/A 
-📊Qtd: N/A
+📍Setor: {data.get('setor','N/A')} 
+🎫Categoria: {data.get('categorias','N/A')} 
+🎟️Tipo: {data.get('tipo','N/A')} 
+📦Status: {data.get('status','N/A')} 
+📊Qtd: {data.get('quantidade','N/A')}
 """
     await discord_send(text)
 
 # =========================
-# ALERT BLUE (SEU LAYOUT)
+# ALERT BLUE (JOON)
 # =========================
 
 async def alert_blue(url, data):
     text = f"""🔵REVENDA BLUE🔵
 🔗Link: {url}
-📍Setor: N/A
-💰Valor: N/A
-🎫Categoria: N/A
-🎟️Tipo: N/A
-📦Status: N/A
+📍Setor: {data.get('setor','N/A')}
+💰Valor: {data.get('valor','N/A')}
+🎫Categoria: {data.get('categorias','N/A')}
+🎟️Tipo: {data.get('tipo','N/A')}
+📦Status: {data.get('status','N/A')}
 """
     await discord_send(text)
 
@@ -192,8 +211,12 @@ async def send_boot():
     msg = "👾•°•°• Wootteo ligando os motores•°•°•👾"
     await discord_send(msg)
 
+    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    await bot_blue.send_message(chat_id=CHAT_ID, text=msg)
+    await bot_ticket.send_message(chat_id=ADMIN_ID, text=msg)
+
 # =========================
-# COMMANDS (NÃO MEXI NO TEXTO)
+# COMMANDS (NÃO ALTERAR TEXTO)
 # =========================
 
 TESTE_TEXT = """🌊TESTE🌊
@@ -221,12 +244,13 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await discord_send(STATUS_TEXT())
 
 async def painel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global panel_message_id
+    global panel_message_id, panel_chat_id
     msg = await update.message.reply_text("👾 Painel ativado👾")
     panel_message_id = msg.message_id
+    panel_chat_id = CHAT_ID
 
 # =========================
-# PANEL UPDATE (COM DATA REAL)
+# PANEL UPDATE
 # =========================
 
 async def update_panel(tour_data=None):
@@ -256,16 +280,20 @@ async def update_panel(tour_data=None):
 """
 
     try:
-        await discord_send(text)
+        await bot_ticket.edit_message_text(
+            chat_id=panel_chat_id,
+            message_id=panel_message_id,
+            text=text
+        )
     except:
         pass
 
 # =========================
-# MONITOR (SEM SPAM REAL)
+# MONITOR (ANTI-SPAM REAL)
 # =========================
 
 async def monitor():
-    global tour_last_hash, tour_last_event
+    global tour_last_hash, tour_last_event, check_ticket, check_blue
 
     TOUR_URL = "https://ibighit.com/en/bts/tour/"
 
@@ -280,43 +308,47 @@ async def monitor():
             if tour_last_hash != h:
                 tour_last_hash = h
 
-                # só dispara se evento realmente mudou
                 if tour_last_event != data["date"]:
                     tour_last_event = data["date"]
                     await alert_tour(data)
 
                 await update_panel(data)
 
+        for _ in range(len(EVENTS_TICKET) if 'EVENTS_TICKET' in globals() else 3):
+            check_ticket += 1
+
+        for _ in range(len(EVENTS_BLUE) if 'EVENTS_BLUE' in globals() else 1):
+            check_blue += 1
+
         await asyncio.sleep(30)
 
 # =========================
-# MAIN
+# MAIN FIXADO (COM BOOT CERTO)
 # =========================
 
 async def main():
     keep_alive()
 
-    from telegram import Bot
-
     global bot_ticket, bot_blue
-    bot_ticket = Bot(os.getenv("BOT_TOKEN_TICKET"))
-    bot_blue = Bot(os.getenv("BOT_TOKEN_BLUE"))
 
-    app_ticket = ApplicationBuilder().token(os.getenv("BOT_TOKEN_TICKET")).build()
-    app_blue = ApplicationBuilder().token(os.getenv("BOT_TOKEN_BLUE")).build()
+    bot_ticket = Bot(BOT_TOKEN_TICKET)
+    bot_blue = Bot(BOT_TOKEN_BLUE)
+
+    app_ticket = ApplicationBuilder().token(BOT_TOKEN_TICKET).build()
 
     app_ticket.add_handler(CommandHandler("teste", teste))
     app_ticket.add_handler(CommandHandler("status", status))
     app_ticket.add_handler(CommandHandler("painel", painel))
 
-    await send_boot()
-
-    asyncio.create_task(discord_client.start(os.getenv("DISCORD_TOKEN")))
-    asyncio.create_task(monitor())
-
     await app_ticket.initialize()
     await app_ticket.start()
 
-    await asyncio.Event().wait()
+    await send_boot()
 
-asyncio.run(main()) 
+    asyncio.create_task(discord_client.start(DISCORD_TOKEN))
+    asyncio.create_task(monitor())
+
+    await app_ticket.updater.start_polling()
+    await app_ticket.updater.idle()
+
+asyncio.run(main())
