@@ -37,8 +37,8 @@ BOT_TOKEN_BLUE = os.getenv("BOT_TOKEN_BLUE")
 CHAT_ID = -1003972186058
 ADMIN_ID = 1407508561
 
-bot_ticket = 8627731148:AAFWE_a7IpMVp33KexLtCLVtzzsM6LEQ86E
-bot_blue = 8444232711:AAHnxO392HDQSLps11ztCWpq5LO7xr6jBec
+bot_ticket = Bot(token=BOT_TOKEN_TICKET)
+bot_blue = Bot(token=BOT_TOKEN_BLUE)
 
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
