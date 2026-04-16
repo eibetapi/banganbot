@@ -6,6 +6,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import os
 import re
+import logging
 
 import discord
 
@@ -14,6 +15,12 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from flask import Flask
 from threading import Thread
+
+# =========================
+# LOGGING (FIX TELEGRAM UPDATES)
+# =========================
+
+logging.basicConfig(level=logging.INFO)
 
 # =========================
 # KEEP ALIVE
@@ -53,6 +60,8 @@ session.headers.update({"User-Agent": "Mozilla/5.0"})
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True
+intents.messages = True
 
 discord_client = discord.Client(intents=intents)
 
@@ -88,8 +97,6 @@ async def on_message(message):
 # =========================
 # STATE
 # =========================
-
-last_state = {}
 
 tour_last_hash = None
 tour_last_event = None
@@ -276,12 +283,12 @@ async def update_panel(tour_data=None):
 🎫 Data: {tour_data['date'] if tour_data else 'N/A'}
 📍 Local: {tour_data['city'] if tour_data else 'N/A'}
 ⏳ Faltam: {tour_data['days_left'] if tour_data else 'N/A'} dias
-•°•°•°•°•°•°🚀
+
 🇧🇷 RANKING POSSÍVEIS DATAS BR:
 🥇 {top[0][0]} ({top[0][1]})
 🥈 {top[1][0]} ({top[1][1]})
 🥉 {top[2][0]} ({top[2][1]})
-•°•°•°•°•°•°•=•=•👾=•=•=•=•°•°•°•=•
+
 🟣STATUS BOT
 🟡 Ticket: {check_ticket}
 🔵 Blue: {check_blue}
@@ -328,7 +335,7 @@ async def monitor():
         await asyncio.sleep(30)
 
 # =========================
-# MAIN FIXADO
+# MAIN (FIX REAL DO TELEGRAM)
 # =========================
 
 async def main():
@@ -348,9 +355,13 @@ async def main():
     await app_ticket.initialize()
     await app_ticket.start()
 
+    # 🔥 ISSO AQUI FAZ OS COMANDOS FUNCIONAREM
+    await app_ticket.updater.start_polling()
+    await app_ticket.updater.idle()
+
     await send_boot()
 
-    asyncio.create_task(discord_client.start(DISCORD_TOKEN))
+    asyncio.create_task(discord_client.start(os.getenv("DISCORD_TOKEN")))
     asyncio.create_task(monitor())
 
     await asyncio.Event().wait()
