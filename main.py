@@ -1,12 +1,9 @@
 import asyncio
 import time
 import requests
-import hashlib
 from bs4 import BeautifulSoup
 import os
 import re
-
-import discord
 
 from telegram import Bot, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -15,7 +12,7 @@ from flask import Flask
 from threading import Thread
 
 # =========================
-# KEEP ALIVE (RAILWAY)
+# KEEP ALIVE
 # =========================
 
 app = Flask(__name__)
@@ -37,9 +34,6 @@ def keep_alive():
 BOT_TOKEN_TICKET = os.getenv("BOT_TOKEN_TICKET")
 BOT_TOKEN_BLUE = os.getenv("BOT_TOKEN_BLUE")
 
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
-
 CHAT_ID = -1003972186058
 ADMIN_ID = 1407508561
 
@@ -49,39 +43,6 @@ bot_admin = Bot(token=BOT_TOKEN_TICKET)
 
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
-
-# =========================
-# DISCORD
-# =========================
-
-intents = discord.Intents.default()
-discord_client = discord.Client(intents=intents)
-
-async def send_discord(msg):
-    try:
-        channel = discord_client.get_channel(DISCORD_CHANNEL_ID)
-        if channel:
-            await channel.send(msg)
-    except:
-        pass
-
-@discord_client.event
-async def on_ready():
-    print(f"Discord conectado como {discord_client.user}")
-
-# =========================
-# UPTIME
-# =========================
-
-start_time = time.time()
-last_reconnect = "Nenhuma"
-
-check_ticket = 0
-check_blue = 0
-
-def get_uptime():
-    s = int(time.time() - start_time)
-    return f"{s//3600}h {(s%3600)//60}m {s%60}s"
 
 # =========================
 # LINKS
@@ -97,22 +58,11 @@ EVENTS_BLUE = [
     "https://buyticketbrasil.com/evento/bts%E2%80%932026worldtourarirang?data=1793242799000"
 ]
 
-TOUR_URL = "https://ibighit.com/en/bts/tour/"
-
 # =========================
-# STATE
+# STATE (ANTI-SPAM REAL)
 # =========================
 
 last_state = {}
-tour_last_state = None
-
-br_rank = {
-    "São Paulo": 0,
-    "Rio de Janeiro": 0,
-    "Curitiba": 0,
-    "Belo Horizonte": 0,
-    "Brasília": 0,
-}
 
 # =========================
 # FETCH
@@ -125,139 +75,111 @@ def fetch(url):
         return None
 
 # =========================
-# SMART SIGNATURE (ANTI-SPAM REAL)
+# PARSER
 # =========================
 
-def smart_signature(html):
-    soup = BeautifulSoup(html, "html.parser")
-
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
-
-    text = soup.get_text(" ", strip=True).lower()
-    text = re.sub(r"\s+", " ", text)
-
-    keywords = [
-        "sold out", "available", "esgotado", "disponível",
-        "tickets", "ingressos", "buy", "comprar",
-        "tour", "data", "date"
-    ]
-
-    filtered = " ".join([
-        w for w in text.split()
-        if any(k in w for k in keywords) or len(w) < 20
-    ])
-
-    return hashlib.md5(filtered.encode()).hexdigest()
-
-# =========================
-# TOUR PARSER
-# =========================
-
-def parse_tour(html):
+def parse_event(html):
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True).lower()
 
-    date = re.search(r"\d{1,2}/\d{1,2}", text)
-    date = date.group() if date else "N/A"
+    if any(x in text for x in ["esgot", "sold out"]):
+        status = "ESGOTADO"
+    elif any(x in text for x in ["dispon", "available"]):
+        status = "DISPONÍVEL"
+    else:
+        status = "DESCONHECIDO"
 
-    cities = []
-    countries = []
+    if "pré-venda" in text or "pre venda" in text:
+        tipo = "PRÉ-VENDA"
+    elif "venda geral" in text:
+        tipo = "VENDA GERAL"
+    else:
+        tipo = "NÃO IDENTIFICADO"
 
-    known_countries = ["brazil", "japan", "korea", "usa", "france", "uk"]
-    for k in known_countries:
-        if k in text:
-            countries.append(k.upper())
+    categorias = []
+    if "meia" in text:
+        categorias.append("MEIA-ENTRADA")
+    if "inteira" in text:
+        categorias.append("INTEIRA")
+    if "pcd" in text:
+        categorias.append("PCD")
+    if not categorias:
+        categorias = ["NÃO IDENTIFICADO"]
 
-    br_cities = ["são paulo", "rio de janeiro", "curitiba", "belo horizonte", "brasília"]
-    for c in br_cities:
-        if c in text:
-            cities.append(c.title())
-            br_rank[c.title()] += 1
+    setores = []
+    if "vip" in text:
+        setores.append("VIP")
+    if "pista" in text:
+        setores.append("PISTA")
+    if "cadeira" in text:
+        setores.append("CADEIRA")
+    if not setores:
+        setores = ["NÃO IDENTIFICADO"]
+
+    date = None
+    time_tag = soup.find("time")
+    if time_tag:
+        date = time_tag.get_text(strip=True)
+
+    quantidade = "DESCONHECIDO"
 
     return {
+        "status": status,
+        "tipo": tipo,
+        "categorias": ", ".join(categorias),
+        "setor": ", ".join(setores),
         "date": date,
-        "cities": cities or ["N/A"],
-        "countries": countries or ["N/A"]
+        "quantidade": quantidade
     }
 
 # =========================
-# ALERTAS
+# STATE BUILDER (NÚCLEO DO ANTI-SPAM)
 # =========================
 
-async def alert_tour(data):
-    msg = f"""💜AGENDA TOUR UPDATE💜
-📅 Data: {data['date']}
-🏙️ Cidades: {", ".join(data['cities'])}
-🌎 Países: {", ".join(data['countries'])}
+def make_state(data):
+    return f"{data['status']}|{data['tipo']}|{data['setor']}|{data['categorias']}|{data['quantidade']}|{data['date']}"
+
+# =========================
+# ALERTAS (COM TEU FORMATO ORIGINAL)
+# =========================
+
+async def alert_ticket(url, data):
+    text = f"""🔥ALERTA DE REPOSIÇÃO 🔥
+📅Data: {data['date']}
+🔗Link: {url}
+📍Setor: {data['setor']}
+🎫Categoria: {data['categorias']}
+🎟️Tipo: {data['tipo']}
+📦Status: {data['status']}
+📊Qtd: {data['quantidade']}
+
+🎁ALERTA DE NOVA DATA🎁
+📅Data: {data['date']}
+🔗Link: {url}
+📍Setor: {data['setor']}
+🎫Categoria: {data['categorias']}
+🎟️Tipo: {data['tipo']}
+📦Status: {data['status']}
+📊Qtd: {data['quantidade']}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-    await send_discord(msg)
+    await bot_ticket.send_message(chat_id=CHAT_ID, text=text)
 
-async def alert_ticket(url):
-    msg = f"""🔥 ALERTA TICKETMASTER
-🔗 {url}
+async def alert_blue(url, data):
+    text = f"""🔵REVENDA BLUE🔵
+📅Data: {data['date']}
+🔗Link: {url}
+📍Setor: {data['setor']}
+🎫Categoria: {data['categorias']}
+🎟️Tipo: {data['tipo']}
+💰Valor: 
+📦Status: {data['status']}
+📊Qtd: {data['quantidade']}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-    await send_discord(msg)
-
-async def alert_blue(url):
-    msg = f"""🔵 ALERTA BLUE
-🔗 {url}
-"""
-    await bot_blue.send_message(chat_id=CHAT_ID, text=msg)
-    await send_discord(msg)
+    await bot_blue.send_message(chat_id=CHAT_ID, text=text)
 
 # =========================
-# PAINEL
+# TESTE (SEMPRE FIXO)
 # =========================
-
-panel_message_id = None
-
-async def painel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global panel_message_id
-    msg = await update.message.reply_text("👾 Painel ativado")
-    panel_message_id = msg.message_id
-
-async def update_panel(tour_data=None):
-    global panel_message_id
-
-    if not panel_message_id:
-        return
-
-    top = sorted(br_rank.items(), key=lambda x: x[1], reverse=True)
-
-    text = f"""👾 CENTRAL WOOTTEO 👾
-
-⏰ Uptime: {get_uptime()}
-
-🌍 PRÓXIMA DATA: {tour_data['date'] if tour_data else 'N/A'}
-🏙️ CIDADES: {", ".join(tour_data['cities']) if tour_data else 'N/A'}
-
-🇧🇷 RANKING BR:
-🥇 {top[0][0]} ({top[0][1]})
-🥈 {top[1][0]} ({top[1][1]})
-🥉 {top[2][0]} ({top[2][1]})
-
-🟡 Ticket: {check_ticket}
-🔵 Blue: {check_blue}
-"""
-
-    try:
-        await bot_ticket.edit_message_text(
-            chat_id=CHAT_ID,
-            message_id=panel_message_id,
-            text=text
-        )
-    except:
-        pass
-
-# =========================
-# COMANDOS
-# =========================
-
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🟢 ONLINE")
 
 async def teste(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("""🌊TESTE🌊
@@ -271,51 +193,42 @@ async def teste(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """)
 
 # =========================
-# MONITOR (ANTI-SPAM REAL)
+# MONITOR (SEM SPAM)
 # =========================
 
 async def monitor():
-    global check_ticket, check_blue, tour_last_state
-
-    tour_cache = None
-
     while True:
 
-        # TOUR
-        html = fetch(TOUR_URL)
-
-        if html:
-            sig = smart_signature(html)
-            data = parse_tour(html)
-
-            if tour_last_state != sig:
-                tour_last_state = sig
-                tour_cache = data
-                await alert_tour(data)
-
-        # TICKETMASTER
+        # TICKET
         for url in EVENTS_TICKET:
-            check_ticket += 1
             html = fetch(url)
-            if html:
-                sig = smart_signature(html)
+            if not html:
+                continue
 
-                if url not in last_state or last_state[url] != sig:
-                    last_state[url] = sig
-                    await alert_ticket(url)
+            data = parse_event(html)
+            state = make_state(data)
+
+            old = last_state.get(url)
+
+            if old != state:
+                last_state[url] = state
+                await alert_ticket(url, data)
 
         # BLUE
         for url in EVENTS_BLUE:
-            check_blue += 1
             html = fetch(url)
-            if html:
-                sig = smart_signature(html)
+            if not html:
+                continue
 
-                if url not in last_state or last_state[url] != sig:
-                    last_state[url] = sig
-                    await alert_blue(url)
+            data = parse_event(html)
+            state = make_state(data)
 
-        await update_panel(tour_cache)
+            old = last_state.get(url)
+
+            if old != state:
+                last_state[url] = state
+                await alert_blue(url, data)
+
         await asyncio.sleep(30)
 
 # =========================
@@ -329,22 +242,20 @@ async def main():
     app_blue = ApplicationBuilder().token(BOT_TOKEN_BLUE).build()
 
     for app in [app_ticket, app_blue]:
-        app.add_handler(CommandHandler("status", status))
         app.add_handler(CommandHandler("teste", teste))
-        app.add_handler(CommandHandler("painel", painel))
 
-    print("🔥 Bots iniciando...")
-
-    await bot_admin.send_message(CHAT_ID, "👾 sistema iniciado")
-
-    asyncio.create_task(discord_client.start(DISCORD_TOKEN))
-    asyncio.create_task(monitor())
+    await bot_admin.send_message(
+        chat_id=ADMIN_ID,
+        text="👾•°•°• Painel iniciado •°•°•👾"
+    )
 
     await app_ticket.initialize()
     await app_blue.initialize()
 
     await app_ticket.start()
     await app_blue.start()
+
+    asyncio.create_task(monitor())
 
     await asyncio.Event().wait()
 
