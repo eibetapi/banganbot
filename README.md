@@ -1,1 +1,1 @@
-# banganbot
+# bangtanbot
