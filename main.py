@@ -17,7 +17,7 @@ from flask import Flask
 from threading import Thread
 
 # =========================
-# LOGGING (FIX TELEGRAM UPDATES)
+# LOG FIX
 # =========================
 
 logging.basicConfig(level=logging.INFO)
@@ -180,7 +180,7 @@ async def alert_tour(data):
     await discord_send(msg)
 
 # =========================
-# ALERT TICKET (NÃO ALTERADO)
+# ALERT TICKET
 # =========================
 
 async def alert_ticket(url, data):
@@ -243,7 +243,7 @@ TESTE_TEXT = """🌊TESTE🌊
 📊Qtd: 07
 """
 
-STATUS_TEXT = lambda: f"""🟢STATUS WOOTTEO°•°•°•°•👾
+STATUS_TEXT = lambda: f"""🟢STATUS WOOTTEO°•°•°••👾
 ⏰ Uptime: {get_uptime()}
 📊 Ticket Checks: {check_ticket}
 📊 Blue Checks: {check_blue}
@@ -335,7 +335,7 @@ async def monitor():
         await asyncio.sleep(30)
 
 # =========================
-# MAIN (FIX REAL DO TELEGRAM)
+# MAIN (CORRIGIDO DE VERDADE)
 # =========================
 
 async def main():
@@ -355,16 +355,14 @@ async def main():
     await app_ticket.initialize()
     await app_ticket.start()
 
-    # 🔥 ISSO AQUI FAZ OS COMANDOS FUNCIONAREM
-    await app_ticket.updater.start_polling()
-    await app_ticket.updater.idle()
-
+    # 🔥 CORREÇÃO FINAL (TELEGRAM FUNCIONANDO)
     await send_boot()
 
     asyncio.create_task(discord_client.start(os.getenv("DISCORD_TOKEN")))
     asyncio.create_task(monitor())
 
-    await asyncio.Event().wait()
+    await app_ticket.updater.start_polling()
+    await app_ticket.updater.idle()
 
 if __name__ == "__main__":
     asyncio.run(main())
