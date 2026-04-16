@@ -6,9 +6,8 @@ import hashlib
 from bs4 import BeautifulSoup
 import os
 
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram import Update
 
 # =========================
 # KEEP ALIVE
@@ -63,7 +62,7 @@ def get_uptime():
     return f"{s//3600}h {(s%3600)//60}m {s%60}s"
 
 # =========================
-# PAINEL ÚNICO
+# PAINEL
 # =========================
 
 panel_message_id = None
@@ -236,26 +235,21 @@ async def monitor():
     while True:
         try:
 
-            # TICKET
             for url in EVENTS_TICKET:
                 check_ticket += 1
-
                 html = fetch(url, True)
                 if not html:
                     continue
 
-                status, h = parse_ticket(html)
+                status_t, h = parse_ticket(html)
 
                 if last_state.get(url) != h:
                     last_state[url] = h
-
-                    if status == "DISPONIVEL":
+                    if status_t == "DISPONIVEL":
                         alert_ticket(url)
 
-            # BLUE
             for url in EVENTS_BLUE:
                 check_blue += 1
-
                 html = fetch(url, False)
                 if not html:
                     continue
@@ -273,23 +267,11 @@ async def monitor():
             await asyncio.sleep(30)
 
         except Exception as e:
-
             print("ERRO:", e)
-
             last_reconnect = time.strftime("%H:%M:%S")
 
-            bot_ticket.send_message(
-                chat_id=ADMIN_ID,
-                text="✨🌕Wootteo perdeu o sinal, tentando reconectar...🌕✨"
-            )
-
-            bot_blue.send_message(
-                chat_id=ADMIN_ID,
-                text="✨🌕Wootteo perdeu o sinal, tentando reconectar...🌕✨"
-            )
-
 # =========================
-# START
+# MAIN
 # =========================
 
 async def main():
@@ -303,23 +285,23 @@ async def main():
         app.add_handler(CommandHandler("status", status))
         app.add_handler(CommandHandler("painel", painel))
 
+    # inicia bots
     await app_ticket.initialize()
     await app_blue.initialize()
 
     await app_ticket.start()
     await app_blue.start()
 
-    # PRIVADO
-    bot_ticket.send_message(
-        chat_id=ADMIN_ID,
-        text="👾✨Wootteo recuperando rota✨👾"
-    )
+    # inicia polling (ESSENCIAL)
+    await app_ticket.updater.start_polling()
+    await app_blue.updater.start_polling()
 
-    bot_blue.send_message(
-        chat_id=ADMIN_ID,
-        text="👾✨Wootteo recuperando rota✨👾"
-    )
+    # roda monitor em paralelo
+    asyncio.create_task(monitor())
 
-    await monitor()
+    print("🔥 Bots online!")
+
+    # mantém rodando
+    await asyncio.Event().wait()
 
 asyncio.run(main())
