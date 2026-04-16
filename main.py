@@ -6,7 +6,6 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import os
 import re
-import logging
 
 import discord
 
@@ -15,12 +14,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from flask import Flask
 from threading import Thread
-
-# =========================
-# LOG FIX
-# =========================
-
-logging.basicConfig(level=logging.INFO)
 
 # =========================
 # KEEP ALIVE
@@ -60,8 +53,6 @@ session.headers.update({"User-Agent": "Mozilla/5.0"})
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.guilds = True
-intents.messages = True
 
 discord_client = discord.Client(intents=intents)
 
@@ -223,6 +214,7 @@ async def alert_blue(url, data):
 
 async def send_boot():
     msg = "👾•°•°• Wootteo ligando os motores•°•°•👾"
+
     await discord_send(msg)
 
     await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
@@ -230,7 +222,7 @@ async def send_boot():
     await bot_ticket.send_message(chat_id=ADMIN_ID, text=msg)
 
 # =========================
-# COMMANDS
+# COMMANDS (NÃO MEXER NO TEXTO)
 # =========================
 
 TESTE_TEXT = """🌊TESTE🌊
@@ -243,7 +235,7 @@ TESTE_TEXT = """🌊TESTE🌊
 📊Qtd: 07
 """
 
-STATUS_TEXT = lambda: f"""🟢STATUS WOOTTEO°•°•°••👾
+STATUS_TEXT = lambda: f"""🟢🔮STATUS WOOTTEO🔮
 ⏰ Uptime: {get_uptime()}
 📊 Ticket Checks: {check_ticket}
 📊 Blue Checks: {check_blue}
@@ -273,8 +265,6 @@ async def update_panel(tour_data=None):
     if not panel_message_id:
         return
 
-    top = sorted(br_rank.items(), key=lambda x: x[1], reverse=True)
-
     text = f"""👾 CENTRAL WOOTTEO 👾
 
 ⏰ Uptime: {get_uptime()}
@@ -285,11 +275,10 @@ async def update_panel(tour_data=None):
 ⏳ Faltam: {tour_data['days_left'] if tour_data else 'N/A'} dias
 
 🇧🇷 RANKING POSSÍVEIS DATAS BR:
-🥇 {top[0][0]} ({top[0][1]})
-🥈 {top[1][0]} ({top[1][1]})
-🥉 {top[2][0]} ({top[2][1]})
+🥇 {list(br_rank.keys())[0]} ({list(br_rank.values())[0]})
+🥈 {list(br_rank.keys())[1]} ({list(br_rank.values())[1]})
+🥉 {list(br_rank.keys())[2]} ({list(br_rank.values())[2]})
 
-🟣STATUS BOT
 🟡 Ticket: {check_ticket}
 🔵 Blue: {check_blue}
 """
@@ -335,7 +324,7 @@ async def monitor():
         await asyncio.sleep(30)
 
 # =========================
-# MAIN (CORRIGIDO DE VERDADE)
+# MAIN (FIX REAL DO TELEGRAM)
 # =========================
 
 async def main():
@@ -355,14 +344,15 @@ async def main():
     await app_ticket.initialize()
     await app_ticket.start()
 
-    # 🔥 CORREÇÃO FINAL (TELEGRAM FUNCIONANDO)
+    # 🔥 ISSO AQUI É O QUE FALTAVA:
+    asyncio.create_task(app_ticket.updater.start_polling())
+
     await send_boot()
 
-    asyncio.create_task(discord_client.start(os.getenv("DISCORD_TOKEN")))
+    asyncio.create_task(discord_client.start(DISCORD_TOKEN))
     asyncio.create_task(monitor())
 
-    await app_ticket.updater.start_polling()
-    await app_ticket.updater.idle()
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
