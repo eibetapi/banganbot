@@ -4,16 +4,19 @@ import requests
 import hashlib
 from bs4 import BeautifulSoup
 import os
+import re
+
+import discord
 
 from telegram import Bot, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# =========================
-# KEEP ALIVE
-# =========================
-
 from flask import Flask
 from threading import Thread
+
+# =========================
+# KEEP ALIVE (RAILWAY)
+# =========================
 
 app = Flask(__name__)
 
@@ -34,14 +37,37 @@ def keep_alive():
 BOT_TOKEN_TICKET = os.getenv("BOT_TOKEN_TICKET")
 BOT_TOKEN_BLUE = os.getenv("BOT_TOKEN_BLUE")
 
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
+
 CHAT_ID = -1003972186058
 ADMIN_ID = 1407508561
 
 bot_ticket = Bot(token=BOT_TOKEN_TICKET)
 bot_blue = Bot(token=BOT_TOKEN_BLUE)
+bot_admin = Bot(token=BOT_TOKEN_TICKET)
 
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
+
+# =========================
+# DISCORD
+# =========================
+
+intents = discord.Intents.default()
+discord_client = discord.Client(intents=intents)
+
+async def send_discord(msg):
+    try:
+        channel = discord_client.get_channel(DISCORD_CHANNEL_ID)
+        if channel:
+            await channel.send(msg)
+    except:
+        pass
+
+@discord_client.event
+async def on_ready():
+    print(f"Discord conectado como {discord_client.user}")
 
 # =========================
 # UPTIME
@@ -53,71 +79,40 @@ last_reconnect = "Nenhuma"
 check_ticket = 0
 check_blue = 0
 
-blocked_ticket = 0
-blocked_blue = 0
-
 def get_uptime():
     s = int(time.time() - start_time)
     return f"{s//3600}h {(s%3600)//60}m {s%60}s"
-
-# =========================
-# PAINEL
-# =========================
-
-panel_message_id = None
-
-async def painel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global panel_message_id
-
-    msg = await update.message.reply_text(
-        "👾•°•°• Painel Wootteo iniciado•°•°•👾"
-    )
-
-    panel_message_id = msg.message_id
-
-async def update_panel():
-    global panel_message_id
-
-    if not panel_message_id:
-        return
-
-    text = f"""👾•°•°• Central Wootteo •°•°•👾
-
-🟢 Status: ONLINE
-⏱️ Uptime: {get_uptime()}
-🔄 Reconexão: {last_reconnect}
-
-🎟️ Ticketmaster
-📊 Checks: {check_ticket}
-🚫 Bloqueios: {blocked_ticket}
-
-🔵 Blue
-📊 Checks: {check_blue}
-🚫 Bloqueios: {blocked_blue}
-"""
-
-    try:
-        await bot_ticket.edit_message_text(
-            chat_id=CHAT_ID,
-            message_id=panel_message_id,
-            text=text
-        )
-    except:
-        pass
 
 # =========================
 # LINKS
 # =========================
 
 EVENTS_TICKET = [
-    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10"
+    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10",
+    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-30-10",
+    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-31-10"
 ]
 
 EVENTS_BLUE = [
     "https://buyticketbrasil.com/evento/bts%E2%80%932026worldtourarirang?data=1793242799000"
 ]
 
+TOUR_URL = "https://ibighit.com/en/bts/tour/"
+
+# =========================
+# STATE
+# =========================
+
 last_state = {}
+tour_last_state = None
+
+br_rank = {
+    "São Paulo": 0,
+    "Rio de Janeiro": 0,
+    "Curitiba": 0,
+    "Belo Horizonte": 0,
+    "Brasília": 0,
+}
 
 # =========================
 # FETCH
@@ -130,61 +125,165 @@ def fetch(url):
         return None
 
 # =========================
-# ALERTAS (CORRIGIDO)
+# TOUR PARSER
+# =========================
+
+def parse_tour(html):
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(" ", strip=True).lower()
+
+    date = re.search(r"\d{1,2}/\d{1,2}", text)
+    date = date.group() if date else "N/A"
+
+    cities = []
+    countries = []
+
+    known = ["brazil", "japan", "korea", "usa", "france", "uk"]
+
+    for k in known:
+        if k in text:
+            countries.append(k.upper())
+
+    br_cities = ["são paulo", "rio de janeiro", "curitiba", "belo horizonte", "brasília"]
+
+    for c in br_cities:
+        if c in text:
+            cities.append(c.title())
+            br_rank[c.title()] += 1
+
+    return {
+        "date": date,
+        "cities": cities or ["N/A"],
+        "countries": countries or ["N/A"]
+    }
+
+# =========================
+# ALERTA TOUR
+# =========================
+
+async def alert_tour(data):
+    msg = f"""💜AGENDA TOUR UPDATE💜
+📅 Data: {data['date']}
+🏙️ Cidades: {", ".join(data['cities'])}
+🌎 Países: {", ".join(data['countries'])}
+"""
+    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    await send_discord(msg)
+
+# =========================
+# ALERTAS TICKETS
 # =========================
 
 async def alert_ticket(url):
-    await bot_ticket.send_message(
-        chat_id=CHAT_ID,
-        text=f"🔥 ALERTA\n{url}"
-    )
+    msg = f"""🔥 ALERTA 🔥
+🔗 {url}
+"""
+    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    await send_discord(msg)
 
-async def alert_blue(link):
-    await bot_blue.send_message(
-        chat_id=CHAT_ID,
-        text=f"🔵 {link}"
-    )
+async def alert_blue(url):
+    msg = f"""🔵 BLUE ALERTA
+🔗 {url}
+"""
+    await bot_blue.send_message(chat_id=CHAT_ID, text=msg)
+    await send_discord(msg)
 
 # =========================
-# STATUS
+# PAINEL
+# =========================
+
+panel_message_id = None
+
+async def painel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global panel_message_id
+
+    msg = await update.message.reply_text("👾 Painel ativado")
+    panel_message_id = msg.message_id
+
+async def update_panel(tour_data=None):
+    global panel_message_id
+
+    if not panel_message_id:
+        return
+
+    top = sorted(br_rank.items(), key=lambda x: x[1], reverse=True)
+
+    text = f"""👾 CENTRAL WOOTTEO 👾
+
+⏰ Uptime: {get_uptime()}
+
+🌍 PRÓXIMA TOUR DATA: {tour_data['date'] if tour_data else 'N/A'}
+🏙️ CIDADES: {", ".join(tour_data['cities']) if tour_data else 'N/A'}
+
+🇧🇷 RANKING BR:
+🥇 {top[0][0]} ({top[0][1]})
+🥈 {top[1][0]} ({top[1][1]})
+🥉 {top[2][0]} ({top[2][1]})
+
+🟡 Ticket: {check_ticket}
+🔵 Blue: {check_blue}
+"""
+
+    try:
+        await bot_ticket.edit_message_text(CHAT_ID, panel_message_id, text)
+    except:
+        pass
+
+# =========================
+# COMANDOS
 # =========================
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        f"🟢 BOT ONLINE\nUptime: {get_uptime()}"
-    )
+    await update.message.reply_text("🟢 ONLINE")
+
+async def teste(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("""🌊TESTE🌊
+📅Data: 13/06
+🔗Link: https://ibighit.com/en/bts/tour/
+📍Setor: Porão da Big Hit
+🎫Categoria: Army
+🎟️Tipo: OT7
+📦Status: disponível
+📊Qtd: 07
+""")
 
 # =========================
-# MONITOR (CORRIGIDO)
+# MONITOR
 # =========================
 
 async def monitor():
-    global check_ticket, check_blue
+    global check_ticket, check_blue, tour_last_state
+
+    tour_cache = None
 
     while True:
-        try:
-            for url in EVENTS_TICKET:
-                check_ticket += 1
-                html = fetch(url)
-                if html and url not in last_state:
-                    last_state[url] = True
-                    await alert_ticket(url)
 
-            for url in EVENTS_BLUE:
-                check_blue += 1
-                html = fetch(url)
-                if html and url not in last_state:
-                    last_state[url] = True
-                    await alert_blue(url)
+        # TOUR
+        html = fetch(TOUR_URL)
 
-            await update_panel()
-            await asyncio.sleep(30)
+        if html:
+            h = hashlib.md5(html.encode()).hexdigest()
+            data = parse_tour(html)
 
-        except Exception as e:
-            print("ERRO:", e)
+            if tour_last_state != h:
+                tour_last_state = h
+                tour_cache = data
+                await alert_tour(data)
+
+        # TICKETS
+        for url in EVENTS_TICKET:
+            check_ticket += 1
+            await alert_ticket(url)
+
+        for url in EVENTS_BLUE:
+            check_blue += 1
+            await alert_blue(url)
+
+        await update_panel(tour_cache)
+        await asyncio.sleep(30)
 
 # =========================
-# MAIN (ESTÁVEL)
+# MAIN
 # =========================
 
 async def main():
@@ -195,21 +294,22 @@ async def main():
 
     for app in [app_ticket, app_blue]:
         app.add_handler(CommandHandler("status", status))
+        app.add_handler(CommandHandler("teste", teste))
         app.add_handler(CommandHandler("painel", painel))
 
-    print("🔥 Bots iniciando...")
+    print("🔥 iniciando bots...")
 
-    # inicializa bots
+    await bot_admin.send_message(CHAT_ID, "👾 sistema iniciado")
+
+    asyncio.create_task(discord_client.start(DISCORD_TOKEN))
+    asyncio.create_task(monitor())
+
     await app_ticket.initialize()
     await app_blue.initialize()
 
     await app_ticket.start()
     await app_blue.start()
 
-    # roda monitor
-    asyncio.create_task(monitor())
-
-    # mantém rodando
     await asyncio.Event().wait()
 
 asyncio.run(main())
