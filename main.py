@@ -53,6 +53,8 @@ session.headers.update({"User-Agent": "Mozilla/5.0"})
 # =========================
 
 intents = discord.Intents.default()
+intents.message_content = True  # <<< ESSENCIAL
+
 discord_client = discord.Client(intents=intents)
 
 discord_panel_message = None
@@ -107,19 +109,13 @@ def parse_event(html):
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True).lower()
 
-    if "esgot" in text or "sold out" in text:
+    status = "DESCONHECIDO"
+    if "esgot" in text:
         status = "ESGOTADO"
-    elif "dispon" in text or "available" in text:
+    elif "dispon" in text:
         status = "DISPONÍVEL"
-    else:
-        status = "DESCONHECIDO"
 
-    if "pré-venda" in text or "pre venda" in text:
-        tipo = "PRÉ-VENDA"
-    elif "venda geral" in text:
-        tipo = "VENDA GERAL"
-    else:
-        tipo = "NÃO IDENTIFICADO"
+    tipo = "VENDA GERAL" if "venda geral" in text else "NÃO IDENTIFICADO"
 
     categorias = []
     if "meia" in text:
@@ -151,74 +147,54 @@ def parse_event(html):
     }
 
 # =========================
-# STATE BUILDER
+# STATE
 # =========================
 
 def make_state(data):
-    return f"{data['status']}|{data['tipo']}|{data['setor']}|{data['categorias']}|{data['quantidade']}|{data['date']}"
+    return f"{data['status']}|{data['tipo']}|{data['setor']}|{data['categorias']}"
 
 # =========================
-# ALERTAS TELEGRAM
+# ALERTAS
 # =========================
 
 async def alert_ticket(url, data):
     text = f"""🔥ALERTA DE REPOSIÇÃO 🔥
-📅Data: {data['date']}
 🔗Link: {url}
 📍Setor: {data['setor']}
 🎫Categoria: {data['categorias']}
 🎟️Tipo: {data['tipo']}
 📦Status: {data['status']}
-📊Qtd: {data['quantidade']}
 
-🎁ALERTA DE NOVA DATA🎁
-📅Data: {data['date']}
-🔗Link: {url}
-📍Setor: {data['setor']}
-🎫Categoria: {data['categorias']}
-🎟️Tipo: {data['tipo']}
-📦Status: {data['status']}
+🎁ALERTA DE NOVA DATA🎁 
+📅Data: {data['date']} 
+🔗Link: {url} 
+📍Setor: {data['setor']} 
+🎫Categoria: {data['categorias']} 
+🎟️Tipo: {data['tipo']} 
+📦Status: {data['status']} 
 📊Qtd: {data['quantidade']}
 """
     await bot_ticket.send_message(chat_id=CHAT_ID, text=text)
 
 async def alert_blue(url, data):
     text = f"""🔵REVENDA BLUE🔵
-📅Data: {data['date']}
 🔗Link: {url}
 📍Setor: {data['setor']}
 🎫Categoria: {data['categorias']}
 🎟️Tipo: {data['tipo']}
-💰Valor:
 📦Status: {data['status']}
-📊Qtd: {data['quantidade']}
 """
     await bot_blue.send_message(chat_id=CHAT_ID, text=text)
-
-# =========================
-# DISCORD
-# =========================
-
-async def send_discord(text):
-    try:
-        channel = discord_client.get_channel(DISCORD_CHANNEL_ID)
-        if channel:
-            await channel.send(text)
-    except:
-        pass
 
 # =========================
 # BOOT
 # =========================
 
 async def send_boot():
-    msg = "👾 BOT ONLINE"
-
+    msg = "👾•°•°• Wootteo ligando os motores•°•°•👾"
     await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
     await bot_blue.send_message(chat_id=CHAT_ID, text=msg)
     await bot_admin.send_message(chat_id=ADMIN_ID, text="👾•°•°• Wootteo ligando os motores•°•°•👾")
-
-    await send_discord(msg)
 
 # =========================
 # TESTE
@@ -239,42 +215,19 @@ async def teste(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # PAINEL
 # =========================
 
-async def send_panel():
-    global panel_message_id, discord_panel_message
-
-    text = f"""👾•°•°• CENTRAL WOOTTEO •°•°•👾
-
-🚨 Status: ONLINE
-⏰ Uptime: {get_uptime()}
-
-🟡 Ticket Checks: {check_ticket}
-🔵 Blue Checks: {check_blue}
-"""
-
-    if panel_message_id:
-        try:
-            await bot_ticket.edit_message_text(
-                chat_id=CHAT_ID,
-                message_id=panel_message_id,
-                text=text
-            )
-        except:
-            pass
-
-    if discord_panel_message:
-        try:
-            await discord_panel_message.edit(content=text)
-        except:
-            pass
+async def painel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global panel_message_id
+    panel_message_id = update.message.message_id
+    await update.message.reply_text("👾Painel iniciado👾")
 
 # =========================
-# MONITOR (SEM SPAM REAL)
+# MONITOR
 # =========================
 
 async def monitor():
     global system_ready, check_ticket, check_blue
 
-    # 🧠 CALIBRAÇÃO INICIAL (SEM ALERTA)
+    # calibração inicial (SEM ALERTA)
     if not system_ready:
         for url in EVENTS_TICKET + EVENTS_BLUE:
             html = fetch(url)
@@ -313,11 +266,10 @@ async def monitor():
                 last_state[url] = state
                 await alert_blue(url, data)
 
-        await send_panel()
         await asyncio.sleep(30)
 
 # =========================
-# DISCORD EVENTS
+# DISCORD
 # =========================
 
 @discord_client.event
@@ -331,12 +283,11 @@ async def on_message(message):
     if message.author == discord_client.user:
         return
 
-    if message.content == "/painel":
-        discord_panel_message = await message.channel.send("👾 Painel iniciado")
-        await send_panel()
+    if message.content.lower().strip() == "/painel":
+        discord_panel_message = await message.channel.send("👾•°•°• Wootteo ligando os motores•°•°•👾")
 
 # =========================
-# MAIN
+# MAIN (CORRIGIDO)
 # =========================
 
 async def main():
@@ -345,14 +296,13 @@ async def main():
     app_ticket = ApplicationBuilder().token(BOT_TOKEN_TICKET).build()
     app_blue = ApplicationBuilder().token(BOT_TOKEN_BLUE).build()
 
+    # handlers CORRETOS
     app_ticket.add_handler(CommandHandler("teste", teste))
-    app_blue.add_handler(CommandHandler("teste", teste))
+    app_ticket.add_handler(CommandHandler("painel", painel_cmd))
 
-    await app_ticket.initialize()
-    await app_blue.initialize()
-
-    await app_ticket.start()
-    await app_blue.start()
+    # IMPORTANTE: run_polling resolve tudo
+    asyncio.create_task(app_ticket.run_polling())
+    asyncio.create_task(app_blue.run_polling())
 
     asyncio.create_task(discord_client.start(DISCORD_TOKEN))
     asyncio.create_task(monitor())
