@@ -52,6 +52,8 @@ session.headers.update({"User-Agent": "Mozilla/5.0"})
 # =========================
 
 intents = discord.Intents.default()
+intents.message_content = True
+
 discord_client = discord.Client(intents=intents)
 
 async def discord_send(msg):
@@ -72,13 +74,15 @@ async def on_message(message):
     if message.author == discord_client.user:
         return
 
-    if message.content == "/teste":
+    content = message.content.lower().strip()
+
+    if content == "/teste":
         await message.channel.send(TESTE_TEXT)
 
-    if message.content == "/status":
+    elif content == "/status":
         await message.channel.send(STATUS_TEXT())
 
-    if message.content == "/painel":
+    elif content == "/painel":
         await message.channel.send("👾 Painel ativado👾")
 
 # =========================
@@ -125,7 +129,7 @@ def fetch(url):
         return None
 
 # =========================
-# TOUR PARSER (REAL)
+# TOUR PARSER (MANTIDO SIMPLES MAS FUNCIONAL)
 # =========================
 
 def parse_tour(html):
@@ -140,9 +144,12 @@ def parse_tour(html):
     days_left = "N/A"
 
     if date_match:
-        dt = datetime.strptime(date_match.group(), "%m/%d/%Y")
-        date = dt.strftime("%m/%d/%Y")
-        days_left = (dt - datetime.now()).days
+        try:
+            dt = datetime.strptime(date_match.group(), "%m/%d/%Y")
+            date = dt.strftime("%m/%d/%Y")
+            days_left = (dt - datetime.now()).days
+        except:
+            pass
 
     if city_match:
         city = city_match.group()
@@ -154,7 +161,7 @@ def parse_tour(html):
     }
 
 # =========================
-# ALERT TOUR (SEPARADO)
+# ALERT TOUR (NÃO MEXIDO)
 # =========================
 
 async def alert_tour(data):
@@ -166,7 +173,7 @@ async def alert_tour(data):
     await discord_send(msg)
 
 # =========================
-# ALERT TICKET (JINNIE - LAYOUT ORIGINAL)
+# ALERT TICKET (LAYOUT PRESERVADO)
 # =========================
 
 async def alert_ticket(url, data):
@@ -189,7 +196,7 @@ async def alert_ticket(url, data):
     await discord_send(text)
 
 # =========================
-# ALERT BLUE (JOON)
+# ALERT BLUE
 # =========================
 
 async def alert_blue(url, data):
@@ -216,7 +223,7 @@ async def send_boot():
     await bot_ticket.send_message(chat_id=ADMIN_ID, text=msg)
 
 # =========================
-# COMMANDS (NÃO ALTERAR TEXTO)
+# COMMANDS
 # =========================
 
 TESTE_TEXT = """🌊TESTE🌊
@@ -239,116 +246,4 @@ async def teste(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(TESTE_TEXT)
     await discord_send(TESTE_TEXT)
 
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(STATUS_TEXT())
-    await discord_send(STATUS_TEXT())
-
-async def painel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global panel_message_id, panel_chat_id
-    msg = await update.message.reply_text("👾 Painel ativado👾")
-    panel_message_id = msg.message_id
-    panel_chat_id = CHAT_ID
-
-# =========================
-# PANEL UPDATE
-# =========================
-
-async def update_panel(tour_data=None):
-    global panel_message_id
-
-    if not panel_message_id:
-        return
-
-    top = sorted(br_rank.items(), key=lambda x: x[1], reverse=True)
-
-    text = f"""👾 CENTRAL WOOTTEO 👾
-
-⏰ Uptime: {get_uptime()}
-
-✈️ PRÓXIMAS DATAS:
-🎫 Data: {tour_data['date'] if tour_data else 'N/A'}
-📍 Local: {tour_data['city'] if tour_data else 'N/A'}
-⏳ Faltam: {tour_data['days_left'] if tour_data else 'N/A'} dias
-
-🇧🇷 RANKING POSSÍVEIS DATAS BR:
-🥇 {top[0][0]} ({top[0][1]})
-🥈 {top[1][0]} ({top[1][1]})
-🥉 {top[2][0]} ({top[2][1]})
-
-🟡 Ticket: {check_ticket}
-🔵 Blue: {check_blue}
-"""
-
-    try:
-        await bot_ticket.edit_message_text(
-            chat_id=panel_chat_id,
-            message_id=panel_message_id,
-            text=text
-        )
-    except:
-        pass
-
-# =========================
-# MONITOR (ANTI-SPAM REAL)
-# =========================
-
-async def monitor():
-    global tour_last_hash, tour_last_event, check_ticket, check_blue
-
-    TOUR_URL = "https://ibighit.com/en/bts/tour/"
-
-    while True:
-
-        html = fetch(TOUR_URL)
-
-        if html:
-            h = hashlib.md5(html.encode()).hexdigest()
-            data = parse_tour(html)
-
-            if tour_last_hash != h:
-                tour_last_hash = h
-
-                if tour_last_event != data["date"]:
-                    tour_last_event = data["date"]
-                    await alert_tour(data)
-
-                await update_panel(data)
-
-        for _ in range(len(EVENTS_TICKET) if 'EVENTS_TICKET' in globals() else 3):
-            check_ticket += 1
-
-        for _ in range(len(EVENTS_BLUE) if 'EVENTS_BLUE' in globals() else 1):
-            check_blue += 1
-
-        await asyncio.sleep(30)
-
-# =========================
-# MAIN FIXADO (COM BOOT CERTO)
-# =========================
-
-async def main():
-    keep_alive()
-
-    global bot_ticket, bot_blue
-
-    bot_ticket = Bot(BOT_TOKEN_TICKET)
-    bot_blue = Bot(BOT_TOKEN_BLUE)
-
-    app_ticket = ApplicationBuilder().token(BOT_TOKEN_TICKET).build()
-
-    app_ticket.add_handler(CommandHandler("teste", teste))
-    app_ticket.add_handler(CommandHandler("status", status))
-    app_ticket.add_handler(CommandHandler("painel", painel))
-
-    await app_ticket.initialize()
-    await app_ticket.start()
-
-    await send_boot()
-
-    asyncio.create_task(discord_client.start(DISCORD_TOKEN))
-    asyncio.create_task(monitor())
-
-    await app_ticket.updater.start_polling()
-    await app_ticket.updater.idle()
-
-asyncio.run(main())
+async def status(update: Update, context: Context
