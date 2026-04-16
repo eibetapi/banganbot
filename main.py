@@ -282,11 +282,22 @@ async def main():
         app.add_handler(CommandHandler("status", status))
         app.add_handler(CommandHandler("painel", painel))
 
-    # roda bots em paralelo
-    asyncio.create_task(app_ticket.run_polling())
-    asyncio.create_task(app_blue.run_polling())
+    # inicializa
+    await app_ticket.initialize()
+    await app_blue.initialize()
 
-    # roda monitor junto
+    # inicia
+    await app_ticket.start()
+    await app_blue.start()
+
+    # inicia polling (CORRETO)
+    await app_ticket.bot.initialize()
+    await app_blue.bot.initialize()
+
+    asyncio.create_task(app_ticket._application.run_polling())
+    asyncio.create_task(app_blue._application.run_polling())
+
+    # monitor
     asyncio.create_task(monitor())
 
     print("🔥 Bots online!")
