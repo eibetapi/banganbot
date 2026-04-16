@@ -271,6 +271,9 @@ async def monitor():
 # MAIN
 # =========================
 
+async def start_bot(app):
+    await app.run_polling()
+
 async def main():
 
     keep_alive()
@@ -282,26 +285,15 @@ async def main():
         app.add_handler(CommandHandler("status", status))
         app.add_handler(CommandHandler("painel", painel))
 
-    # inicializa
-    await app_ticket.initialize()
-    await app_blue.initialize()
-
-    # inicia
-    await app_ticket.start()
-    await app_blue.start()
-
-    # inicia polling (CORRETO)
-    await app_ticket.bot.initialize()
-    await app_blue.bot.initialize()
-
-    asyncio.create_task(app_ticket._application.run_polling())
-    asyncio.create_task(app_blue._application.run_polling())
-
-    # monitor
+    # roda monitor em paralelo
     asyncio.create_task(monitor())
 
-    print("🔥 Bots online!")
+    print("🔥 Bots iniciando...")
 
-    await asyncio.Event().wait()
+    # roda os dois bots juntos
+    await asyncio.gather(
+        start_bot(app_ticket),
+        start_bot(app_blue)
+    )
 
 asyncio.run(main())
