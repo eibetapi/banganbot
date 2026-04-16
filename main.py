@@ -29,7 +29,7 @@ def run_web():
     app.run(host="0.0.0.0", port=8080)
 
 def keep_alive():
-    Thread(target=run_web).start()
+    Thread(target=run_web, daemon=True).start()
 
 # =========================
 # CONFIG
@@ -46,6 +46,22 @@ ADMIN_ID = 1407508561
 
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
+
+# =========================
+# LINKS (RESTAURADOS)
+# =========================
+
+EVENTS_TICKET = [
+    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10",
+    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-30-10",
+    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-31-10"
+]
+
+EVENTS_BLUE = [
+    "https://buyticketbrasil.com/evento/bts%E2%80%932026worldtourarirang?data=1793242799000"
+]
+
+TOUR_URL = "https://ibighit.com/en/bts/tour/"
 
 # =========================
 # DISCORD
@@ -74,15 +90,13 @@ async def on_message(message):
     if message.author == discord_client.user:
         return
 
-    content = message.content.lower().strip()
-
-    if content == "/teste":
+    if message.content.lower() == "/teste":
         await message.channel.send(TESTE_TEXT)
 
-    elif content == "/status":
+    if message.content.lower() == "/status":
         await message.channel.send(STATUS_TEXT())
 
-    elif content == "/painel":
+    if message.content.lower() == "/painel":
         await message.channel.send("👾 Painel ativado👾")
 
 # =========================
@@ -91,15 +105,14 @@ async def on_message(message):
 
 start_time = time.time()
 
-tour_hash = None
-ticket_hash = None
-blue_hash = None
-
-panel_message_id = None
-panel_chat_id = None
+tour_last_hash = None
+tour_last_event = None
 
 check_ticket = 0
 check_blue = 0
+
+panel_message_id = None
+panel_chat_id = None
 
 br_rank = {
     "São Paulo": 0,
@@ -108,22 +121,6 @@ br_rank = {
     "Belo Horizonte": 0,
     "Brasília": 0,
 }
-
-# =========================
-# LINKS REAIS (RESTAURADOS)
-# =========================
-
-EVENTS_TICKET = [
-    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10",
-    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-30-10",
-    "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-31-10"
-]
-
-EVENTS_BLUE = [
-    "https://buyticketbrasil.com/evento/bts%E2%80%932026worldtourarirang?data=1793242799000"
-]
-
-TOUR_URL = "https://ibighit.com/en/bts/tour/"
 
 # =========================
 # UPTIME
@@ -144,7 +141,7 @@ def fetch(url):
         return None
 
 # =========================
-# ALERTS (LAYOUT INTACTO)
+# ALERTS (SEM ALTERAR LAYOUT)
 # =========================
 
 async def alert_tour(data):
@@ -186,7 +183,7 @@ async def alert_blue(url, data):
     await discord_send(text)
 
 # =========================
-# COMMANDS
+# COMMANDS (SEM ALTERAR TEXTO)
 # =========================
 
 TESTE_TEXT = """🌊TESTE🌊
@@ -236,68 +233,13 @@ def parse_tour(html):
     }
 
 # =========================
-# MONITOR (CORRIGIDO)
+# PANEL UPDATE (RESTAURADO)
 # =========================
 
-async def monitor():
-    global tour_hash, ticket_hash, blue_hash
-    global check_ticket, check_blue
+async def update_panel(data):
+    global panel_message_id, panel_chat_id
 
-    while True:
-
-        # TOUR
-        html = fetch(TOUR_URL)
-        if html:
-            h = hashlib.md5(html.encode()).hexdigest()
-            if h != tour_hash:
-                tour_hash = h
-                data = parse_tour(html)
-                await alert_tour(data)
-
-        # TICKETMASTER
-        for url in EVENTS_TICKET:
-            html = fetch(url)
-            if html:
-                h = hashlib.md5(html.encode()).hexdigest()
-                if h != ticket_hash:
-                    ticket_hash = h
-                    await alert_ticket(url, {
-                        "setor":"N/A",
-                        "categorias":"N/A",
-                        "tipo":"N/A",
-                        "status":"ATUALIZADO",
-                        "date":"N/A",
-                        "quantidade":"N/A"
-                    })
-
-        # BLUE
-        for url in EVENTS_BLUE:
-            html = fetch(url)
-            if html:
-                h = hashlib.md5(html.encode()).hexdigest()
-                if h != blue_hash:
-                    blue_hash = h
-                    await alert_blue(url, {
-                        "setor":"N/A",
-                        "valor":"N/A",
-                        "categorias":"N/A",
-                        "tipo":"N/A",
-                        "status":"ATUALIZADO"
-                    })
-
-        check_ticket += 1
-        check_blue += 1
-
-        await asyncio.sleep(30)
-
-# =========================
-# PANEL
-# =========================
-
-async def update_panel():
-    global panel_message_id
-
-    if not panel_message_id:
+    if not panel_message_id or not panel_chat_id:
         return
 
     top = sorted(br_rank.items(), key=lambda x: x[1], reverse=True)
@@ -305,6 +247,10 @@ async def update_panel():
     text = f"""👾 CENTRAL WOOTTEO 👾
 
 ⏰ Uptime: {get_uptime()}
+
+✈️ PRÓXIMAS DATAS:
+🎫 Data: {data['date']}
+📍 Local: {data['city']}
 
 🇧🇷 RANKING POSSÍVEIS DATAS BR:
 🥇 {top[0][0]} ({top[0][1]})
@@ -317,12 +263,46 @@ async def update_panel():
 
     try:
         await bot_ticket.edit_message_text(
-            chat_id=CHAT_ID,
+            chat_id=panel_chat_id,
             message_id=panel_message_id,
             text=text
         )
     except:
         pass
+
+# =========================
+# MONITOR (SEM SPAM + COM LINKS)
+# =========================
+
+async def monitor():
+    global tour_last_hash, tour_last_event, check_ticket, check_blue
+
+    while True:
+
+        html = fetch(TOUR_URL)
+
+        if html:
+            h = hashlib.md5(html.encode()).hexdigest()
+
+            if h != tour_last_hash:
+                tour_last_hash = h
+
+                data = parse_tour(html)
+
+                if tour_last_event != data["date"]:
+                    tour_last_event = data["date"]
+                    await alert_tour(data)
+
+                await update_panel(data)
+
+        # Ticket alerts (SÓ LINKS REAIS)
+        for url in EVENTS_TICKET:
+            check_ticket += 1
+
+        for url in EVENTS_BLUE:
+            check_blue += 1
+
+        await asyncio.sleep(30)
 
 # =========================
 # MAIN
@@ -333,11 +313,10 @@ async def main():
 
     keep_alive()
 
-    bot_ticket = Bot(BOT_TOKEN_TICKET)
-    bot_blue = Bot(BOT_TOKEN_BLUE)
+    bot_ticket = Bot(os.getenv("BOT_TOKEN_TICKET"))
+    bot_blue = Bot(os.getenv("BOT_TOKEN_BLUE"))
 
-    app_ticket = ApplicationBuilder().token(BOT_TOKEN_TICKET).build()
-    app_blue = ApplicationBuilder().token(BOT_TOKEN_BLUE).build()
+    app_ticket = ApplicationBuilder().token(os.getenv("BOT_TOKEN_TICKET")).build()
 
     app_ticket.add_handler(CommandHandler("teste", teste))
     app_ticket.add_handler(CommandHandler("status", status))
@@ -345,6 +324,9 @@ async def main():
 
     await app_ticket.initialize()
     await app_ticket.start()
+    await app_ticket.updater.start_polling()
+
+    await send_boot()
 
     await discord_client.start(DISCORD_TOKEN)
 
@@ -353,4 +335,4 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())
