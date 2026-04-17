@@ -993,20 +993,12 @@ async def main():
 
     await send_boot()
 
-    try:
-        asyncio.create_task(monitor())
-    except:
-        pass
+    # BACKGROUND TASKS
+    asyncio.create_task(monitor())
+    asyncio.create_task(panel_loop())
 
-    try:
-        asyncio.create_task(panel_loop())
-    except:
-        pass
-
-await app.run_polling()
-
-    while True:
-        await asyncio.sleep(3600)
+    # mantém o bot vivo (CORRETO)
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -1039,7 +1031,7 @@ def is_new(content):
     return True
 
 # =========================
-# TICKETMASTER CHECK
+# 23 TICKETMASTER CHECK
 # =========================
 
 async def check_ticketmaster(session):
@@ -1063,7 +1055,7 @@ async def check_ticketmaster(session):
             await update_panel()
 
 # =========================
-# BUYTICKET CHECK
+# 24 BUYTICKET CHECK
 # =========================
 
 async def check_buyticket(session):
@@ -1086,7 +1078,7 @@ async def check_buyticket(session):
             await update_panel()
 
 # =========================
-# WEVERSE CHECK
+# 25 WEVERSE CHECK
 # =========================
 
 async def check_weverse(session):
@@ -1107,7 +1099,7 @@ async def check_weverse(session):
             await update_panel()
 
 # =========================
-# SOCIAL CHECK (INSTAGRAM / X / TIKTOK)
+# 26 SOCIAL CHECK (INSTAGRAM / X / TIKTOK)
 # =========================
 async def check_social(session):
     global last_social_check
@@ -1147,7 +1139,7 @@ async def check_social(session):
     await update_panel()
 
 # =========================
-# LOOP PRINCIPAL
+# 27 LOOP PRINCIPAL
 # =========================
 
 async def monitor():
@@ -1167,7 +1159,7 @@ async def monitor():
             await asyncio.sleep(20)
 
 # =========================
-# 23 PANEL LOOP (TEMPO REAL)
+# 28 PANEL LOOP (TEMPO REAL)
 # =========================
 
 async def panel_loop():
