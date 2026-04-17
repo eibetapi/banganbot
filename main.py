@@ -232,7 +232,7 @@ async def send_boot():
 
 
 # =========================
-# 2. PAINEL
+# 2. PAINEL FIXADO
 # =========================
 
 async def update_panel():
@@ -266,11 +266,10 @@ acesso realizado: {check_blue} | último rastreio há {minutes_since(last_blue_c
 
 
 # =========================
-# 3. ALERTAS OFICIAIS
+# 3. ALERTAS OFICIAIS (ORDEM: REPOSIÇÃO, NOVAS DATAS, REVENDA, AGENDA)
 # =========================
 
 async def ticket_reposicao(url, key, found):
-    # Trava para Brasil (28, 30, 31/10)
     if any(x in str(key) for x in ["28/10", "30/10", "31/10"]):
         msg = f"""🔥*ALERTA DE REPOSIÇÃO*🔥
 📅 *Data:* {clean(key)}
@@ -284,7 +283,6 @@ async def ticket_reposicao(url, key, found):
 
 
 async def ticket_nova_data(url, key, found):
-    # Trava para Brasil (28, 30, 31/10 ou texto Brasil)
     if any(x in str(key) for x in ["28/10", "30/10", "31/10"]) or "Brasil" in str(key):
         msg = f"""🎁*ALERTA DE NOVA DATA*🎁
 📅 *Data:* {clean(key)}
@@ -299,7 +297,6 @@ async def ticket_nova_data(url, key, found):
 
 
 async def blue_revenda(url, key, found):
-    # Trava para Brasil (28, 30, 31/10)
     if any(x in str(key) for x in ["28/10", "30/10", "31/10"]):
         msg = f"""🔵*REVENDA BLUE*🔵
 📅 *Data:* {clean(key)}
@@ -314,7 +311,6 @@ async def blue_revenda(url, key, found):
 
 
 async def agenda_update(data):
-    # Trava para Brasil
     country = str(data.get('country', ''))
     city = str(data.get('city', ''))
     if "Brasil" in country or "Paulo" in city or "Brasil" in str(data):
@@ -328,7 +324,7 @@ async def agenda_update(data):
 
 
 # =========================
-# 4. ALERTAS DE TESTE
+# 4. ALERTAS DE TESTE (SOMENTE COMANDO /TESTE)
 # =========================
 
 async def test_reposicao(url, key, found):
@@ -398,11 +394,12 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
 
     if "/teste" in text:
+        # Ordem Cronológica solicitada: 28, 30 e 31
         await test_reposicao(TICKET_LINKS[0], "28/10/2026", True)
-        await test_reposicao(TICKET_LINKS[0], "31/10/2026", True)
         await test_nova_data(TICKET_LINKS[1], "30/10/2026", True)
-        await test_blue(BLUE_LINKS[0], "25/04/2026", True)
-        await test_agenda({"date": "25/04/2026", "city": "Seoul", "country": "Coreia do Sul"})
+        await test_reposicao(TICKET_LINKS[2], "31/10/2026", True)
+        await test_blue(BLUE_LINKS[0], "28/10/2026", True)
+        await test_agenda({"date": "28/10/2026", "city": "São Paulo", "country": "Brasil"})
 
 
 # =========================
