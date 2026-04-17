@@ -1006,8 +1006,23 @@ async def safe_boot_loop():
             await asyncio.sleep(1)
         except Exception:
             await send_boot_message()
-
 asyncio.create_task(safe_boot_loop())
+
+# =========================
+# SAFE BOOT LOOP START (FIX)
+# =========================
+
+async def safe_boot_loop():
+    while True:
+        try:
+            await asyncio.sleep(60)
+
+            # opcional: só dispara se bot já estiver ativo
+            if bot_ticket:
+                await send_boot()
+
+        except Exception as e:
+            print("[SAFE_BOOT_LOOP ERROR]", e)
 
 # =========================
 # 22 MONITOR ENGINE (TEMPO REAL + ANTI DUPLICAÇÃO)
