@@ -302,14 +302,14 @@ async def test_agenda(data):
 
 
 # =========================
-# 5. COMANDOS (CORRIGIDO CANAL)
+# 5. COMANDOS (PV → CANAL)
 # =========================
 
 async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    msg = update.message or update.channel_post
+    msg = update.message
 
-    if not msg or not msg.text:
+    if not msg or msg.chat.type != "private":
         return
 
     text = msg.text.lower()
