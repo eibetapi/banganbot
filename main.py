@@ -437,21 +437,29 @@ async def send_boot():
     if not bot_ticket:
         return
 
-    # trava simples anti-duplo boot
-    if not boot_lock:
-        boot_lock = True
-    else:
+    # trava anti-duplo boot
+    if boot_lock:
         return
+    boot_lock = True
 
     try:
-        await bot_ticket.send_message(
-            chat_id=CHAT_ID,
-            text="🛸•°•Wootteo entrando em rota°•°🛸"
-        )
+        msg = "🛸•°•Wootteo entrando em rota°•°🛸"
+
+        try:
+            await bot_ticket.send_message(
+                chat_id=CHAT_ID,
+                text=msg
+            )
+        except Exception as e:
+            print(f"[BOOT TELEGRAM ERROR] {e}")
+
+        try:
+            await send_discord(DISCORD_PANEL_CHANNEL_ID, msg)
+        except Exception as e:
+            print(f"[BOOT DISCORD ERROR] {e}")
 
         create_new = True
 
-        # tenta atualizar painel existente
         if panel_message_id:
             try:
                 await update_panel()
@@ -459,14 +467,14 @@ async def send_boot():
             except Exception:
                 create_new = True
 
-        # cria painel novo se necessário
         if create_new:
-            msg = await bot_ticket.send_message(
+            msg_panel = await bot_ticket.send_message(
                 chat_id=CHAT_ID,
                 text="👾 PAINEL DE CONTROLE 👾\n\nInicializando..."
             )
 
-            panel_message_id = msg.message_id
+            panel_message_id = msg_panel.message_id
+            panel_chat_id = CHAT_ID
 
             try:
                 await bot_ticket.pin_chat_message(
@@ -991,6 +999,15 @@ async def main():
         drop_pending_updates=True,
         close_loop=False
     )
+
+async def safe_boot_loop():
+    while True:
+        try:
+            await asyncio.sleep(1)
+        except Exception:
+            await send_boot_message()
+
+asyncio.create_task(safe_boot_loop())
 
 # =========================
 # 22 MONITOR ENGINE (TEMPO REAL + ANTI DUPLICAÇÃO)
