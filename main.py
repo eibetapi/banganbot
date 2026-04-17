@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 from flask import Flask
 from threading import Thread
 
@@ -86,7 +86,6 @@ AGENDA = [
 # =========================
 
 boot_lock = True
-app_ready = False
 
 
 # =========================
@@ -112,12 +111,10 @@ def minutes_since(ts):
 
 def get_next_show():
     now = datetime.now()
-
     for d, city in AGENDA:
         dt = datetime.strptime(d, "%d/%m/%Y")
         if dt >= now:
             return d, city, days_left(d)
-
     return "carregando...", "carregando...", "..."
 
 
@@ -305,21 +302,27 @@ async def test_agenda(data):
 
 
 # =========================
-# 5. COMANDOS
+# 5. COMANDOS (CORRIGIDO CANAL)
 # =========================
 
 async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if not update.message:
+    msg = update.message or update.channel_post
+
+    if not msg or not msg.text:
         return
 
-    text = update.message.text.lower()
+    text = msg.text.lower()
 
     if "/teste" in text:
         await test_reposicao(TICKET_LINKS[0], "31/10/2026", True)
         await test_nova_data(TICKET_LINKS[1], "30/10/2026", True)
         await test_blue(BLUE_LINKS[0], "25/04/2026", True)
-        await test_agenda({"date": "25/04/2026", "city": "Seoul", "country": "Coreia do Sul"})
+        await test_agenda({
+            "date": "25/04/2026",
+            "city": "Seoul",
+            "country": "Coreia do Sul"
+        })
 
     elif "/painel" in text:
         await update_panel()
@@ -369,7 +372,7 @@ async def main():
 
     app = ApplicationBuilder().token(os.getenv("BOT_TOKEN_TICKET")).build()
 
-    app.add_handler(MessageHandler(filters.TEXT & filters.COMMAND, handle_commands))
+    app.add_handler(MessageHandler(filters.TEXT, handle_commands))
 
     await app.initialize()
 
