@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 from flask import Flask
 from threading import Thread
 
@@ -63,8 +63,9 @@ BLUE_LINKS = [
     "https://buyticketbrasil.com/evento/bts-2026-world-tour-arirang"
 ]
 
+
 # =========================
-# AGENDA FIXA (TEMPO REAL CONTROLADO)
+# AGENDA FIXA
 # =========================
 
 AGENDA = [
@@ -108,7 +109,6 @@ def days_left(date_str):
 
 def minutes_since(ts):
     return int((time.time() - ts) / 60)
-
 
 def get_next_show():
     now = datetime.now()
@@ -305,20 +305,24 @@ async def test_agenda(data):
 
 
 # =========================
-# 5. COMANDOS (FUNCIONANDO NO CANAL)
+# 5. COMANDOS
 # =========================
 
-async def teste(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
+async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    await test_reposicao(TICKET_LINKS[0], "31/10/2026", True)
-    await test_nova_data(TICKET_LINKS[1], "30/10/2026", True)
-    await test_blue(BLUE_LINKS[0], "25/04/2026", True)
-    await test_agenda({"date": "25/04/2026", "city": "Seoul", "country": "Coreia do Sul"})
+    if not update.message:
+        return
 
+    text = update.message.text.lower()
 
-async def painel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update_panel()
+    if "/teste" in text:
+        await test_reposicao(TICKET_LINKS[0], "31/10/2026", True)
+        await test_nova_data(TICKET_LINKS[1], "30/10/2026", True)
+        await test_blue(BLUE_LINKS[0], "25/04/2026", True)
+        await test_agenda({"date": "25/04/2026", "city": "Seoul", "country": "Coreia do Sul"})
+
+    elif "/painel" in text:
+        await update_panel()
 
 
 # =========================
@@ -357,7 +361,7 @@ async def panel_loop():
 
 async def main():
 
-    global bot_ticket, app_ready
+    global bot_ticket
 
     keep_alive()
 
@@ -365,14 +369,11 @@ async def main():
 
     app = ApplicationBuilder().token(os.getenv("BOT_TOKEN_TICKET")).build()
 
-    app.add_handler(CommandHandler("teste", teste, block=False))
-    app.add_handler(CommandHandler("painel", painel, block=False))
+    app.add_handler(MessageHandler(filters.TEXT & filters.COMMAND, handle_commands))
 
     await app.initialize()
 
     await bot_ticket.delete_webhook(drop_pending_updates=True)
-
-    app_ready = True
 
     await send_boot()
 
