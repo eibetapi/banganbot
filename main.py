@@ -403,29 +403,7 @@ def send_alert(alert_type, message):
         )
 
 # =========================
-# 12 DISCORD SENDER 
-# =========================
-
-async def send_discord(channel_id, message):
-    global bot_discord
-
-    if not bot_discord:
-        return
-
-    try:
-        channel = bot_discord.get_channel(channel_id)
-
-        if not channel:
-            channel = await bot_discord.fetch_channel(channel_id)
-
-        await channel.send(message)
-
-    except Exception as e:
-        print(f"[DISCORD SEND ERROR] {e}")
-
-
-# =========================
-# 13 MENSAGEM DE RESET / RECONNECT
+# 12 MENSAGEM DE RESET / RECONNECT
 # =========================
 
 async def send_boot():
@@ -488,7 +466,7 @@ async def send_boot():
         boot_lock = False
 
 # =========================
-# 14 PAINEL FIXADO (CORRIGIDO + MONITOR)
+# 13 PAINEL FIXADO (CORRIGIDO + MONITOR)
 # =========================
 
 async def update_panel():
@@ -538,7 +516,7 @@ async def update_panel():
     except Exception as e:
         print(f"[PAINEL ERROR] {e}")
 # =========================
-# 15 ALERTAS OFICIAIS (ORDEM: REPOSIÇÃO, NOVAS DATAS, REVENDA, AGENDA)
+# 14 ALERTAS OFICIAIS (ORDEM: REPOSIÇÃO, NOVAS DATAS, REVENDA, AGENDA)
 # =========================
 
 async def ticket_reposicao(url, key, found):
@@ -594,7 +572,7 @@ async def agenda_update(data):
         await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
 
 # =========================
-# 16 ALERTAS WEVERSE
+# 15 ALERTAS WEVERSE
 # =========================
 
 async def weverse_post(url, member_name, title, message_translated, found):
@@ -635,7 +613,7 @@ async def test_weverse_media(url, member_name, title, message_translated, found)
     await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
 
 # =========================
-# 17 ALERTAS INSTAGRAM
+# 16  ALERTAS INSTAGRAM
 # =========================
 
 async def instagram_post(url, member_name, title, found):
@@ -675,7 +653,7 @@ async def instagram_live(url, member_name, title, found):
     await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
 
 # =========================
-# 18 ALERTAS TIKTOK
+# 17 ALERTAS TIKTOK
 # =========================
 
 async def tiktok_post(url, member_name, title, found):
@@ -697,7 +675,7 @@ async def tiktok_live(url, member_name, title, found):
     await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
 
 # =========================
-# 19 ALERTAS DE TESTE (UNIFICADO)
+# 18 ALERTAS DE TESTE (UNIFICADO)
 # =========================
 
 TEST_HEADER = "⚠️ TESTE ⚠️"
@@ -971,7 +949,7 @@ async def run_test_suite():
     await test_tiktok_live(TIKTOK_LINKS["bts"], "bts", "live", True)
 
 # =========================
-# 20 COMANDOS (PV EXCLUSIVO TELEGRAM)
+# 19 COMANDOS (PV EXCLUSIVO TELEGRAM)
 # =========================
 
 async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -985,17 +963,47 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
 
     # =========================
-    # 🧪 TESTE COMPLETO (TELEGRAM + DISCORD)
+    # 20 TESTE COMPLETO (TELEGRAM + DISCORD)
     # =========================
-    if "/teste" in text:
+  if text.strip() == "/teste":
 
-        await bot_ticket.send_message(
-            chat_id=CHAT_ID,
-            text="🧪 INICIANDO TESTE COMPLETO DE ALERTAS..."
-        )
+    await bot_ticket.send_message(
+        chat_id=CHAT_ID,
+        text="🧪 INICIANDO TESTE COMPLETO DE ALERTAS..."
+    )
+
+    testes = [
+        ("ticket", test_ticket_reposicao, TICKET_LINKS[0], "28/10/2026"),
+        ("ticket", test_ticket_nova_data, TICKET_LINKS[1], "30/10/2026"),
+        ("ticket", test_ticket_reposicao, TICKET_LINKS[2], "31/10/2026"),
+
+        ("revenda", test_buy_revenda, BUY_LINKS[0], "28/10/2026"),
+
+        ("agenda", test_agenda, {"date":"28/10/2026","city":"São Paulo","country":"Brasil"}),
+
+        ("weverse_post", test_weverse_post, TICKET_LINKS[0], "bts"),
+        ("weverse_live", test_weverse_live, TICKET_LINKS[0], "jungkook"),
+        ("weverse_news", test_weverse_news, TICKET_LINKS[0], "rm"),
+        ("weverse_media", test_weverse_media, TICKET_LINKS[0], "v"),
+
+        ("instagram_post", test_instagram_post, TIKTOK_LINKS["bts"], "bts"),
+        ("instagram_reels", test_instagram_reel, TIKTOK_LINKS["bts"], "bts"),
+        ("instagram_stories", test_instagram_story, TIKTOK_LINKS["bts"], "bts"),
+        ("instagram_live", test_instagram_live, TIKTOK_LINKS["bts"], "bts"),
+
+        ("tiktok_post", test_tiktok_post, TIKTOK_LINKS["bts"], "bts"),
+        ("tiktok_live", test_tiktok_live, TIKTOK_LINKS["bts"], "bts"),
+    ]
+
+    for item in testes:
+        alert_type, func, *args = item
+
+        await func(*args)
+        await send_alert(alert_type, f"🧪 TESTE {alert_type.upper()}")
+
 
         # =========================
-        # TICKETS
+        # 21 TICKETS
         # =========================
         await test_ticket_reposicao(TICKET_LINKS[0], "28/10/2026", True)
         await send_alert("ticket", "🔥 Ticket Reposição TESTE")
@@ -1007,13 +1015,13 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_alert("ticket", "🔥 Ticket Reposição 2 TESTE")
 
         # =========================
-        # BUY / REVENDA
+        # 22 BUY / REVENDA
         # =========================
         await test_buy_revenda(BUY_LINKS[0], "28/10/2026", True)
         await send_alert("revenda", "🔵 BuyTicket TESTE")
 
         # =========================
-        # AGENDA
+        # 23 AGENDA
         # =========================
         await test_agenda({
             "date": "28/10/2026",
@@ -1023,7 +1031,7 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_alert("agenda", "💜 Agenda TESTE")
 
         # =========================
-        # WEVERSE
+        # 24 WEVERSE
         # =========================
         await test_weverse_post(
             TICKET_LINKS[0],
@@ -1044,7 +1052,7 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_alert("weverse_media", "📀 Weverse Media TESTE")
 
         # =========================
-        # INSTAGRAM
+        # 25 INSTAGRAM
         # =========================
         await test_instagram_post(TIKTOK_LINKS["bts"], "bts", "post", True)
         await send_alert("instagram_post", "🌟 Instagram Post TESTE")
@@ -1059,7 +1067,7 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_alert("instagram_live", "🎥 Instagram Live TESTE")
 
         # =========================
-        # TIKTOK
+        # 26 TIKTOK
         # =========================
         await test_tiktok_post(TIKTOK_LINKS["bts"], "bts", "video", True)
         await send_alert("tiktok_post", "🎵 TikTok Post TESTE")
@@ -1068,7 +1076,7 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_alert("tiktok_live", "🎥 TikTok Live TESTE")
 
         # =========================
-        # FINALIZAÇÃO
+        # 27 FINALIZAÇÃO
         # =========================
         await bot_ticket.send_message(
             chat_id=CHAT_ID,
@@ -1076,7 +1084,7 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     # =========================
-    # PING
+    # 28 PING
     # =========================
     elif "/ping" in text:
         await bot_ticket.send_message(
@@ -1085,7 +1093,7 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     # =========================
-    # STATUS
+    # 29 STATUS
     # =========================
     elif "/status" in text:
         await bot_ticket.send_message(
@@ -1103,18 +1111,22 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# 21 MAIN (VERSÃO ESTÁVEL)
+# 30 MAIN (VERSÃO ESTÁVEL)
 # =========================
 
 async def main():
     keep_alive()
 
-    # DISCORD
+    # =========================
+    # 31 DISCORD
+    # =========================
     discord_token = os.getenv("DISCORD_TOKEN")
     if discord_token:
         asyncio.create_task(bot_discord.start(discord_token))
 
-    # TELEGRAM
+    # =========================
+    # 32 TELEGRAM
+    # =========================
     token = os.getenv("BOT_TOKEN_TICKET")
     if not token:
         return
@@ -1128,22 +1140,25 @@ async def main():
         MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_commands)
     )
 
-    # 🚀 START LIMPO (sem conflito interno)
-    await app.run_polling(
-        drop_pending_updates=True,
-        close_loop=False
-    )
+    # START SEGURO (NÃO USAR run_polling aqui)
+    await app.initialize()
+    await app.start()
 
-async def safe_boot_loop():
-    while True:
-        try:
-            await asyncio.sleep(1)
-        except Exception:
-            await send_boot_message()
+    # inicia polling manualmente sem quebrar loop
+    await app.updater.start_polling(drop_pending_updates=True)
 
+    # =========================
+    #33  MONITOR + PANEL EM PARALELO
+    # =========================
+    asyncio.create_task(monitor())
+    asyncio.create_task(panel_loop())
+    asyncio.create_task(safe_boot_loop())
+
+    # mantém vivo
+    await asyncio.Event().wait()
 
 # =========================
-# SAFE BOOT LOOP (FIX)
+# 34 SAFE BOOT LOOP (FIX)
 # =========================
 
 async def safe_boot_loop():
@@ -1159,10 +1174,12 @@ async def safe_boot_loop():
         except Exception as e:
             print(f"[SAFE_BOOT_LOOP ERROR] {e}")
             await asyncio.sleep(3)
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
+
 
 # =========================
-# 22 MONITOR ENGINE (TEMPO REAL + ANTI DUPLICAÇÃO)
+# 35 MONITOR ENGINE (TEMPO REAL + ANTI DUPLICAÇÃO)
 # =========================
 
 import hashlib
@@ -1189,7 +1206,7 @@ def is_new(content):
     return True
 
 # =========================
-# 23 TICKETMASTER CHECK
+# 35 TICKETMASTER CHECK
 # =========================
 
 async def check_ticketmaster(session):
@@ -1213,7 +1230,7 @@ async def check_ticketmaster(session):
             await update_panel()
 
 # =========================
-# 24 BUYTICKET CHECK
+# 36 BUYTICKET CHECK
 # =========================
 
 async def check_buyticket(session):
@@ -1236,7 +1253,7 @@ async def check_buyticket(session):
             await update_panel()
 
 # =========================
-# 25 WEVERSE CHECK
+# 37 WEVERSE CHECK
 # =========================
 
 async def check_weverse(session):
@@ -1257,7 +1274,7 @@ async def check_weverse(session):
             await update_panel()
 
 # =========================
-# 26 SOCIAL CHECK (INSTAGRAM / X / TIKTOK)
+# 38 SOCIAL CHECK (INSTAGRAM / X / TIKTOK)
 # =========================
 async def check_social(session):
     global last_social_check
@@ -1297,7 +1314,7 @@ async def check_social(session):
     await update_panel()
 
 # =========================
-# 27 LOOP PRINCIPAL
+# 39 LOOP PRINCIPAL
 # =========================
 
 async def monitor():
@@ -1317,7 +1334,7 @@ async def monitor():
             await asyncio.sleep(20)
 
 # =========================
-# 28 PANEL LOOP (TEMPO REAL)
+# 40 PANEL LOOP (TEMPO REAL)
 # =========================
 
 async def panel_loop():
