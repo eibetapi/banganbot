@@ -70,87 +70,72 @@ BLUE_LINKS = [
 # =========================
 
 AGENDA = [
-    ("18/04/2026", "Tóquio, Japão"),
-    ("25/04/2026", "Tampa, EUA"),
-    ("26/04/2026", "Tampa, EUA"),
-    ("28/04/2026", "Tampa, EUA"),
-    ("02/05/2026", "El Paso, EUA"),
-    ("03/05/2026", "El Paso, EUA"),
-    ("07/05/2026", "Cidade do México, México"),
-    ("09/05/2026", "Cidade do México, México"),
-    ("10/05/2026", "Cidade do México, México"),
-    ("16/05/2026", "Stanford, EUA"),
-    ("17/05/2026", "Stanford, EUA"),
-    ("19/05/2026", "Stanford, EUA"),
-    ("23/05/2026", "Las Vegas, EUA"),
-    ("24/05/2026", "Las Vegas, EUA"),
-    ("27/05/2026", "Las Vegas, EUA"),
-    ("28/05/2026", "Las Vegas, EUA"),
-    ("12/06/2026", "Busan, Coreia do Sul"),
-    ("13/06/2026", "Busan, Coreia do Sul"),
-    ("26/06/2026", "Madrid, Espanha"),
-    ("27/06/2026", "Madrid, Espanha"),
-    ("01/07/2026", "Bruxelas, Bélgica"),
-    ("02/07/2026", "Bruxelas, Bélgica"),
-    ("06/07/2026", "Londres, Reino Unido"),
-    ("07/07/2026", "Londres, Reino Unido"),
-    ("11/07/2026", "Munique, Alemanha"),
-    ("12/07/2026", "Munique, Alemanha"),
-    ("17/07/2026", "Paris, França"),
-    ("18/07/2026", "Paris, França"),
-    ("01/08/2026", "East Rutherford, EUA"),
-    ("02/08/2026", "East Rutherford, EUA"),
-    ("05/08/2026", "Foxborough, EUA"),
-    ("06/08/2026", "Foxborough, EUA"),
-    ("10/08/2026", "Baltimore, EUA"),
-    ("11/08/2026", "Baltimore, EUA"),
-    ("15/08/2026", "Arlington, EUA"),
-    ("16/08/2026", "Arlington, EUA"),
-    ("22/08/2026", "Toronto, Canadá"),
-    ("23/08/2026", "Toronto, Canadá"),
-    ("27/08/2026", "Chicago, EUA"),
-    ("28/08/2026", "Chicago, EUA"),
-    ("01/09/2026", "Los Angeles, EUA"),
-    ("02/09/2026", "Los Angeles, EUA"),
-    ("05/09/2026", "Los Angeles, EUA"),
-    ("06/09/2026", "Los Angeles, EUA"),
-    ("02/10/2026", "Bogotá, Colômbia"),
-    ("03/10/2026", "Bogotá, Colômbia"),
-    ("07/10/2026", "Lima, Peru"),
-    ("09/10/2026", "Lima, Peru"),
-    ("10/10/2026", "Lima, Peru"),
-    ("14/10/2026", "Santiago, Chile"),
-    ("16/10/2026", "Santiago, Chile"),
-    ("17/10/2026", "Santiago, Chile"),
-    ("21/10/2026", "Buenos Aires, Argentina"),
-    ("23/10/2026", "Buenos Aires, Argentina"),
-    ("24/10/2026", "Buenos Aires, Argentina"),
-    ("28/10/2026", "São Paulo, Brasil"),
-    ("30/10/2026", "São Paulo, Brasil"),
-    ("31/10/2026", "São Paulo, Brasil"),
-    ("19/11/2026", "Kaohsiung, Taiwan"),
-    ("21/11/2026", "Kaohsiung, Taiwan"),
-    ("22/11/2026", "Kaohsiung, Taiwan"),
-    ("03/12/2026", "Banguecoque, Tailândia"),
-    ("05/12/2026", "Banguecoque, Tailândia"),
-    ("06/12/2026", "Banguecoque, Tailândia"),
-    ("12/12/2026", "Kuala Lumpur, Malásia"),
-    ("13/12/2026", "Kuala Lumpur, Malásia"),
-    ("17/12/2026", "Singapura, Singapura"),
-    ("19/12/2026", "Singapura, Singapura"),
-    ("20/12/2026", "Singapura, Singapura"),
-    ("22/12/2026", "Singapura, Singapura"),
-    ("26/12/2026", "Jacarta, Indonésia"),
-    ("27/12/2026", "Jacarta, Indonésia"),
-    ("12/02/2027", "Melbourne, Austrália"),
-    ("13/02/2027", "Melbourne, Austrália"),
-    ("20/02/2027", "Sydney, Austrália"),
-    ("21/02/2027", "Sydney, Austrália"),
-    ("04/03/2027", "Hong Kong, China"),
-    ("06/03/2027", "Hong Kong, China"),
-    ("07/03/2027", "Hong Kong, China"),
-    ("13/03/2027", "Manila, Filipinas"),
-    ("14/03/2027", "Manila, Filipinas"),
+("25/04/2026", "Tampa", "EUA", "20:00"),
+    ("26/04/2026", "Tampa", "EUA", "20:00"),
+    ("28/04/2026", "Tampa", "EUA", "20:00"),
+    ("02/05/2026", "El Paso", "EUA", "20:00"),
+    ("03/05/2026", "El Paso", "EUA", "20:00"),
+    ("07/05/2026", "Cidade do México", "México", "20:00"),
+    ("09/05/2026", "Cidade do México", "México", "20:00"),
+    ("10/05/2026", "Cidade do México", "México", "20:00"),
+    ("16/05/2026", "Stanford", "EUA", "20:00"),
+    ("17/05/2026", "Stanford", "EUA", "20:00"),
+    ("19/05/2026", "Stanford", "EUA", "20:00"),
+    ("23/05/2026", "Las Vegas", "EUA", "20:00"),
+    ("24/05/2026", "Las Vegas", "EUA", "20:00"),
+    ("27/05/2026", "Las Vegas", "EUA", "20:00"),
+    ("28/05/2026", "Las Vegas", "EUA", "20:00"),
+    ("12/06/2026", "Busan", "Coreia do Sul", "20:00"),
+    ("13/06/2026", "Busan", "Coreia do Sul", "20:00"),
+    ("26/06/2026", "Madri", "Espanha", "20:00"),
+    ("27/06/2026", "Madri", "Espanha", "20:00"),
+    ("01/07/2026", "Bruxelas", "Bélgica", "20:00"),
+    ("02/07/2026", "Bruxelas", "Bélgica", "20:00"),
+    ("06/07/2026", "Londres", "Reino Unido", "20:00"),
+    ("07/07/2026", "Londres", "Reino Unido", "20:00"),
+    ("11/07/2026", "Munique", "Alemanha", "20:00"),
+    ("12/07/2026", "Munique", "Alemanha", "20:00"),
+    ("17/07/2026", "Saint-Denis", "França", "20:00"),
+    ("18/07/2026", "Saint-Denis", "França", "20:00"),
+    ("01/08/2026", "East Rutherford", "EUA", "20:00"),
+    ("02/08/2026", "East Rutherford", "EUA", "20:00"),
+    ("02/10/2026", "Bogotá", "Colômbia", "20:00"),
+    ("03/10/2026", "Bogotá", "Colômbia", "20:00"),
+    ("07/10/2026", "Lima", "Peru", "20:00"),
+    ("09/10/2026", "Lima", "Peru", "20:00"),
+    ("10/10/2026", "Lima", "Peru", "20:00"),
+    ("14/10/2026", "Santiago", "Chile", "20:00"),
+    ("16/10/2026", "Santiago", "Chile", "20:00"),
+    ("17/10/2026", "Santiago", "Chile", "20:00"),
+    ("21/10/2026", "Buenos Aires", "Argentina", "20:00"),
+    ("23/10/2026", "Buenos Aires", "Argentina", "20:00"),
+    ("24/10/2026", "Buenos Aires", "Argentina", "20:00"),
+    ("28/10/2026", "São Paulo", "Brasil", "20:00"),
+    ("30/10/2026", "São Paulo", "Brasil", "20:00"),
+    ("31/10/2026", "São Paulo", "Brasil", "20:00"),
+    ("19/11/2026", "Kaohsiung", "Taiwan", "20:00"),
+    ("21/11/2026", "Kaohsiung", "Taiwan", "20:00"),
+    ("22/11/2026", "Kaohsiung", "Taiwan", "20:00"),
+    ("03/12/2026", "Banguecoque", "Tailândia", "20:00"),
+    ("05/12/2026", "Banguecoque", "Tailândia", "20:00"),
+    ("06/12/2026", "Banguecoque", "Tailândia", "20:00"),
+    ("12/12/2026", "Kuala Lumpur", "Malásia", "20:00"),
+    ("13/12/2026", "Kuala Lumpur", "Malásia", "20:00"),
+    ("17/12/2026", "Singapura", "Singapura", "20:00"),
+    ("19/12/2026", "Singapura", "Singapura", "20:00"),
+    ("20/12/2026", "Singapura", "Singapura", "20:00"),
+    ("22/12/2026", "Singapura", "Singapura", "20:00"),
+    ("26/12/2026", "Jacarta", "Indonésia", "20:00"),
+    ("27/12/2026", "Jacarta", "Indonésia", "20:00"),
+    ("12/02/2027", "Melbourne", "Austrália", "20:00"),
+    ("13/02/2027", "Melbourne", "Austrália", "20:00"),
+    ("20/02/2027", "Sydney", "Austrália", "20:00"),
+    ("21/02/2027", "Sydney", "Austrália", "20:00"),
+    ("04/03/2027", "Hong Kong", "China", "20:00"),
+    ("06/03/2027", "Hong Kong", "China", "20:00"),
+    ("07/03/2027", "Hong Kong", "China", "20:00"),
+    ("13/03/2027", "Manila", "Filipinas", "20:00"),
+    ("14/03/2027", "Manila", "Filipinas", "20:00")
 ]
 
 
@@ -188,14 +173,23 @@ def minutes_since(ts):
 
 def get_next_show():
     now = datetime.now()
-    for d, city in AGENDA:
+    for item in AGENDA:
         try:
-            dt = datetime.strptime(d, "%d/%m/%Y")
-            if dt >= now:
-                return d, city, days_left(d)
+            date_str = item[0]  
+            # Monta o Local combinando Cidade e País
+            city_info = f"{item[1]}, {item[2]}" 
+            time_str = item[3]  
+
+            # Compara a data e o horário atual com o início do show
+            dt_show = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
+
+            # Se o momento atual ainda não chegou no horário do show, esse é o próximo
+            if dt_show > now:
+                return date_str, city_info, days_left(date_str)
         except:
             continue
-    return "carregando...", "carregando...", "..."
+    return "Continua…", "---", "0"
+
 
 
 # =========================
@@ -243,9 +237,7 @@ async def update_panel():
     data, city, dias = get_next_show()
     dias_br = days_left("28/10/2026")
 
-    text = f"""👾*PAINEL DE CONTROLE*👾
-
-🔴*⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜*🔴
+    text = f"""🔴*⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜*🔴
 
 ✈️ *PRÓXIMAS DATAS*
 
@@ -256,9 +248,9 @@ async def update_panel():
 ⏳Faltam {dias_br} dias para o BTS no Brasil.
 
 🟡 Ticketmaster
-acesso realizado: {check_ticket} | último rastreio há {minutes_since(last_ticket_check)} min
+acessos realizado: {check_ticket} | último rastreio há {minutes_since(last_ticket_check)} min
 🔵 Buyticket
-acesso realizado: {check_blue} | último rastreio há {minutes_since(last_blue_check)} min
+acessos realizado: {check_blue} | último rastreio há {minutes_since(last_blue_check)} min
 """
     try:
         await bot_ticket.edit_message_text(chat_id=panel_chat_id, message_id=panel_message_id, text=text, parse_mode="Markdown")
@@ -456,3 +448,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
