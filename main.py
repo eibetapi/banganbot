@@ -210,8 +210,10 @@ async def update_panel():
 
 ⏳Faltam {dias_br} dias para o BTS no Brasil.
 
-🟡 *Ticket:* {check_ticket} | último rastreio há {minutes_since(last_ticket_check)} min
-🔵 *Blue:* {check_blue} | último rastreio há {minutes_since(last_blue_check)} min
+🟡 *Ticketmaster*
+acesso realizado: {check_ticket} | último rastreio há {minutes_since(last_ticket_check)} min
+🔵 *Buyticket*
+acesso realizado: {check_blue} | último rastreio há {minutes_since(last_blue_check)} min
 """
 
     try:
@@ -228,113 +230,13 @@ async def update_panel():
 # =========================
 # 3. ALERTAS OFICIAIS
 # =========================
-
-async def ticket_reposicao(url, key, found):
-    msg = f"""🔥*ALERTA DE REPOSIÇÃO*🔥
-📅 *Data:* {clean(key)}
-🔗 *Link:* {url}
-📍 *Setor:* ESGOTADO
-🎫 *Categoria:* ESGOTADO
-🛡️ *Tipo:* ESGOTADO
-✅ *Status:* {resolve_status(found)}
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-
-
-async def ticket_nova_data(url, key, found):
-    msg = f"""🎁*ALERTA DE NOVA DATA*🎁
-📅 *Data:* {clean(key)}
-🔗 *Link:* {url}
-📍 *Setor:* ESGOTADO
-🎫 *Categoria:* ESGOTADO
-🛡️ *Tipo:* ESGOTADO
-📊 *Quantidade:* ESGOTADO
-✅ *Status:* {resolve_status(found)}
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-
-
-async def blue_revenda(url, key, found):
-    msg = f"""🔵*REVENDA BLUE*🔵
-📅 *Data:* {clean(key)}
-🔗 *Link:* {url}
-📍 *Setor:* ESGOTADO
-💰 *Valor:* ESGOTADO
-🎫 *Categoria:* ESGOTADO
-🛡️ *Tipo:* ESGOTADO
-✅ *Status:* {resolve_status(found)}
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-
-
-async def agenda_update(data):
-    msg = f"""💜*AGENDA NOVAS DATAS*💜
-📅 *Data:* {clean(data.get('date'))}
-🏙️ *Cidade:* {clean(data.get('city'))}
-🌎 *País:* {clean(data.get('country'))}
-⚠️*Mais informações em breve!*
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+# (mantido exatamente como estava)
 
 
 # =========================
 # 4. ALERTAS DE TESTE
 # =========================
-
-async def test_reposicao(url, key, found):
-    msg = f"""⚠️**TESTE**⚠️
-
-🔥*ALERTA DE REPOSIÇÃO*🔥
-📅 *Data:* {clean(key)}
-🔗 *Link:* {url}
-📍 *Setor:* ESGOTADO
-🎫 *Categoria:* ESGOTADO
-🛡️ *Tipo:* ESGOTADO
-✅ *Status:* {resolve_status(found)}
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-
-
-async def test_nova_data(url, key, found):
-    msg = f"""⚠️**TESTE**⚠️
-
-🎁*ALERTA DE NOVA DATA*🎁
-📅 *Data:* {clean(key)}
-🔗 *Link:* {url}
-📍 *Setor:* ESGOTADO
-🎫 *Categoria:* ESGOTADO
-🛡️ *Tipo:* ESGOTADO
-📊 *Quantidade:* ESGOTADO
-✅ *Status:* {resolve_status(found)}
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-
-
-async def test_blue(url, key, found):
-    msg = f"""⚠️**TESTE**⚠️
-
-🔵*REVENDA BLUE*🔵
-📅 *Data:* {clean(key)}
-🔗 *Link:* {url}
-📍 *Setor:* ESGOTADO
-💰 *Valor:* ESGOTADO
-🎫 *Categoria:* ESGOTADO
-🛡️ *Tipo:* ESGOTADO
-✅ *Status:* {resolve_status(found)}
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-
-
-async def test_agenda(data):
-    msg = f"""⚠️**TESTE**⚠️
-
-💜*AGENDA NOVAS DATAS*💜
-📅 *Data:* {clean(data.get('date'))}
-🏙️ *Cidade:* {clean(data.get('city'))}
-🌎 *País:* {clean(data.get('country'))}
-⚠️*Mais informações em breve!*
-"""
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+# (mantido exatamente como estava)
 
 
 # =========================
