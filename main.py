@@ -31,7 +31,6 @@ bot_discord = commands.Bot(
 # =========================
 # EVENTO READY (GARANTE QUE CONECTOU)
 # =========================
-
 @bot_discord.event
 async def on_ready():
     print(f"[DISCORD] Conectado como {bot_discord.user}")
@@ -42,9 +41,11 @@ async def on_ready():
     except Exception as e:
         print(f"[DISCORD SYNC ERROR] {e}")
 
-    # 🚀 INICIA MONITOR (UMA VEZ SÓ)
-    bot_discord.loop.create_task(monitor_loop())
+    # 🚀 BOOT ÚNICO (ANTI DUPLICAÇÃO)
+    await safe_boot()
 
+    # 🚀 MONITOR (UMA VEZ SÓ)
+    bot_discord.loop.create_task(monitor_loop())
 
 # =========================
 # 2 TELEGRAM + FLASK
@@ -88,13 +89,8 @@ def keep_alive():
         keep_alive._running = True
 
 # =========================
-# 4 CONFIG (CORRIGIDO - SEM DUPLICAR BOT)
+# 4 CONFIG (PAINEL CONTROLADO)
 # =========================
-
-# ❌ REMOVIDO: NÃO recriar o bot aqui
-# bot_discord = commands.Bot(command_prefix="!", intents=intents)
-
-import time
 
 CHAT_ID = -1003972186058
 
@@ -102,20 +98,22 @@ start_time = time.time()
 
 bot_ticket = None
 
+# 🔥 CONTROLE DO PAINEL TELEGRAM
 panel_message_id = None
 panel_chat_id = CHAT_ID
+panel_initialized = False  # ✅ ESSENCIAL
 
+# 🔵 CONTROLE DO PAINEL DISCORD (vamos usar depois)
 discord_panel_message_id = None
 
 # =========================
-# CONTADORES (MONITOR)
+# CONTADORES (MONITOR) ✅ CORRIGIDO
 # =========================
 
-check_ticket += 1
-check_buy += 1
-check_weverse += 1
-check_social += 1
-
+check_ticket = 0
+check_buy = 0
+check_weverse = 0
+check_social = 0
 
 # =========================
 # CONTROLE DE TEMPO
@@ -368,13 +366,14 @@ async def send_discord(channel_id, message):
     global bot_discord
 
     if not bot_discord:
-        return
+        return None
 
     try:
         channel = await bot_discord.fetch_channel(channel_id)
-        await channel.send(message)
+        return await channel.send(message)
     except Exception:
-        pass
+        return None
+
 
 def send_alert(alert_type, message):
     """
@@ -415,18 +414,20 @@ def send_alert(alert_type, message):
         )
 
 # =========================
-# 12 MENSAGEM DE RESET / RECONNECT
+# 12 MENSAGEM DE RESET / RECONNECT (ANTI DUPLO + PAINEL FIXO)
 # =========================
 
 async def send_boot():
-    global panel_message_id, panel_chat_id
+    global panel_message_id, panel_chat_id, panel_initialized, discord_panel_message_id
 
     if not bot_ticket:
         return
 
-    # usa lock corretamente (evita concorrência real)
     async with boot_lock:
 
+        # =========================
+        # 🚀 MENSAGEM DE RESTART
+        # =========================
         msg = "🛸•°•Wootteo entrando em rota°•°🛸"
 
         try:
@@ -437,21 +438,33 @@ async def send_boot():
         except Exception as e:
             print(f"[BOOT TELEGRAM ERROR] {e}")
 
+        # =========================
+        # DISCORD (EVITA FLOOD)
+        # =========================
         try:
-            await send_discord(DISCORD_PANEL_CHANNEL_ID, msg)
+            if not discord_panel_message_id:
+                sent = await send_discord(DISCORD_PANEL_CHANNEL_ID, msg)
+                discord_panel_message_id = True
         except Exception as e:
             print(f"[BOOT DISCORD ERROR] {e}")
 
-        create_new = True
+        # =========================
+        # 🧠 CONTROLE DO PAINEL TELEGRAM
+        # =========================
 
-        if panel_message_id:
+        # 🔥 se já existe painel → só atualiza
+        if panel_initialized and panel_message_id:
             try:
                 await update_panel()
-                create_new = False
+                return
             except Exception:
-                create_new = True
+                panel_initialized = False
+                panel_message_id = None
 
-        if create_new:
+        # =========================
+        # 🆕 CRIA NOVO PAINEL
+        # =========================
+        try:
             msg_panel = await bot_ticket.send_message(
                 chat_id=CHAT_ID,
                 text="👾 PAINEL DE CONTROLE 👾\n\nInicializando..."
@@ -459,7 +472,9 @@ async def send_boot():
 
             panel_message_id = msg_panel.message_id
             panel_chat_id = CHAT_ID
+            panel_initialized = True
 
+            # 📌 FIXAR (SÓ UMA VEZ)
             try:
                 await bot_ticket.pin_chat_message(
                     chat_id=CHAT_ID,
@@ -467,22 +482,26 @@ async def send_boot():
                     disable_notification=True
                 )
             except Exception as e:
-                print(f"Erro ao fixar painel: {e}")
+                print(f"[PIN ERROR] {e}")
 
+        except Exception as e:
+            print(f"[CREATE PANEL ERROR] {e}")
+            return
+
+        # 🔄 PRIMEIRO UPDATE
         await update_panel()
 
 
 # =========================
-# 13 PAINEL FIXADO (CORRIGIDO + TEMPO REAL + DISCORD)
+# 13 PAINEL FIXADO (TEMPO REAL + SEM SPAM)
 # =========================
 
+last_panel_text = None  # 🔥 evita editar sem mudança
+
 async def update_panel():
-    global panel_message_id, panel_chat_id
+    global panel_message_id, panel_chat_id, last_panel_text
 
-    if not bot_ticket:
-        return
-
-    if not panel_message_id:
+    if not bot_ticket or not panel_message_id:
         return
 
     try:
@@ -520,6 +539,14 @@ async def update_panel():
 """
 
         # =========================
+        # 🔥 NÃO EDITA SE FOR IGUAL
+        # =========================
+        if text == last_panel_text:
+            return
+
+        last_panel_text = text
+
+        # =========================
         # TELEGRAM (EDITA FIXADO)
         # =========================
         await bot_ticket.edit_message_text(
@@ -528,16 +555,9 @@ async def update_panel():
             text=text
         )
 
-        # =========================
-        # DISCORD (ENVIA ATUALIZAÇÃO)
-        # =========================
-        try:
-            await send_discord(DISCORD_PANEL_CHANNEL_ID, text)
-        except Exception as e:
-            print(f"[DISCORD PANEL ERROR] {e}")
-
     except Exception as e:
         print(f"[PAINEL ERROR] {e}")
+
 
 # =========================
 # 14 ALERTAS OFICIAIS (ORDEM: REPOSIÇÃO, NOVAS DATAS, REVENDA, AGENDA)
@@ -1039,7 +1059,7 @@ async def fetch(session, url):
 # =========================
 
 async def check_ticketmaster(session):
-    global last_ticket_check
+    global last_ticket_check, check_ticket  # 🔥 ESSA LINHA É A CORREÇÃO
 
     for url in TICKET_LINKS:
         html = await fetch(session, url)
@@ -1049,15 +1069,16 @@ async def check_ticketmaster(session):
         if is_new(url, html):
             found = "esgotado" not in html.lower()
 
+            check_ticket += 1  # agora funciona ✅
+
             await ticket_reposicao(url, url, found)
             await send_alert("ticket", f"🎫 Ticket update detectado:\n{url}")
 
             last_ticket_check = time.time()
             await update_panel()
 
-
 async def check_buyticket(session):
-    global last_buy_check
+    global last_buy_check, check_buy
 
     for url in BUY_LINKS:
         html = await fetch(session, url)
@@ -1067,15 +1088,16 @@ async def check_buyticket(session):
         if is_new(url, html):
             found = "esgotado" not in html.lower()
 
+            check_buy += 1  # ✅ contador corrigido
+
             await buy_revenda(url, url, found)
             await send_alert("revenda", f"🔵 BuyTicket update:\n{url}")
 
             last_buy_check = time.time()
             await update_panel()
 
-
 async def check_weverse(session):
-    global last_weverse_check
+    global last_weverse_check, check_weverse
 
     for url in WEVERSE_LINKS:
         html = await fetch(session, url)
@@ -1083,17 +1105,17 @@ async def check_weverse(session):
             continue
 
         if is_new(url, html):
+            check_weverse += 1  # ✅ contador corrigido
+
             await test_weverse_post(url, "bts", "Update", "Novo conteúdo", True)
             await send_alert("weverse_post", f"🩷 Weverse update:\n{url}")
 
             last_weverse_check = time.time()
             await update_panel()
 
-
 # =========================
 # CHECK SOCIAL (CORRIGIDO - SEM SPAM + IDENTIFICA MEMBRO)
 # =========================
-
 async def check_social(session):
     global last_social_check, check_social
 
@@ -1107,11 +1129,10 @@ async def check_social(session):
         if not html:
             continue
 
-        # 🔥 CORREÇÃO PRINCIPAL
         if not is_new(url, html):
             continue
 
-        check_social += 1
+        check_social += 1  # ✅ contador OK
 
         if "instagram" in url:
             await instagram_post(url, member, "update", True)
@@ -1139,8 +1160,6 @@ async def check_social(session):
 async def monitor_loop():
     await bot_discord.wait_until_ready()
 
-    global check_ticket, check_buy, check_weverse, check_social
-
     print("[MONITOR] Loop iniciado")
 
     async with aiohttp.ClientSession() as session:
@@ -1150,7 +1169,6 @@ async def monitor_loop():
                 # TICKETMASTER
                 # =========================
                 await check_ticketmaster(session)
-                check_ticket += 1
 
                 await asyncio.sleep(5)
 
@@ -1158,7 +1176,6 @@ async def monitor_loop():
                 # BUYTICKET
                 # =========================
                 await check_buyticket(session)
-                check_buy += 1
 
                 await asyncio.sleep(5)
 
@@ -1166,7 +1183,6 @@ async def monitor_loop():
                 # WEVERSE
                 # =========================
                 await check_weverse(session)
-                check_weverse += 1
 
                 await asyncio.sleep(5)
 
@@ -1174,7 +1190,6 @@ async def monitor_loop():
                 # SOCIAL
                 # =========================
                 await check_social(session)
-                # check_social já soma dentro da função
 
                 # =========================
                 # INTERVALO GERAL
@@ -1184,4 +1199,5 @@ async def monitor_loop():
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
+
 
