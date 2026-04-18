@@ -1107,20 +1107,24 @@ async def panel_loop():
         await asyncio.sleep(15)
 
 # =========================
-# MAIN (FINAL ESTÁVEL)
+# MAIN (CORRIGIDO DE VERDADE)
 # =========================
 
 async def main():
     keep_alive()
 
+    # =========================
     # DISCORD
+    # =========================
     discord_token = os.getenv("DISCORD_TOKEN")
     if discord_token:
         asyncio.create_task(bot_discord.start(discord_token))
     else:
         print("[ERRO] DISCORD_TOKEN não definido")
 
-    # TELEGRAM
+    # =========================
+    # TELEGRAM (SEM CONFLITO)
+    # =========================
     token = os.getenv("BOT_TOKEN_TICKET")
     if not token:
         print("[ERRO] BOT_TOKEN_TICKET não definido")
@@ -1135,19 +1139,23 @@ async def main():
         MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_commands)
     )
 
-    # ✅ INICIALIZAÇÃO CORRETA (SEM app.start)
+    # ✅ inicializa corretamente
     await app.initialize()
+    await app.start()
 
-    # ✅ polling único (sem CancelledError)
-    asyncio.create_task(app.run_polling(drop_pending_updates=True))
+    # ✅ AQUI É A CORREÇÃO PRINCIPAL
+    await app.updater.start_polling()
 
-    # TASKS
+    # =========================
+    # TASKS PARALELAS
+    # =========================
     asyncio.create_task(monitor())
     asyncio.create_task(panel_loop())
     asyncio.create_task(safe_boot_loop())
 
     # mantém vivo
     await asyncio.Event().wait()
+
 
 # =========================
 # START
