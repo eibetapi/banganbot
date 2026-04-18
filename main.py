@@ -37,11 +37,13 @@ async def on_ready():
     print(f"[DISCORD] Conectado como {bot_discord.user}")
 
     try:
-        # força sync dos slash commands se existir
         synced = await bot_discord.tree.sync()
         print(f"[DISCORD] Slash commands sincronizados: {len(synced)}")
     except Exception as e:
         print(f"[DISCORD SYNC ERROR] {e}")
+
+    # 🚀 INICIA MONITOR (UMA VEZ SÓ)
+    bot_discord.loop.create_task(monitor_loop())
 
 
 # =========================
@@ -86,10 +88,11 @@ def keep_alive():
         keep_alive._running = True
 
 # =========================
-# 4 CONFIG
+# 4 CONFIG (CORRIGIDO - SEM DUPLICAR BOT)
 # =========================
 
-bot_discord = commands.Bot(command_prefix="!", intents=intents)
+# ❌ REMOVIDO: NÃO recriar o bot aqui
+# bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
 import time
 
@@ -102,10 +105,21 @@ bot_ticket = None
 panel_message_id = None
 panel_chat_id = CHAT_ID
 
-check_ticket = 0
-check_buy = 0
-check_weverse = 0
-check_social = 0
+discord_panel_message_id = None
+
+# =========================
+# CONTADORES (MONITOR)
+# =========================
+
+check_ticket += 1
+check_buy += 1
+check_weverse += 1
+check_social += 1
+
+
+# =========================
+# CONTROLE DE TEMPO
+# =========================
 
 last_ticket_check = time.time()
 last_buy_check = time.time()
@@ -113,35 +127,14 @@ last_weverse_check = time.time()
 last_social_check = time.time()
 
 # =========================
-# 5 DISCORD CONFIG
+# CACHE DEDICADO (ANTI-SPAM POR SISTEMA)
 # =========================
 
-import os
+SEEN_TICKET = set()
+SEEN_BUY = set()
+SEEN_WEVERSE = set()
+SEEN_SOCIAL = set()
 
-# TOKEN DO DISCORD (Railway env)
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-
-# validação básica para evitar crash silencioso
-if DISCORD_TOKEN is None:
-    print("[ERRO] DISCORD_TOKEN não encontrado nas variáveis de ambiente")
-
-# 📊 PAINEL (mensagem fixa)
-DISCORD_PANEL_CHANNEL_ID = 1494667029150695625
-
-# 🎫 INGRESSOS (Ticketmaster / buy / alertas)
-DISCORD_TICKETS_CHANNEL_ID = 1494670074374651985
-
-# 📰 NEWS (agenda / updates / infos gerais)
-DISCORD_NEWS_CHANNEL_ID = 1494670195434983436
-
-# 💜 WEVERSE (updates especiais / conteúdo extra)
-DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461
-
-# 📷 SOCIAL (redes sociais)
-DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864
-
-# 👮 ADMIN (slash command /teste)
-ADMIN_IDS = {615340694244163584}  # set é mais seguro e rápido para checagem
 
 # =========================
 # 6 LINKS (NÃO REMOVER)
@@ -480,31 +473,37 @@ async def send_boot():
 
 
 # =========================
-# 13 PAINEL FIXADO (CORRIGIDO + MONITOR)
+# 13 PAINEL FIXADO (CORRIGIDO + TEMPO REAL + DISCORD)
 # =========================
 
 async def update_panel():
     global panel_message_id, panel_chat_id
+
     if not bot_ticket:
         return
+
     if not panel_message_id:
         return
+
     try:
         data, city, dias = get_next_show()
-        dias_br = days_left("28/10/2026")
+
         weverse_min = minutes_since(last_weverse_check)
         social_min = minutes_since(last_social_check)
         ticket_min = minutes_since(last_ticket_check)
         buy_min = minutes_since(last_buy_check)
 
-        text = f"""🪭⊙⊝⊜ARIRANG TOUR⊙⊝⊜🪭
+   
+     text = f"""🪭⊙⊝⊜ARIRANG TOUR⊙⊝⊜🪭
+
+
+
 ✈️ PRÓXIMAS DATAS
 🎫 Data: {data}
 📍 Local: {city}
 🔔 Faltam {dias} dias.
-⏳ Faltam {dias_br} dias para o BTS no Brasil.
 
-•°• 👾•°• •°• •°• •°*ATUALIZAÇÃO* •°• •°• •°• •°• •°• 🛸
+•°• 👾•°• •°• •°• •°*ATUALIZAÇÕES* •°• •°• •°• •°• •°• 🛸
 
 🟣 Weverse {status_color(last_weverse_check)}
    🎯 Acessos realizados: {check_weverse}
@@ -522,13 +521,27 @@ async def update_panel():
    🎯 Acessos realizados: {check_buy}
    ⏱ Último rastreio há: {buy_min} min
 """
+
+        # =========================
+        # TELEGRAM (EDITA FIXADO)
+        # =========================
         await bot_ticket.edit_message_text(
             chat_id=panel_chat_id,
             message_id=panel_message_id,
             text=text
         )
+
+        # =========================
+        # DISCORD (ENVIA ATUALIZAÇÃO)
+        # =========================
+        try:
+            await send_discord(DISCORD_PANEL_CHANNEL_ID, text)
+        except Exception as e:
+            print(f"[DISCORD PANEL ERROR] {e}")
+
     except Exception as e:
         print(f"[PAINEL ERROR] {e}")
+
 # =========================
 # 14 ALERTAS OFICIAIS (ORDEM: REPOSIÇÃO, NOVAS DATAS, REVENDA, AGENDA)
 # =========================
@@ -947,10 +960,6 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # =========================
-# 30 MAIN + ENGINE (BLOCO ÚNICO FINAL CORRIGIDO)
-# =========================
-
-# =========================
 # SAFE BOOT (ANTI-SPAM - EXECUTA 1 VEZ)
 # =========================
 
@@ -975,30 +984,58 @@ async def safe_boot():
 
 
 # =========================
-# MONITOR ENGINE (ANTI DUPLICAÇÃO)
+# MONITOR ENGINE (ANTI DUPLICAÇÃO REAL)
 # =========================
 
 import hashlib
 import aiohttp
 
-SEEN_HASHES = set()
+# 🔥 cache por URL (ESSENCIAL)
+LAST_HASH_BY_URL = {}
+
+def normalize_html(html: str):
+    """
+    Remove partes dinâmicas que causam falso positivo
+    """
+    html = re.sub(r'\s+', ' ', html)
+    html = re.sub(r'\"timestamp\":\d+', '', html)
+    html = re.sub(r'\"request_id\":\".*?\"', '', html)
+    html = re.sub(r'<script.*?>.*?</script>', '', html, flags=re.DOTALL)
+    return html.strip()
 
 def make_hash(content: str):
     return hashlib.md5(content.encode()).hexdigest()
+
+def is_new(url, content):
+    """
+    🔥 Sistema anti-spam REAL:
+    - Cada URL tem seu próprio histórico
+    - Só dispara se houve mudança REAL
+    """
+
+    global LAST_HASH_BY_URL
+
+    if not content:
+        return False
+
+    cleaned = normalize_html(content)
+    new_hash = make_hash(cleaned)
+
+    old_hash = LAST_HASH_BY_URL.get(url)
+
+    if old_hash == new_hash:
+        return False
+
+    LAST_HASH_BY_URL[url] = new_hash
+    return True
+
 
 async def fetch(session, url):
     try:
         async with session.get(url, timeout=15) as resp:
             return await resp.text()
-    except:
+    except Exception:
         return ""
-
-def is_new(content):
-    h = make_hash(content)
-    if h in SEEN_HASHES:
-        return False
-    SEEN_HASHES.add(h)
-    return True
 
 # =========================
 # CHECKS
@@ -1012,7 +1049,7 @@ async def check_ticketmaster(session):
         if not html:
             continue
 
-        if is_new(html):
+        if is_new(url, html):
             found = "esgotado" not in html.lower()
 
             await ticket_reposicao(url, url, found)
@@ -1030,7 +1067,7 @@ async def check_buyticket(session):
         if not html:
             continue
 
-        if is_new(html):
+        if is_new(url, html):
             found = "esgotado" not in html.lower()
 
             await buy_revenda(url, url, found)
@@ -1048,7 +1085,7 @@ async def check_weverse(session):
         if not html:
             continue
 
-        if is_new(html):
+        if is_new(url, html):
             await test_weverse_post(url, "bts", "Update", "Novo conteúdo", True)
             await send_alert("weverse_post", f"🩷 Weverse update:\n{url}")
 
@@ -1057,7 +1094,7 @@ async def check_weverse(session):
 
 
 # =========================
-# CHECK SOCIAL (CORRIGIDO - IDENTIFICA MEMBRO)
+# CHECK SOCIAL (CORRIGIDO - SEM SPAM + IDENTIFICA MEMBRO)
 # =========================
 
 async def check_social(session):
@@ -1073,7 +1110,8 @@ async def check_social(session):
         if not html:
             continue
 
-        if not is_new(html):
+        # 🔥 CORREÇÃO PRINCIPAL
+        if not is_new(url, html):
             continue
 
         check_social += 1
@@ -1083,7 +1121,7 @@ async def check_social(session):
 
             send_alert(
                 "instagram_post",
-                f"📷 Instagram update detectado:\n{url}"
+                f"📷 Instagram update detectado ({member.upper()}):\n{url}"
             )
 
         elif "tiktok" in url:
@@ -1091,100 +1129,62 @@ async def check_social(session):
 
             send_alert(
                 "tiktok_post",
-                f"🎵 TikTok update detectado:\n{url}"
+                f"🎵 TikTok update detectado ({member.upper()}):\n{url}"
             )
 
     last_social_check = time.time()
     await update_panel()
 
-
 # =========================
-# LOOP PRINCIPAL MONITOR
+# LOOP PRINCIPAL (MONITOR CONTROLADO)
 # =========================
 
-async def monitor():
+async def monitor_loop():
+    await bot_discord.wait_until_ready()
+
+    global check_ticket, check_buy, check_weverse, check_social
+
+    print("[MONITOR] Loop iniciado")
+
     async with aiohttp.ClientSession() as session:
         while True:
             try:
+                # =========================
+                # TICKETMASTER
+                # =========================
                 await check_ticketmaster(session)
+                check_ticket += 1
+
+                await asyncio.sleep(5)
+
+                # =========================
+                # BUYTICKET
+                # =========================
                 await check_buyticket(session)
+                check_buy += 1
+
+                await asyncio.sleep(5)
+
+                # =========================
+                # WEVERSE
+                # =========================
                 await check_weverse(session)
+                check_weverse += 1
+
+                await asyncio.sleep(5)
+
+                # =========================
+                # SOCIAL
+                # =========================
                 await check_social(session)
+                # check_social já soma dentro da função
+
+                # =========================
+                # INTERVALO GERAL
+                # =========================
+                await asyncio.sleep(30)
 
             except Exception as e:
-                print("Monitor error:", e)
-
-            await asyncio.sleep(20)
-
-# =========================
-# PANEL LOOP
-# =========================
-
-async def panel_loop():
-    while True:
-        try:
-            await update_panel()
-        except:
-            pass
-
-        await asyncio.sleep(15)
-
-# =========================
-# MAIN (CORRIGIDO DE VERDADE)
-# =========================
-
-async def main():
-    keep_alive()
-
-    # =========================
-    # DISCORD
-    # =========================
-    discord_token = os.getenv("DISCORD_TOKEN")
-    if discord_token:
-        asyncio.create_task(bot_discord.start(discord_token))
-    else:
-        print("[ERRO] DISCORD_TOKEN não definido")
-
-    # =========================
-    # TELEGRAM (SEM CONFLITO)
-    # =========================
-    token = os.getenv("BOT_TOKEN_TICKET")
-    if not token:
-        print("[ERRO] BOT_TOKEN_TICKET não definido")
-        return
-
-    app = ApplicationBuilder().token(token).build()
-
-    global bot_ticket
-    bot_ticket = app.bot
-
-    app.add_handler(
-        MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_commands)
-    )
-
-    # ✅ inicializa corretamente
-    await app.initialize()
-    await app.start()
-
-    # ✅ AQUI É A CORREÇÃO PRINCIPAL
-    await app.updater.start_polling()
-
-    # =========================
-    # TASKS PARALELAS
-    # =========================
-    asyncio.create_task(monitor())
-    asyncio.create_task(panel_loop())
-    await safe_boot() 
-
-    # mantém vivo
-    await asyncio.Event().wait()
-
-
-# =========================
-# START
-# =========================
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
+                print(f"[MONITOR ERROR] {e}")
+                await asyncio.sleep(10)
 
