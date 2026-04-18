@@ -951,20 +951,28 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 
 # =========================
-# SAFE BOOT LOOP
+# SAFE BOOT (ANTI-SPAM - EXECUTA 1 VEZ)
 # =========================
 
-async def safe_boot_loop():
-    while True:
-        try:
-            await asyncio.sleep(5)
+boot_executed = False
 
-            if bot_ticket:
-                await send_boot()
+async def safe_boot():
+    global boot_executed
 
-        except Exception as e:
-            print(f"[SAFE_BOOT_LOOP ERROR] {e}")
-            await asyncio.sleep(3)
+    if boot_executed:
+        return
+
+    if not bot_ticket:
+        return
+
+    try:
+        boot_executed = True
+        await send_boot()
+        print("[BOOT] Executado com sucesso (1x)")
+
+    except Exception as e:
+        print(f"[SAFE_BOOT ERROR] {e}")
+
 
 # =========================
 # MONITOR ENGINE (ANTI DUPLICAÇÃO)
@@ -1048,12 +1056,19 @@ async def check_weverse(session):
             await update_panel()
 
 
+# =========================
+# CHECK SOCIAL (CORRIGIDO - IDENTIFICA MEMBRO)
+# =========================
+
 async def check_social(session):
-    global last_social_check
+    global last_social_check, check_social
 
-    all_links = list(INSTAGRAM_LINKS.values()) + list(TIKTOK_LINKS.values()) + X_LINKS
+    all_links = (
+        list(INSTAGRAM_LINKS.items()) +
+        list(TIKTOK_LINKS.items())
+    )
 
-    for url in all_links:
+    for member, url in all_links:
         html = await fetch(session, url)
         if not html:
             continue
@@ -1061,19 +1076,27 @@ async def check_social(session):
         if not is_new(html):
             continue
 
+        check_social += 1
+
         if "instagram" in url:
-            await instagram_post(url, "bts", "update", True)
-            await send_alert("instagram_post", f"📷 Instagram update:\n{url}")
+            await instagram_post(url, member, "update", True)
+
+            send_alert(
+                "instagram_post",
+                f"📷 Instagram update detectado:\n{url}"
+            )
 
         elif "tiktok" in url:
-            await tiktok_post(url, "bts", "update", True)
-            await send_alert("tiktok_post", f"🎵 TikTok update:\n{url}")
+            await tiktok_post(url, member, "update", True)
 
-        else:
-            await send_alert("social", f"📡 Social update:\n{url}")
+            send_alert(
+                "tiktok_post",
+                f"🎵 TikTok update detectado:\n{url}"
+            )
 
     last_social_check = time.time()
     await update_panel()
+
 
 # =========================
 # LOOP PRINCIPAL MONITOR
@@ -1151,7 +1174,7 @@ async def main():
     # =========================
     asyncio.create_task(monitor())
     asyncio.create_task(panel_loop())
-    asyncio.create_task(safe_boot_loop())
+    await safe_boot() 
 
     # mantém vivo
     await asyncio.Event().wait()
