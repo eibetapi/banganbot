@@ -12,7 +12,7 @@ import re
 from datetime import datetime 
 
 # =========================
-# 1 DISCORD
+# 1 DISCORD (CORRIGIDO - INSTÂNCIA ÚNICA)
 # =========================
 
 import discord
@@ -22,8 +22,27 @@ from discord import app_commands
 intents = discord.Intents.default()
 intents.message_content = True
 
-# PADRÃO ÚNICO DO BOT (EVITA CONFLITO GLOBAL)
-discord_bot = commands.Bot(command_prefix="!", intents=intents)
+# ✅ BOT ÚNICO (usar esse em TODO o código)
+bot_discord = commands.Bot(
+    command_prefix="!",
+    intents=intents
+)
+
+# =========================
+# EVENTO READY (GARANTE QUE CONECTOU)
+# =========================
+
+@bot_discord.event
+async def on_ready():
+    print(f"[DISCORD] Conectado como {bot_discord.user}")
+
+    try:
+        # força sync dos slash commands se existir
+        synced = await bot_discord.tree.sync()
+        print(f"[DISCORD] Slash commands sincronizados: {len(synced)}")
+    except Exception as e:
+        print(f"[DISCORD SYNC ERROR] {e}")
+
 
 # =========================
 # 2 TELEGRAM + FLASK
@@ -407,17 +426,14 @@ def send_alert(alert_type, message):
 # =========================
 
 async def send_boot():
-    global boot_lock, panel_message_id, panel_chat_id
+    global panel_message_id, panel_chat_id
 
     if not bot_ticket:
         return
 
-    # trava anti-duplo boot
-    if boot_lock:
-        return
-    boot_lock = True
+    # usa lock corretamente (evita concorrência real)
+    async with boot_lock:
 
-    try:
         msg = "🛸•°•Wootteo entrando em rota°•°🛸"
 
         try:
@@ -462,8 +478,6 @@ async def send_boot():
 
         await update_panel()
 
-    finally:
-        boot_lock = False
 
 # =========================
 # 13 PAINEL FIXADO (CORRIGIDO + MONITOR)
