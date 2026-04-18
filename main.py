@@ -960,28 +960,31 @@ async def main():
     if discord_token:
         asyncio.create_task(bot_discord.start(discord_token))
 
-    # =========================
-    # 32 TELEGRAM
-    # =========================
-    token = os.getenv("BOT_TOKEN_TICKET")
-    if not token:
-        return
+   # =========================
+   # 32 TELEGRAM (CORRIGIDO)
+   # =========================
 
-    app = ApplicationBuilder().token(token).build()
+token = os.getenv("BOT_TOKEN_TICKET")
+if not token:
+    return
 
-    global bot_ticket
-    bot_ticket = app.bot
+app = ApplicationBuilder().token(token).build()
 
-    app.add_handler(
-        MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_commands)
-    )
+global bot_ticket
+bot_ticket = app.bot
 
-    # START SEGURO (NÃO USAR run_polling aqui)
-    await app.initialize()
-    await app.start()
+app.add_handler(
+    MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_commands)
+)
 
-    # inicia polling manualmente sem quebrar loop
-    await app.updater.start_polling(drop_pending_updates=True)
+# ✅ START CORRETO (v20+)
+await app.initialize()
+await app.start()
+await app.bot.initialize()
+
+# polling correto
+asyncio.create_task(app.run_polling(drop_pending_updates=True))
+
 
     # =========================
     #33  MONITOR + PANEL EM PARALELO
