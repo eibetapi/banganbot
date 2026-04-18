@@ -493,10 +493,7 @@ async def update_panel():
         ticket_min = minutes_since(last_ticket_check)
         buy_min = minutes_since(last_buy_check)
 
-   
-     text = f"""🪭⊙⊝⊜ARIRANG TOUR⊙⊝⊜🪭
-
-
+        text = f"""🪭⊙⊝⊜ARIRANG TOUR⊙⊝⊜🪭
 
 ✈️ PRÓXIMAS DATAS
 🎫 Data: {data}
