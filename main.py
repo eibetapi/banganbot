@@ -947,7 +947,7 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # =========================
-# 30 MAIN + ENGINE (BLOCO ÚNICO CORRIGIDO)
+# 30 MAIN + ENGINE (BLOCO ÚNICO FINAL CORRIGIDO)
 # =========================
 
 # =========================
@@ -1135,10 +1135,10 @@ async def main():
         MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_commands)
     )
 
+    # ✅ INICIALIZAÇÃO CORRETA (SEM app.start)
     await app.initialize()
-    await app.start()
 
-    # polling paralelo correto
+    # ✅ polling único (sem CancelledError)
     asyncio.create_task(app.run_polling(drop_pending_updates=True))
 
     # TASKS
