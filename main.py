@@ -12,8 +12,20 @@ import re
 from datetime import datetime
 
 # =========================
-# 1 DISCORD (SAFE BOOT CORRIGIDO)
+# 1 DISCORD (CORRIGIDO - ORDEM CERTA)
 # =========================
+
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot_discord = commands.Bot(
+    command_prefix="!",
+    intents=intents
+)
 
 @bot_discord.event
 async def on_ready():
@@ -26,10 +38,10 @@ async def on_ready():
         print(f"[DISCORD SYNC ERROR] {e}")
 
     await asyncio.sleep(3)
-
     await safe_boot()
 
     bot_discord.loop.create_task(monitor_loop())
+
 
 # =========================
 # 2 TELEGRAM + FLASK
