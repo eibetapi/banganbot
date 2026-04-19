@@ -445,10 +445,10 @@ TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"}
 async def update_panel():
     """
     Função mestra: Tenta editar os painéis existentes. 
-    Se não encontrar o ID, cria um novo (ou recupera no Discord via histórico).
     """
     global panel_message_id, discord_panel_msg_id
     
+    # Busca dados atualizados do countdown e contadores
     data_show, city, d_prox, d_br = get_countdown_data()
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
@@ -466,22 +466,22 @@ async def update_panel():
                 # Se não tem ID salvo, cria novo e fixa
                 msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
                 panel_message_id = msg.message_id
-                await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
+                try: await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
+                except: pass
         except Exception as e:
-            # Se a mensagem foi deletada ou não encontrada, reseta o ID para o próximo ciclo
-            if "not found" in str(e).lower() or "not modified" in str(e).lower():
-                panel_message_id = None
-            print(f"[DEBUG] Erro Telegram: {e}")
+            # Se der erro (ex: mensagem apagada), limpa o ID para gerar novo no próximo ciclo
+            print(f"[DEBUG] Erro TG: {e}")
+            panel_message_id = None
 
-    # --- LÓGICA DISCORD (EMBED ROXO / SEM PIN) ---
+    # --- LÓGICA DISCORD ---
     if DISCORD_PANEL_CHANNEL_ID:
         channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
         if channel:
-            embed = discord.Embed(description=texto, color=0x8A2BE2) # Borda Roxa
+            embed = discord.Embed(description=texto, color=0x8A2BE2)
             try:
-                # Busca automática se o ID for perdido (Persistência)
+                # Recuperação por histórico no Discord (evita duplicidade)
                 if not discord_panel_msg_id:
-                    async for message in channel.history(limit=5):
+                    async for message in channel.history(limit=10):
                         if message.author == bot_discord.user:
                             discord_panel_msg_id = message.id
                             break
@@ -490,20 +490,14 @@ async def update_panel():
                     msg = await channel.fetch_message(discord_panel_msg_id)
                     await msg.edit(content=None, embed=embed)
                 else:
-                    # Envia novo sem fixar (pin)
                     msg = await channel.send(embed=embed)
                     discord_panel_msg_id = msg.id
             except Exception as e:
-                print(f"[DEBUG] Erro Discord: {e}")
+                print(f"[DEBUG] Erro DC: {e}")
                 discord_panel_msg_id = None
 
 def status_color(last_time):
-    """
-    Sistema de Semáforo:
-    🟢 < 40s (Acabou de atualizar / Piscando)
-    🟡 < 120s (Em espera para o próximo ciclo)
-    🔴 > 120s (Erro ou atraso no rastreio)
-    """
+    """🟢 < 40s | 🟡 < 120s | 🔴 > 120s"""
     diff = time.time() - last_time
     if diff < 40: return "🟢"
     if diff < 120: return "🟡"
@@ -513,6 +507,10 @@ def minutes_since(last_time):
     return int((time.time() - last_time) / 60)
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
+    # IMPORTANTE: Chamamos as globais aqui para garantir que o texto pegue o valor atualizado
+    global total_weverse, total_social, total_tickets, total_buy
+    global last_weverse_check, last_social_check, last_ticket_check, last_buy_check
+
     return f"""🪭 ⊙⊝⊜ **ARIRANG TOUR** ⊙⊝⊜ 🪭
 
 **✈️ PRÓXIMAS DATAS**
