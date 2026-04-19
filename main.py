@@ -837,40 +837,32 @@ async def test_youtube_live(url="https://www.youtube.com/@BTS/live", platform="b
     
     await send_alert("youtube_live", msg)
 
-# =============================================================
-# 17 MOTOR DE MONITORAMENTO (CONTROLE DE FLUXO)
-# =============================================================
+# =========================
+# 17 COMANDO /TESTE (DISCORD)
+# =========================
 
-async def monitor_loop():
-    """
-    Motor principal: Gerencia a pulsação dos contadores e a edição do painel.
-    """
-    await bot_discord.wait_until_ready()
-    
-    global panel_message_id, discord_panel_msg_id
-    global total_tickets, total_buy, total_weverse, total_social
-    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
+@bot_discord.tree.command(name="teste", description="Dispara os alertas de teste")
+async def teste_discord(interaction: discord.Interaction):
 
-    print("[SISTEMA] Motor Arirang operando. Aguardando ciclos...")
+    global bot_ticket
+    original_bot_ticket = bot_ticket
 
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                # 1. Execução dos Checks (Atualizam timestamps e contadores)
-                await check_ticketmaster(session)
-                await check_buyticket(session)
-                await check_weverse(session)
-                await check_social(session)
+    try:
+        await interaction.response.defer(ephemeral=True)
 
-                # 2. Atualização dos Painéis (Telegram e Discord)
-                await update_panel()
+        # bloqueia envio para Telegram durante o teste
+        bot_ticket = None
 
-                # 3. Intervalo de 25 segundos para manter a precisão do status
-                await asyncio.sleep(25)
+        await run_full_test_discord()
+        await update_panel()
 
-            except Exception as e:
-                print(f"[MONITOR ERROR] {e}")
-                await asyncio.sleep(10)
+        await interaction.delete_original_response()
+
+    except:
+        pass
+
+    finally:
+        bot_ticket = original_bot_ticket
 
 # =============================================================
 # 17.1 COMANDOS DE GATILHO (TELEGRAM & DISCORD)
