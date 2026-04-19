@@ -449,23 +449,34 @@ async def update_panel():
     # Geramos o texto garantindo que ele leia as globais atualizadas
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-    # --- LÓGICA TELEGRAM ---
+   # --- LÓGICA TELEGRAM (COM RESGATE DE ID) ---
     if bot_ticket and PANEL_CHAT_ID:
         try:
+            # Tenta editar se tiver o ID
             if panel_message_id:
-                await bot_ticket.edit_message_text(
-                    chat_id=PANEL_CHAT_ID,
-                    message_id=panel_message_id,
-                    text=texto,
-                    parse_mode="Markdown"
-                )
-            else:
+                try:
+                    await bot_ticket.edit_message_text(
+                        chat_id=PANEL_CHAT_ID,
+                        message_id=panel_message_id,
+                        text=texto,
+                        parse_mode="Markdown"
+                    )
+                except Exception as e:
+                    # Se der erro de "não encontrado", limpamos o ID para forçar a criação/busca
+                    if "message to edit not found" in str(e).lower():
+                        panel_message_id = None
+                    else:
+                        raise e # Outros erros (como flood) vão para o except geral
+            
+            # Se o ID for None (bot resetou), ele cria um novo apenas uma vez
+            if not panel_message_id:
                 msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
                 panel_message_id = msg.message_id
                 try: await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
                 except: pass
+
         except Exception as e:
-            if "not found" in str(e).lower(): panel_message_id = None
+            print(f"[DEBUG] Erro TG: {e}")
 
     # --- LÓGICA DISCORD ---
     if DISCORD_PANEL_CHANNEL_ID:
@@ -852,34 +863,24 @@ async def test_youtube_live(url="https://www.youtube.com/@BTS/live", platform="b
 # =============================================================
 
 async def monitor_loop():
-    """
-    Motor principal: Gerencia a pulsação dos contadores e a edição do painel.
-    """
+    """Motor principal: Gerencia a pulsação dos contadores e a edição do painel."""
     await bot_discord.wait_until_ready()
     
-    # Puxamos todas as globais do Bloco 2 para garantir que o motor as enxergue
     global panel_message_id, discord_panel_msg_id
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
-    print("[SISTEMA] Motor Arirang operando. Aguardando ciclos...")
+    print("[SISTEMA] Motor Arirang operando.")
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # 1. Execução dos Checks (Atualizam timestamps e contadores)
                 await check_ticketmaster(session)
                 await check_buyticket(session)
                 await check_weverse(session)
                 await check_social(session)
-
-                # 2. Atualização dos Painéis
-                # A função update_panel agora decide sozinha se edita ou se cria (se o ID sumir)
                 await update_panel()
-
-                # 3. Intervalo de 25 segundos para manter os minutos e bolinhas precisos
                 await asyncio.sleep(25)
-
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
@@ -890,48 +891,47 @@ async def monitor_loop():
 
 # --- TELEGRAM ---
 async def handle_commands_telegram(update, context):
+    """Processador de comandos direto do Telegram"""
+    if not update.message or not update.message.text: return
     user_cmd = update.message.text.lower()
     
     if "/teste" in user_cmd:
-        await update.message.reply_text("🚀 [TELEGRAM] Iniciando sequência de testes...")
         await run_full_test(target="telegram")
         await update_panel() 
         
     elif "/ping" in user_cmd:
-        await update.message.reply_text(f"🏓 Pong! Wootteo operando há {get_uptime()}")
+        await update.message.reply_text(f"🏓 Pong! Wootteo operando.")
 
     elif "/comandos" in user_cmd:
         msg_ajuda = (
-            "🤖 **Comandos Disponíveis (Telegram):**\n\n"
-            "🔹 `/ping` - Verifica se o bot está online e o tempo de atividade.\n"
-            "🔹 `/teste` - Executa um teste de alerta e atualiza o painel.\n"
-            "🔹 `/comandos` - Lista os comandos disponíveis."
+            "🤖 **Comandos Disponíveis:**\n\n"
+            "🔹 `/ping` - Verifica a saúde e uptime do bot.\n"
+            "🔹 `/teste` - Testa o envio de alertas nos canais sociais.\n"
+            "🔹 `/comandos` - Exibe esta lista de ajuda."
         )
         await update.message.reply_text(msg_ajuda, parse_mode="Markdown")
 
-# --- DISCORD (Slash Commands) ---
+# --- DISCORD (Slash Commands Silenciosos) ---
 
-@bot_discord.tree.command(name="teste", description="Executa o teste de layout exclusivo no Discord")
+@bot_discord.tree.command(name="teste", description="Testa o envio de alertas nos canais sociais")
 async def teste_discord(interaction: discord.Interaction):
-    # Agora visível para todos no canal
-    await interaction.response.send_message("🚀 [DISCORD] Iniciando sequência de testes nos canais...")
+    # Executa o teste sem enviar mensagens de status intermediárias
     await run_full_test(target="discord")
     await update_panel()
+    await interaction.response.send_message("✅ Teste de disparos concluído.", ephemeral=True)
 
 @bot_discord.tree.command(name="ping", description="Verifica a saúde do bot")
 async def ping_discord(interaction: discord.Interaction):
-    # Agora visível para todos no canal
-    await interaction.response.send_message(f"🏓 Pong! Wootteo operando há {get_uptime()}")
+    await interaction.response.send_message(f"🏓 Pong! Wootteo operando.")
 
-@bot_discord.tree.command(name="comandos", description="Exibe a lista de comandos do bot")
+@bot_discord.tree.command(name="comandos", description="Exibe esta lista de ajuda")
 async def comandos_discord(interaction: discord.Interaction):
     msg_ajuda = (
-        "🤖 **Comandos Disponíveis (Discord):**\n\n"
+        "🤖 **Comandos Disponíveis:**\n\n"
         "🔹 `/ping` - Verifica a saúde e uptime do bot.\n"
         "🔹 `/teste` - Testa o envio de alertas nos canais sociais.\n"
         "🔹 `/comandos` - Exibe esta lista de ajuda."
     )
-    # Enviado para o canal de forma pública
     await interaction.response.send_message(msg_ajuda)
 
 # =========================
@@ -939,13 +939,13 @@ async def comandos_discord(interaction: discord.Interaction):
 # =========================
 
 async def fetch(session, url):
+    if session is None: return None
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
         async with session.get(url, headers=headers, timeout=20) as response:
             if response.status != 200: return None
             return await response.text()
-    except Exception:
-        return None
+    except: return None
 
 # =============================================================
 # 19 FUNÇÕES DE CHECK (RASTREIO E CONTADORES)
@@ -954,90 +954,61 @@ async def fetch(session, url):
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
     if 'TICKET_LINKS' not in globals() or not TICKET_LINKS: return
-    
-    # Atualiza o tempo e incrementa ANTES do loop para o painel registrar
     last_ticket_check = time.time()
     total_tickets += 1 
-
     for url in TICKET_LINKS:
         try:
             html = await fetch(session, url)
             if html and is_new(url, html):
                 found = "esgotado" not in html.lower()
                 await ticket_reposicao(url, url, found)
-        except Exception as e:
-            print(f"[ERR TICKET] {e}")
+        except Exception as e: print(f"[ERR TICKET] {e}")
 
 async def check_buyticket(session):
     global last_buy_check, total_buy
     if 'BUY_LINKS' not in globals() or not BUY_LINKS: return
-    
     last_buy_check = time.time()
     total_buy += 1
-
     for url in BUY_LINKS:
         try:
             html = await fetch(session, url)
-            if html and is_new(url, html):
-                found = "esgotado" not in html.lower()
-                # await buy_reposicao(url, url, found)
-        except Exception as e:
-            print(f"[ERR BUY] {e}")
+            if html and is_new(url, html): pass
+        except Exception as e: print(f"[ERR BUY] {e}")
 
 async def check_weverse(session):
     global last_weverse_check, total_weverse
     if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS: return
-    
     last_weverse_check = time.time()
     total_weverse += 1
-
     for url in WEVERSE_LINKS:
         try:
             html = await fetch(session, url)
-            if html and is_new(url, html):
-                # Chamada de alerta Weverse aqui
-                pass
-        except Exception as e:
-            print(f"[ERR WEVERSE] {e}")
+            if html and is_new(url, html): pass
+        except Exception as e: print(f"[ERR WEVERSE] {e}")
 
 async def check_social(session):
-    """Monitoramento integrado: Instagram, TikTok, Twitter e YouTube"""
     global last_social_check, total_social
-    
-    # Registra atividade social no painel
     last_social_check = time.time()
     total_social += 1 
-
-    # 1. Parte: SOCIAL_LINKS (Instagram/TikTok/Twitter)
     if 'SOCIAL_LINKS' in globals() and SOCIAL_LINKS:
         for url in SOCIAL_LINKS:
             try:
                 html = await fetch(session, url)
-                if html and is_new(url, html):
-                    # Alertas sociais aqui
-                    pass
-            except Exception as e:
-                print(f"[ERR SOCIAL] {e}")
-
-    # 2. Parte: YouTube (Sempre roda se o módulo social rodar)
+                if html and is_new(url, html): pass
+            except Exception as e: print(f"[ERR SOCIAL] {e}")
     await check_youtube(session)
 
 async def check_youtube(session):
-    """Sub-função do módulo social"""
     global last_social_check, total_social
     youtube_url = "https://www.youtube.com/@BTS"
-    
     try:
         html = await fetch(session, f"{youtube_url}/videos")
         if html:
             is_live = '{"text":"AO VIVO"}' in html or '"style":"LIVE"' in html or "watch?v=" in html and "live" in html.lower()
             if is_live:
-                if is_new(youtube_url + "/live", "LIVE"):
-                    await youtube_live(youtube_url)
-            elif is_new(youtube_url, html):
-                await youtube_post(youtube_url, youtube_url)
-    except Exception as e:
-        print(f"[ERR YOUTUBE] {e}")
+                if is_new(youtube_url + "/live", "LIVE"): await youtube_live(youtube_url)
+            elif is_new(youtube_url, html): await youtube_post(youtube_url, youtube_url)
+    except Exception as e: print(f"[ERR YOUTUBE] {e}")
 
 # =============================================================
 # 19.1 AUXILIAR DE ALERTA SOCIAL
@@ -1047,7 +1018,6 @@ async def enviar_alerta_social(mensagem):
     if bot_ticket and PANEL_CHAT_ID:
         try: await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode="Markdown")
         except: pass
-        
     channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
     if channel:
         try: await channel.send(content=mensagem)
@@ -1060,59 +1030,44 @@ async def enviar_alerta_social(mensagem):
 @bot_discord.event
 async def on_ready():
     print(f"✅ Logado no Discord como {bot_discord.user}")
-    
-    # Definindo o texto com quebra de linha para ficar um embaixo do outro
     status_formatado = "🪭 Em tournê! Ouvindo: Arirang"
-    
     await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening, 
-            name=status_formatado
-        ),
+        activity=discord.Activity(type=discord.ActivityType.listening, name=status_formatado),
         status=discord.Status.online
     )
-    
-    try:
-        await bot_discord.tree.sync()
-        print("✅ Comandos slash sincronizados.")
-    except Exception as e:
-        print(f"❌ Erro na sincronização: {e}")
+    try: await bot_discord.tree.sync()
+    except Exception as e: print(f"❌ Erro na sincronização: {e}")
+
 # ==========================================
 # 21 INICIALIZAÇÃO FINAL (MAIN)
 # ==========================================
 
 async def main():
-    # 1. Inicia o servidor Keep Alive (Flask) para evitar que a hospedagem hiberne
     keep_alive()
     
-    # 2. Configurações iniciais do Telegram
-    # O monitor_loop usará o bot_ticket configurado no Bloco 1
     if bot_ticket:
-        print("[SISTEMA] Telegram operativo e aguardando varredura.")
+        from telegram.ext import MessageHandler, CommandHandler, filters
+        application.add_handler(CommandHandler("ping", handle_commands_telegram))
+        application.add_handler(CommandHandler("teste", handle_commands_telegram))
+        application.add_handler(CommandHandler("comandos", handle_commands_telegram))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram))
+        
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling()
+        print("[SISTEMA] Telegram operativo.")
 
-    # 3. Inicia o Motor de Monitoramento em segundo plano
-    # O monitor_loop() contém a lógica de:
-    # - Criar/Fixar o painel (send_boot)
-    # - Editar o painel existente (update_panel)
-    # - Recriar o painel se ele for deletado
     asyncio.create_task(monitor_loop())
-    print("[SISTEMA] Motor de monitoramento Arirang iniciado.")
 
-    # 4. Inicia o Discord
-    # O bot.start() é uma função bloqueante, ela mantém o código rodando
     try:
         token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
         if token:
-            print("[DISCORD] Tentando login...")
             await bot_discord.start(token)
-        else:
-            print("[ERRO] Token do Discord não encontrado no ambiente (.env) ou no Bloco 1.")
     except Exception as e:
-        print(f"[FATAL] Erro ao conectar ao Discord: {e}")
+        print(f"[FATAL] Erro Discord: {e}")
 
 if __name__ == "__main__":
     try:
-        # Ponto de entrada oficial para rodar a aplicação assíncrona
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        print("\n[DESLIGANDO] Motores Arirang parados com sucesso. Até logo, Wootteo! 🛸")
+        pass
