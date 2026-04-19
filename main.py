@@ -445,22 +445,19 @@ TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"}
 import os
 
 def salvar_id_telegram(msg_id):
-    """Salva o ID no disco para persistência pós-reboot"""
     try:
         with open("tg_panel_id.txt", "w") as f:
             f.write(str(msg_id))
     except Exception as e:
-        print(f"[DEBUG] Erro ao salvar ID no arquivo: {e}")
+        print(f"[DEBUG] Erro ao gravar arquivo de ID: {e}")
 
 def carregar_id_telegram():
-    """Recupera o ID do arquivo se ele existir"""
     if os.path.exists("tg_panel_id.txt"):
         try:
             with open("tg_panel_id.txt", "r") as f:
-                conteudo = f.read().strip()
-                return int(conteudo) if conteudo else None
-        except:
-            return None
+                content = f.read().strip()
+                return int(content) if content else None
+        except: return None
     return None
 
 async def update_panel():
@@ -469,45 +466,43 @@ async def update_panel():
     data_show, city, d_prox, d_br = get_countdown_data()
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-    # --- LÓGICA TELEGRAM (SÓ CRIA SE NÃO LOCALIZAR O RECENTE) ---
+    # --- LÓGICA TELEGRAM ---
     if bot_ticket and PANEL_CHAT_ID:
-        # Se a variável está vazia (boot), tenta carregar do arquivo
         if not panel_message_id:
             panel_message_id = carregar_id_telegram()
 
-        tentou_editar = False
-        try:
-            # Se temos um ID (da memória ou do arquivo), tentamos editar
-            if panel_message_id:
-                try:
-                    await bot_ticket.edit_message_text(
-                        chat_id=PANEL_CHAT_ID,
-                        message_id=panel_message_id,
-                        text=texto,
-                        parse_mode="Markdown"
-                    )
-                    tentou_editar = True
-                except Exception as e:
-                    # Se o Telegram disser que a mensagem não existe, limpamos o ID
-                    if "message to edit not found" in str(e).lower():
-                        panel_message_id = None
-                        if os.path.exists("tg_panel_id.txt"):
-                            os.remove("tg_panel_id.txt")
-                    else:
-                        # Outro erro (ex: rede), marcamos como tentado para não duplicar
-                        tentou_editar = True 
-                        raise e
-            
-            # Só entra aqui se panel_message_id for None (não achou no arquivo ou foi deletada)
-            if not panel_message_id and not tentou_editar:
-                msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
-                panel_message_id = msg.message_id
-                salvar_id_telegram(panel_message_id) # Salva para o próximo reboot
-                try: await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
+        sucesso_edicao = False
+        if panel_message_id:
+            try:
+                await bot_ticket.edit_message_text(
+                    chat_id=PANEL_CHAT_ID,
+                    message_id=panel_message_id,
+                    text=texto,
+                    parse_mode="Markdown"
+                )
+                sucesso_edicao = True
+            except Exception as e:
+                # Se não achou a mensagem para editar, precisamos de um novo
+                if "message to edit not found" in str(e).lower():
+                    panel_message_id = None
+                else:
+                    # Erro de rede ou flood: não cria novo para não duplicar
+                    sucesso_edicao = True 
+
+        # SE FALHOU OU NÃO TINHA ID: CRIA NOVO E LIMPA O CANAL
+        if not sucesso_edicao:
+            try:
+                # Tenta desfixar tudo antes de mandar o novo (limpeza preventiva)
+                try: await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
                 except: pass
 
-        except Exception as e:
-            print(f"[DEBUG] Erro TG: {e}")
+                msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
+                panel_message_id = msg.message_id
+                salvar_id_telegram(panel_message_id)
+                
+                await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
+            except Exception as e:
+                print(f"[DEBUG] Erro ao gerar novo painel: {e}")
 
     # --- LÓGICA DISCORD ---
     if DISCORD_PANEL_CHANNEL_ID:
@@ -883,24 +878,32 @@ async def test_youtube_live(url="https://www.youtube.com/@BTS/live", platform="b
 # =============================================================
 
 async def monitor_loop():
-    """Motor principal: Gerencia a pulsação dos contadores e a edição do painel."""
+    """
+    Motor principal: Gerencia a pulsação dos contadores e a edição do painel.
+    """
     await bot_discord.wait_until_ready()
     
     global panel_message_id, discord_panel_msg_id
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
-    print("[SISTEMA] Motor Arirang operando.")
+    print("[SISTEMA] Motor Arirang operando. Aguardando ciclos...")
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
+                # 1. Execução dos Checks (Atualizam timestamps e contadores)
                 await check_ticketmaster(session)
                 await check_buyticket(session)
                 await check_weverse(session)
                 await check_social(session)
+
+                # 2. Atualização dos Painéis (Telegram e Discord)
                 await update_panel()
+
+                # 3. Intervalo de 25 segundos para manter a precisão do status
                 await asyncio.sleep(25)
+
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
@@ -916,43 +919,86 @@ async def handle_commands_telegram(update, context):
     user_cmd = update.message.text.lower()
     
     if "/teste" in user_cmd:
-        await run_full_test(target="telegram")
-        await update_panel() 
+        await run_full_test_telegram(update)
         
     elif "/ping" in user_cmd:
         await update.message.reply_text(f"🏓 Pong! Wootteo operando.")
 
     elif "/comandos" in user_cmd:
         msg_ajuda = (
-            "🤖 **Comandos Disponíveis:**\n\n"
-            "🔹 `/ping` - Verifica a saúde e uptime do bot.\n"
-            "🔹 `/teste` - Testa o envio de alertas nos canais sociais.\n"
-            "🔹 `/comandos` - Exibe esta lista de ajuda."
+            "🤖 **Comandos Disponíveis (Telegram):**\n\n"
+            "🔹 `/ping` - Verifica a saúde do bot.\n"
+            "🔹 `/teste` - Dispara alertas de teste no canal.\n"
+            "🔹 `/comandos` - Exibe esta lista."
         )
         await update.message.reply_text(msg_ajuda, parse_mode="Markdown")
 
-# --- DISCORD (Slash Commands Silenciosos) ---
+# --- DISCORD (Slash Commands) ---
 
-@bot_discord.tree.command(name="teste", description="Testa o envio de alertas nos canais sociais")
+@bot_discord.tree.command(name="teste", description="Dispara alertas de teste nos canais do Discord")
 async def teste_discord(interaction: discord.Interaction):
-    # Executa o teste sem enviar mensagens de status intermediárias
-    await run_full_test(target="discord")
-    await update_panel()
-    await interaction.response.send_message("✅ Teste de disparos concluído.", ephemeral=True)
+    """Comando de teste para o Discord"""
+    # Defer usado para evitar timeout de 3 segundos do Discord
+    await interaction.response.defer(ephemeral=True)
+    try:
+        await run_full_test_discord()
+        await update_panel()
+        await interaction.followup.send("✅ Testes disparados nos canais do Discord e Painel atualizado!", ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Erro no teste: {e}", ephemeral=True)
 
 @bot_discord.tree.command(name="ping", description="Verifica a saúde do bot")
 async def ping_discord(interaction: discord.Interaction):
-    await interaction.response.send_message(f"🏓 Pong! Wootteo operando.")
+    await interaction.response.send_message(f"🏓 Pong! Motores Discord operando.")
 
-@bot_discord.tree.command(name="comandos", description="Exibe esta lista de ajuda")
+@bot_discord.tree.command(name="comandos", description="Exibe a lista de comandos")
 async def comandos_discord(interaction: discord.Interaction):
     msg_ajuda = (
-        "🤖 **Comandos Disponíveis:**\n\n"
+        "🤖 **Comandos Disponíveis (Discord):**\n\n"
         "🔹 `/ping` - Verifica a saúde e uptime do bot.\n"
         "🔹 `/teste` - Testa o envio de alertas nos canais sociais.\n"
         "🔹 `/comandos` - Exibe esta lista de ajuda."
     )
     await interaction.response.send_message(msg_ajuda)
+
+# =============================================================
+# 17.2 MOTOR DE TESTE REAL (TELEGRAM)
+# =============================================================
+
+async def run_full_test_telegram(update):
+    """Executa disparos reais para validar as permissões do bot no Telegram"""
+    try:
+        await update.message.reply_text("🧪 Iniciando disparos de teste no canal...")
+
+        if bot_ticket and PANEL_CHAT_ID:
+            teste_msg = "🚨 **TESTE DE SISTEMA**\nEste é um disparo manual para validar os alertas do canal."
+            await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=teste_msg, parse_mode="Markdown")
+            
+            # Força uma atualização do painel após o disparo
+            await update_panel()
+            await update.message.reply_text("✅ Mensagem de teste enviada ao canal e Painel atualizado!")
+        else:
+            await update.message.reply_text("❌ Erro: PANEL_CHAT_ID não configurado.")
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro durante o teste: {e}")
+        print(f"[DEBUG] Erro Teste TG: {e}")
+
+# =============================================================
+# 17.3 MOTOR DE TESTE REAL (DISCORD)
+# =============================================================
+
+async def run_full_test_discord():
+    """Envia uma mensagem real para o canal de alertas do Discord"""
+    if DISCORD_SOCIAL_CHANNEL_ID:
+        canal = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
+        if canal:
+            embed = discord.Embed(
+                title="🚨 TESTE DE DISPARO",
+                description="Este é um alerta manual para validar a conexão com o Discord.",
+                color=discord.Color.gold()
+            )
+            await canal.send(embed=embed)
 
 # =========================
 # 18 FETCH UNIVERSAL
