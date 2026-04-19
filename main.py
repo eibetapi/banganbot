@@ -939,7 +939,7 @@ async def on_ready():
         activity=discord.Activity(
             type=discord.ActivityType.listening, 
             name="Em tournê! Ouvindo: Arirang 🪭
-           🎮jogando: BTS Island"  
+🎮jogando: BTS Island"  
         ),
         status=discord.Status.online
     )
