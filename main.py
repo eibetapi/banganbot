@@ -962,38 +962,65 @@ async def send_alert(alert_type, message):
         # Lógica continua na parte 2...
         pass
 
-# =========================
-# 30 TELEGRAM (OBRIGATÓRIO)
-# =========================
-try:
-    if bot_ticket:
-        await bot_ticket.send_message(
-            chat_id=CHAT_ID,
-            text=message
-        )
-except Exception as e:
-    print(f"[ALERT TELEGRAM ERROR] {e}")
+# =============================================================
+# BLOCO 30 & 31 INTEGRADOS (DENTRO DE UMA FUNÇÃO ASYNC)
+# =============================================================
 
-# =========================
-# 31 DISCORD (ROTEAMENTO LIMPO)
-# =========================
-try:
-    loop = asyncio.get_running_loop()
-except RuntimeError:
-    return
+async def send_alert(alert_type, message):
+    """
+    Envia alertas para Telegram e Discord com roteamento inteligente
+    """
+    # --- 30 TELEGRAM (OBRIGATÓRIO) ---
+    try:
+        if bot_ticket:
+            await bot_ticket.send_message(
+                chat_id=CHAT_ID,
+                text=message
+            )
+    except Exception as e:
+        print(f"[ALERT TELEGRAM ERROR] {e}")
 
-# 🔥 PADRONIZAÇÃO DE CATEGORIAS
-if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
-    loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
+    # --- 31 DISCORD (ROTEAMENTO LIMPO) ---
+    try:
+        loop = asyncio.get_running_loop()
+        
+        # 🔥 PADRONIZAÇÃO DE CATEGORIAS (ROTEAMENTO POR CANAL)
+        if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
+            loop.create_task(
+                send_discord(DISCORD_TICKETS_CHANNEL_ID, message)
+            )
 
-elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
-    loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
+        elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
+            loop.create_task(
+                send_discord(DISCORD_WEVERSE_CHANNEL_ID, message)
+            )
 
-elif alert_type in ["instagram_post", "instagram_reel", "instagram_story", "instagram_live", "tiktok_post", "tiktok_live"]:
-    loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
+        elif alert_type in [
+            "instagram_post", "instagram_reel", "instagram_story", "instagram_live",
+            "tiktok_post", "tiktok_live"
+        ]:
+            loop.create_task(
+                send_discord(DISCORD_SOCIAL_CHANNEL_ID, message)
+            )
 
-else:
-    loop.create_task(send_discord(DISCORD_NEWS_CHANNEL_ID, message))
+        else:
+            loop.create_task(
+                send_discord(DISCORD_NEWS_CHANNEL_ID, message)
+            )
+            
+    except RuntimeError:
+        print("[DISCORD ERROR] Loop de eventos não encontrado.")
+    except Exception as e:
+        print(f"[DISCORD ROUTING ERROR] {e}")
+
+async def fetch(session, url):
+    try:
+        async with session.get(url, timeout=20) as response:
+            if response.status != 200:
+                return None
+            return await response.text()
+    except Exception:
+        return None
 
 # =========================
 # 32 FETCH UNIVERSAL
