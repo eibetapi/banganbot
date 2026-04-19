@@ -83,7 +83,7 @@ def keep_alive():
 # 4 CONFIG
 # =========================
 
-CHAT_ID = -1003972186058
+CHAT_ID = -3920883053 
 
 start_time = time.time()
 
