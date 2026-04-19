@@ -546,7 +546,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
   🎫 Data: **{data_show}**
   📍 Local: **{city}**
   🔔 Faltam **{d_prox}** dias.
-  🔔 Faltam **{d_br}** dias para o BTS no Brasil!
+  🩷 Faltam **{d_br}** dias para o BTS no Brasil!
 
 
 •°•👾•°•° **ATUALIZAÇÕES** •°•°🛸
@@ -908,97 +908,81 @@ async def monitor_loop():
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
-# =============================================================
+ # =============================================================
 # 17.1 COMANDOS DE GATILHO (TELEGRAM & DISCORD)
 # =============================================================
 
 # --- TELEGRAM ---
 async def handle_commands_telegram(update, context):
-    """Processador de comandos direto do Telegram"""
     if not update.message or not update.message.text: return
     user_cmd = update.message.text.lower()
     
     if "/teste" in user_cmd:
-        await run_full_test_telegram(update)
+        # Chama o motor que dispara os alertas do Bloco 16
+        await run_full_test_telegram()
+        await update_panel()
         
     elif "/ping" in user_cmd:
         await update.message.reply_text(f"🏓 Pong! Wootteo operando.")
 
     elif "/comandos" in user_cmd:
-        msg_ajuda = (
-            "🤖 **Comandos Disponíveis (Telegram):**\n\n"
-            "🔹 `/ping` - Verifica a saúde do bot.\n"
-            "🔹 `/teste` - Dispara alertas de teste no canal.\n"
-            "🔹 `/comandos` - Exibe esta lista."
-        )
+        msg_ajuda = "🤖 **Comandos:** `/ping`, `/teste`, `/comandos`"
         await update.message.reply_text(msg_ajuda, parse_mode="Markdown")
 
-# --- DISCORD (Slash Commands) ---
-
-@bot_discord.tree.command(name="teste", description="Dispara alertas de teste nos canais do Discord")
+# --- DISCORD ---
+@bot_discord.tree.command(name="teste", description="Dispara todos os alertas de teste nos canais específicos")
 async def teste_discord(interaction: discord.Interaction):
-    """Comando de teste para o Discord"""
-    # Defer usado para evitar timeout de 3 segundos do Discord
+    # O defer evita o erro de "interação desatualizada" ou timeout
     await interaction.response.defer(ephemeral=True)
     try:
         await run_full_test_discord()
         await update_panel()
-        await interaction.followup.send("✅ Testes disparados nos canais do Discord e Painel atualizado!", ephemeral=True)
+        await interaction.followup.send("✅ Sequência de testes concluída.", ephemeral=True)
     except Exception as e:
-        await interaction.followup.send(f"❌ Erro no teste: {e}", ephemeral=True)
-
-@bot_discord.tree.command(name="ping", description="Verifica a saúde do bot")
-async def ping_discord(interaction: discord.Interaction):
-    await interaction.response.send_message(f"🏓 Pong! Motores Discord operando.")
-
-@bot_discord.tree.command(name="comandos", description="Exibe a lista de comandos")
-async def comandos_discord(interaction: discord.Interaction):
-    msg_ajuda = (
-        "🤖 **Comandos Disponíveis (Discord):**\n\n"
-        "🔹 `/ping` - Verifica a saúde e uptime do bot.\n"
-        "🔹 `/teste` - Testa o envio de alertas nos canais sociais.\n"
-        "🔹 `/comandos` - Exibe esta lista de ajuda."
-    )
-    await interaction.response.send_message(msg_ajuda)
+        if not interaction.is_finished():
+            await interaction.followup.send(f"❌ Erro: {e}", ephemeral=True)
 
 # =============================================================
-# 17.2 MOTOR DE TESTE REAL (TELEGRAM)
+# 17.2 MOTOR DE TESTE REAL (TELEGRAM - DISPARA BLOCO 16)
 # =============================================================
 
-async def run_full_test_telegram(update):
-    """Executa disparos reais para validar as permissões do bot no Telegram"""
+async def run_full_test_telegram():
+    """Executa os alertas reais definidos no Bloco 16 para o Telegram"""
     try:
-        await update.message.reply_text("🧪 Iniciando disparos de teste no canal...")
-
-        if bot_ticket and PANEL_CHAT_ID:
-            teste_msg = "🚨 **TESTE DE SISTEMA**\nEste é um disparo manual para validar os alertas do canal."
-            await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=teste_msg, parse_mode="Markdown")
-            
-            # Força uma atualização do painel após o disparo
-            await update_panel()
-            await update.message.reply_text("✅ Mensagem de teste enviada ao canal e Painel atualizado!")
-        else:
-            await update.message.reply_text("❌ Erro: PANEL_CHAT_ID não configurado.")
-
+        # Simula disparos usando as funções do seu Bloco 16
+        # Reposição (Exemplo com link do Bloco 1)
+        url_teste = TICKET_LINKS[0] if TICKET_LINKS else "https://www.ticketmaster.com.br/"
+        await ticket_reposicao("TESTE REPOSIÇÃO", url_teste, True)
+        
+        # Redes Sociais / YouTube
+        await youtube_live("https://www.youtube.com/@BTS/live")
+        await youtube_post("Canal do BTS", "https://www.youtube.com/@BTS/videos")
+        
     except Exception as e:
-        await update.message.reply_text(f"❌ Erro durante o teste: {e}")
         print(f"[DEBUG] Erro Teste TG: {e}")
 
 # =============================================================
-# 17.3 MOTOR DE TESTE REAL (DISCORD)
+# 17.3 MOTOR DE TESTE REAL (DISCORD - DISPARA BLOCO 16)
 # =============================================================
 
 async def run_full_test_discord():
-    """Envia uma mensagem real para o canal de alertas do Discord"""
-    if DISCORD_SOCIAL_CHANNEL_ID:
-        canal = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
-        if canal:
-            embed = discord.Embed(
-                title="🚨 TESTE DE DISPARO",
-                description="Este é um alerta manual para validar a conexão com o Discord.",
-                color=discord.Color.gold()
-            )
-            await canal.send(embed=embed)
+    """Executa os alertas reais do Bloco 16, enviando cada um para sua respectiva sala"""
+    try:
+        # O Bloco 16 já deve estar configurado para enviar para DISCORD_TICKET_CHANNEL_ID, etc.
+        # Aqui apenas chamamos as funções para disparar os exemplos
+        
+        # 1. Ingressos (Ticketmaster / Buyticket)
+        url_t = TICKET_LINKS[0] if TICKET_LINKS else "https://www.ticketmaster.com.br/"
+        await ticket_reposicao("TESTE TICKETMASTER", url_t, True)
+        
+        # 2. Weverse (Se você tiver a função weverse_alerta no Bloco 16)
+        # await weverse_alerta("Post de Teste", "Link de Teste")
+        
+        # 3. Redes Sociais (YouTube/Instagram)
+        await youtube_live("https://www.youtube.com/@BTS/live")
+        
+    except Exception as e:
+        print(f"[DEBUG] Erro Teste Discord: {e}")
 
 # =========================
 # 18 FETCH UNIVERSAL
