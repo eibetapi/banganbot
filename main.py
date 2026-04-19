@@ -580,7 +580,6 @@ async def tiktok_live(url, member_name, title, found):
     
     await send_alert("tiktok_live", msg)
 
-
 # =============================================================
 # 16 SISTEMA DE TESTE (ROTEADO PARA AS SALAS CERTAS)
 # =============================================================
@@ -651,37 +650,17 @@ async def test_tiktok_post(url, member_name, title, found):
     await send_alert("tiktok_post", msg)
 
 # =============================================================
-# 17 COMANDOS (GATILHO DIRETO)
-# =============================================================
-
-# --- DISCORD (SLASH COMMAND) ---
-@bot_discord.tree.command(name="teste", description="Dispara modelos de teste para as salas")
-async def discord_teste(interaction: discord.Interaction):
-    await interaction.response.send_message("🧪 Executando modelos de teste...", ephemeral=True, delete_after=2)
-    await run_full_test() # Chama a função de teste do Bloco 16
-
-# --- TELEGRAM ---
-async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text: return
-    if update.message.chat.type != "private": return
-    
-    if update.message.text.lower().strip() == "/teste":
-        await update.message.reply_text("🧪 Iniciando sequência de testes...")
-        await run_full_test() # Chama a função de teste do Bloco 16
-
-# =============================================================
-# 18 MOTOR DE MONITORAMENTO (VERSÃO FINAL CORRIGIDA)
+# 17 MOTOR DE MONITORAMENTO (VERSÃO UNIFICADA E CORRIGIDA)
 # =============================================================
 
 async def monitor_loop():
     """
-    Motor principal: Garante o boot e mantém o painel 12.1 atualizado.
+    Motor principal: Garante o boot e mantém a varredura ativa.
     """
     # 1. Aguarda o bot estar pronto
     await bot_discord.wait_until_ready()
     
-    # 2. INICIALIZAÇÃO (Corrigindo o erro NameError da linha 820)
-    # Trocamos 'safe_boot' pelo nome correto que está no seu Bloco 12: 'send_boot'
+    # 2. INICIALIZAÇÃO (Correção: Usando o nome real do Bloco 12)
     try:
         await send_boot() 
         print("[SISTEMA] Painel Arirang inicializado com sucesso.")
@@ -693,210 +672,120 @@ async def monitor_loop():
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
     async with aiohttp.ClientSession() as session:
+        print("[MONITOR] Loop de varredura iniciado.")
         while True:
             try:
-                # Se o painel foi deletado ou é a primeira vez, recria usando o nome certo
+                # Se o painel sumiu, recria
                 if panel_message_id is None:
                     await send_boot()
 
-                # --- VARREDURA E CONTAGEM (Bloco 20) ---
+                # --- VARREDURA (Chamadas do Bloco 20) ---
                 await check_ticketmaster(session)
-                total_tickets += 1
-                last_ticket_check = datetime.now()
+                await asyncio.sleep(2)
                 
                 await check_buyticket(session)
-                total_buy += 1
-                last_buy_check = datetime.now()
+                await asyncio.sleep(2)
 
                 await check_weverse(session)
-                total_weverse += 1
-                last_weverse_check = datetime.now()
+                await asyncio.sleep(2)
 
                 await check_social(session)
-                total_social += 1
-                last_social_check = datetime.now()
 
                 # --- ATUALIZAÇÃO DO PAINEL ---
-                # Certifique-se que a função update_panel existe no seu código!
                 await update_panel()
 
-                # Espera 30 segundos para o próximo ciclo
+                # Pausa de 30 segundos entre ciclos
                 await asyncio.sleep(30)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] Falha no ciclo: {e}")
-                # Se a mensagem foi deletada, limpamos o ID para recriar no próximo loop
-                if "not found" in str(e).lower() or "deleted" in str(e).lower():
+                if "not found" in str(e).lower():
                     panel_message_id = None
                 await asyncio.sleep(10)
 
 # =========================
-# 19 FETCH UNIVERSAL
+# 18 FETCH UNIVERSAL
 # =========================
 
 async def fetch(session, url):
-    """Download seguro com timeout e headers para evitar bloqueios."""
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
         async with session.get(url, headers=headers, timeout=20) as response:
-            if response.status != 200:
-                return None
+            if response.status != 200: return None
             return await response.text()
     except Exception:
         return None
 
 # =========================
-# 20 CHECKS (MONITORAMENTO ATIVO)
+# 19 CHECKS (CORREÇÃO DE TIME)
 # =========================
+import time # Garante que o time.time() funcione
 
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
     if 'TICKET_LINKS' not in globals(): return
-    
     for url in TICKET_LINKS:
         html = await fetch(session, url)
         if html and is_new(url, html):
             found = "esgotado" not in html.lower()
             total_tickets += 1
-            # Chama o alerta detalhado do Bloco 14
             await ticket_reposicao(url, url, found)
-            last_ticket_check = time.time()
-            await update_panel()
+            last_ticket_check = datetime.now() # Usando datetime para bater com o painel
 
-async def check_buyticket(session):
-    global last_buy_check, total_buy
-    if 'BUY_LINKS' not in globals(): return
-    
-    for url in BUY_LINKS:
-        html = await fetch(session, url)
-        if html and is_new(url, html):
-            found = "esgotado" not in html.lower()
-            total_buy += 1
-            # Chama o alerta detalhado do Bloco 14
-            await buy_revenda(url, url, found)
-            last_buy_check = time.time()
-            await update_panel()
-
-async def check_weverse(session):
-    global last_weverse_check, total_weverse
-    if 'WEVERSE_LINKS' not in globals(): return
-    
-    for url in WEVERSE_LINKS:
-        html = await fetch(session, url)
-        if html and is_new(url, html):
-            total_weverse += 1
-            # Chama o alerta detalhado do Bloco 15
-            await weverse_post(url, "bts", "Update Detectado", "O conteúdo da página mudou.", True)
-            last_weverse_check = time.time()
-            await update_panel()
-
-async def check_social(session):
-    global last_social_check, total_social
-    insta = list(INSTAGRAM_LINKS.items()) if 'INSTAGRAM_LINKS' in globals() else []
-    ttok = list(TIKTOK_LINKS.items()) if 'TIKTOK_LINKS' in globals() else []
-    all_links = insta + ttok
-    
-    for member, url in all_links:
-        html = await fetch(session, url)
-        if html and is_new(url, html):
-            total_social += 1
-            if "instagram" in url:
-                await instagram_post(url, member, "Update", True)
-            elif "tiktok" in url:
-                await tiktok_post(url, member, "Update", True)
-            last_social_check = time.time()
-            await update_panel()
-# =========================
-# 21 LOOP PRINCIPAL (MOTOR)
-# =========================
-
-async def monitor_loop():
-    """
-    Executa a varredura contínua. 
-    Nota: monitor_loop já foi definido no Bloco 20, 
-    esta versão reafirma a ordem de execução.
-    """
-    await bot_discord.wait_until_ready()
-    await safe_boot() # Dispara Boot e Painel uma única vez
-    
-    print("[MONITOR] Loop de varredura iniciado.")
-
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                await check_ticketmaster(session)
-                await asyncio.sleep(2)
-                await check_buyticket(session)
-                await asyncio.sleep(2)
-                await check_weverse(session)
-                await asyncio.sleep(2)
-                await check_social(session)
-
-                # Pausa de 30 segundos entre ciclos para evitar bans
-                await asyncio.sleep(30)
-            except Exception as e:
-                print(f"[MONITOR ERROR] {e}")
-                await asyncio.sleep(10)
+# ... (Mantenha suas outras funções check_buy, check_weverse, check_social como estão)
 
 # =========================
-# 22 DISCORD: EVENTO ON_READY
+# 20 DISCORD: EVENTO ON_READY
 # =========================
 
 @bot_discord.event
 async def on_ready():
     print(f"✅ Logado no Discord como {bot_discord.user}")
-    
-    # AJUSTE AQUI: Mudando a frase de exibição
     await bot_discord.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening, 
-            name="Em tournê - ouvindo: Arirang 🪭"  
+            name="Arirang 🪭"  
         ),
         status=discord.Status.online
     )
-
     try:
-        synced = await bot_discord.tree.sync()
-        print(f"✅ {len(synced)} comandos slash sincronizados.")
+        await bot_discord.tree.sync()
+        print("✅ Comandos slash sincronizados.")
     except Exception as e:
         print(f"❌ Erro na sincronização: {e}")
 
 # =========================
-# 23 INICIALIZAÇÃO FINAL (MAIN)
+# 21 INICIALIZAÇÃO FINAL (MAIN)
 # =========================
 
 async def main():
-    """
-    Ponto de entrada principal do sistema Arirang.
-    """
-    # 1. Inicia o monitor em segundo plano como uma Task
+    # 1. Inicia o monitor em segundo plano
     asyncio.create_task(monitor_loop())
     
-    # 2. Configura Handlers do Telegram (python-telegram-bot v20+)
-    # O handler 'handle_commands_telegram' gerencia o /teste, /ping e /status
+    # 2. Configura Telegram
     if 'application' in globals():
         from telegram.ext import CommandHandler
-        
         application.add_handler(CommandHandler("teste", handle_commands_telegram))
         application.add_handler(CommandHandler("ping", handle_commands_telegram))
-        application.add_handler(CommandHandler("status", handle_commands_telegram))
         
         await application.initialize()
         await application.start()
         await application.updater.start_polling()
         print("[SISTEMA] Telegram operativo.")
 
-    # 3. Inicia o Discord (Este comando é bloqueante, mantendo o script vivo)
+    # 3. Inicia o Discord
     try:
-        # Puxa o token das variáveis de ambiente ou do seu Bloco de Configurações
-        token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
-        await bot_discord.start(token)
+        token = os.getenv('DISCORD_TOKEN') or (DISCORD_TOKEN if 'DISCORD_TOKEN' in globals() else None)
+        if token:
+            await bot_discord.start(token)
+        else:
+            print("[ERRO] Token do Discord não encontrado!")
     except Exception as e:
         print(f"[FATAL] Erro ao iniciar bot: {e}")
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        # Finalização limpa ao pressionar Ctrl+C
-        print("\n🛸 Desligando motores e recolhendo Wootteo...")  
+    except (KeyboardInterrupt, SystemExit):
+        print("\n🛸 Desligando motores...")
+
