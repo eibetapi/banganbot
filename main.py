@@ -130,19 +130,33 @@ def keep_alive():
         keep_alive._running = True
 
 # =========================
-# 5 FUNÇÕES DE UTILIDADE
+# 5 LÓGICA DE COMPARAÇÃO (ANTI-SPAM)
 # =========================
 
-def make_hash(data: str):
-    return hashlib.sha256(data.encode("utf-8", errors="ignore")).hexdigest()
-
-def is_new(url: str, html: str):
-    if not html: return False
-    new_hash = make_hash(html)
-    old_hash = CONTENT_HASH.get(url)
-    if old_hash != new_hash:
+def is_new(url, html):
+    """
+    Verifica se o conteúdo mudou e evita o spam de inicialização.
+    """
+    global CONTENT_HASH
+    
+    # Cria um resumo (hash) do conteúdo ignorando espaços extras
+    content_clean = " ".join(html.split())
+    new_hash = hashlib.md5(content_clean.encode('utf-8')).hexdigest()
+    
+    # TRAVA DE SEGURANÇA 1: Se o bot acabou de ligar (hash vazio)
+    # Ele apenas armazena o valor atual como 'conhecido' e retorna False
+    if url not in CONTENT_HASH:
         CONTENT_HASH[url] = new_hash
+        print(f"[MEMÓRIA] URL aprendida: {url}")
+        return False
+        
+    # TRAVA DE SEGURANÇA 2: Comparação Real
+    if CONTENT_HASH[url] != new_hash:
+        CONTENT_HASH[url] = new_hash
+        print(f"[ALERTA] Mudança real detectada em: {url}")
         return True
+        
+    # Se for igual, ignora silenciosamente
     return False
 
 
@@ -366,42 +380,74 @@ async def send_to_all(alert_type, message):
     except Exception as e:
         print(f"[DISCORD ROUTING ERROR] {e}")
 
-# =========================
-# 12 BOOT FIX (INÍCIO LIMPO)
-# =========================
+# =============================================================
+# 12 FUNÇÃO DE BOOT (INICIALIZAÇÃO DO SISTEMA)
+# =============================================================
+
 async def send_boot():
-    global panel_message_id, panel_chat_id, panel_initialized
+    """
+    Lança as mensagens de inicialização e configura os painéis.
+    """
+    global panel_initialized, panel_message
     
-    if not bot_discord: return
-
-    async with boot_lock:
-        msg = "🛸•°•Wootteo entrando em rota°•°🛸"
-
-        if bot_ticket:
-            try:
-                await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-            except: pass
-
+    boot_msg = "🛸•°•Wootteo entrando em rota°•°🛸"
+    
+    # --- 1. INICIALIZAÇÃO TELEGRAM ---
+    if bot_ticket:
         try:
-            channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
-            if channel: await channel.send(msg)
-        except: pass
-
-        if bot_ticket and (not panel_initialized or not panel_message_id):
+            # Envia a mensagem de Boot
+            # IMPORTANTE: Verifique se o Bot é ADMIN do canal -1003972186058
+            await bot_ticket.send_message(
+                chat_id=CHAT_ID, 
+                text=boot_msg
+            )
+            
+            # Envia o Painel que será editado futuramente (Bloco 13)
+            p_msg = await bot_ticket.send_message(
+                chat_id=CHAT_ID, 
+                text="👾 **PAINEL DE CONTROLE ARIRANG** 👾\n\nStatus: Inicializando..."
+            )
+            
+            # Tenta fixar a mensagem do painel
             try:
-                panel = await bot_ticket.send_message(
-                    chat_id=CHAT_ID,
-                    text="👾 PAINEL DE CONTROLE 👾\n\nInicializando sistema de tour..."
-                )
-                panel_message_id = panel.message_id
-                panel_chat_id = CHAT_ID
-                panel_initialized = True
-                try:
-                    await bot_ticket.pin_chat_message(chat_id=CHAT_ID, message_id=panel_message_id)
-                except: pass
-            except: pass
+                await bot_ticket.pin_chat_message(chat_id=CHAT_ID, message_id=p_msg.message_id)
+            except:
+                print("[TELEGRAM] Não foi possível fixar a mensagem. Verifique permissões de Admin.")
+                
+            panel_message = p_msg
+            print("[SISTEMA] Boot enviado com sucesso ao Telegram.")
+            
+        except Exception as e:
+            print(f"[TELEGRAM FATAL ERROR] Erro ao enviar boot: {e}")
+            print(f"DICA: Verifique se o ID {CHAT_ID} está correto e se o Bot é ADMIN.")
 
-        await update_panel()
+    # --- 2. INICIALIZAÇÃO DISCORD (CANAL ...625) ---
+    try:
+        canal_painel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+        if canal_painel:
+            # Limpa mensagens antigas se quiser um canal limpo (opcional)
+            # await canal_painel.purge(limit=5) 
+            
+            await canal_painel.send(boot_msg)
+            
+            embed_painel = discord.Embed(
+                title="👾 PAINEL DE CONTROLE 👾",
+                description="Monitoramento Arirang em tempo real.",
+                color=0x9b59b6 # Roxo
+            )
+            embed_painel.add_field(name="🛰️ Status", value="🟢 Online", inline=True)
+            embed_painel.set_footer(text=f"Boot realizado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+            
+            await canal_painel.send(embed=embed_painel)
+            print("[SISTEMA] Painel iniciado no Discord.")
+        else:
+            print(f"[DISCORD ERROR] Canal de painel {DISCORD_PANEL_CHANNEL_ID} não encontrado.")
+            
+    except Exception as e:
+        print(f"[DISCORD BOOT ERROR] {e}")
+
+    panel_initialized = True
+
 
 # =============================================================
 # 13 PAINEL FIXADO (TEMPO REAL + SEM SPAM)
