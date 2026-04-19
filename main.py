@@ -50,20 +50,28 @@ if TELEGRAM_TOKEN:
         print(f"[ERRO CONFIG TELEGRAM] {e}")
 
 # ==========================================
-# 2 CONTADORES GLOBAIS
+# 2 CONTADORES GLOBAIS E PERSISTÊNCIA
 # ==========================================
+# Contadores de acesso (🎯 Acessos realizados)
 total_tickets = 0
 total_buy = 0
 total_weverse = 0
 total_social = 0
 
+# Timestamps dos últimos rastreios (⏳ Último rastreio há...)
 last_ticket_check = time.time()
 last_buy_check = time.time()
 last_weverse_check = time.time()
 last_social_check = time.time()
 
+# IDs das mensagens dos painéis (ESSENCIAL para evitar novos posts e permitir a edição)
+panel_message_id = None      # Armazena o ID da mensagem no Telegram
+discord_panel_msg_id = None # Armazena o ID da mensagem no Discord
+
+# Tempo de início para o cálculo de Uptime
 start_time = time.time()
 
+# Rastreamento de mudanças e duplicatas
 CONTENT_HASH = {}
 SEEN_TICKET = set()
 SEEN_BUY = set()
@@ -815,35 +823,40 @@ async def test_tiktok_post(url, member_name, title, found, platform="both"):
 # =============================================================
 
 async def monitor_loop():
+    """
+    Motor principal: Gerencia a pulsação dos contadores e a edição do painel.
+    """
     await bot_discord.wait_until_ready()
     
+    # Puxamos todas as globais do Bloco 2 para garantir que o motor as enxergue
     global panel_message_id, discord_panel_msg_id
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
-    print("[SISTEMA] Motor Arirang iniciado.")
+    print("[SISTEMA] Motor Arirang operando. Aguardando ciclos...")
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # 1. Executa os Checks (Atualiza contadores e bolinhas)
+                # 1. Execução dos Checks (Atualizam timestamps e contadores)
                 await check_ticketmaster(session)
                 await check_buyticket(session)
                 await check_weverse(session)
                 await check_social(session)
 
-                # 2. Atualiza os Painéis (Edita se existir, cria se sumir)
-                # Esta única chamada gerencia Telegram e Discord agora.
+                # 2. Atualização dos Painéis
+                # A função update_panel agora decide sozinha se edita ou se cria (se o ID sumir)
                 await update_panel()
 
-                # 3. Delay entre ciclos
+                # 3. Intervalo de 25 segundos para manter os minutos e bolinhas precisos
                 await asyncio.sleep(25)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
+
 # =============================================================
-# 17.1 COMANDOS DE GATILHO (ISOLAMENTO DE PLATAFORMA)
+# 17.1 COMANDOS DE GATILHO (CONTROLE DE RESPOSTA)
 # =============================================================
 
 # No Telegram
@@ -851,24 +864,25 @@ async def handle_commands_telegram(update, context):
     user_cmd = update.message.text.lower()
     
     if "/teste" in user_cmd:
-        await update.message.reply_text("🚀 [TELEGRAM] Iniciando sequência de testes...")
-        # target="telegram" impede que o teste dispare alertas no Discord
+        await update.message.reply_text("🚀 [TELEGRAM] Iniciando teste de layout e roteamento...")
+        # target="telegram" garante que a resposta de alerta de teste fique só aqui
         await run_full_test(target="telegram")
+        # Força uma atualização visual imediata do painel
         await update_panel() 
         
     elif "/ping" in user_cmd:
         await update.message.reply_text(f"🏓 Pong! Wootteo operando há {get_uptime()}")
 
 # No Discord (Slash Command)
-@bot_discord.tree.command(name="teste", description="Executa teste de layout exclusivo no Discord")
+@bot_discord.tree.command(name="teste", description="Executa o teste de layout exclusivo no Discord")
 async def teste_discord(interaction: discord.Interaction):
-    # Resposta efêmera para não poluir o chat público
+    # Resposta rápida para evitar erro de timeout no Discord
     await interaction.response.send_message("🚀 [DISCORD] Iniciando sequência de testes...", ephemeral=True)
     
-    # target="discord" impede que o teste dispare mensagens no Telegram
+    # target="discord" garante que a resposta de alerta de teste fique só nos canais do Discord
     await run_full_test(target="discord")
     
-    # Atualiza o painel do Discord com os dados mais recentes
+    # Força atualização visual do painel no Discord
     await update_panel()
 
 @bot_discord.tree.command(name="ping", description="Verifica a saúde do bot")
@@ -937,7 +951,7 @@ async def on_ready():
     print(f"✅ Logado no Discord como {bot_discord.user}")
     
     # Definindo o texto com quebra de linha para ficar um embaixo do outro
-    status_formatado = "🪭 Em tournê! Ouvindo: Arirang\n🎮 Jogando: BTS Island"
+    status_formatado = "🪭 Em tournê! Ouvindo: Arirang"
     
     await bot_discord.change_presence(
         activity=discord.Activity(
