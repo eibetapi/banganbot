@@ -388,16 +388,13 @@ panel_message_id = None
 panel_initialized = False
 
 async def send_boot():
-    """Cria o painel pela primeira vez e fixa no Telegram."""
     global panel_message_id, panel_initialized
-    
-    # Se já existe o ID, não faz nada (evita duplicar fixados)
     if panel_message_id is not None:
         return
 
     data_show, city, dias = get_next_show()
     
-    # O seu layout obrigatório (versão inicial)
+    # Aspas triplas garantem que o layout não quebre o código
     text = f"""🪭⊙⊝⊜ARIRANG TOUR⊙⊝⊜🪭
 
 ✈️ PRÓXIMAS DATAS
@@ -429,64 +426,9 @@ async def send_boot():
             panel_message_id = p_msg.message_id
             await bot_ticket.pin_chat_message(chat_id=CHAT_ID, message_id=panel_message_id)
             panel_initialized = True
-            print(f"[BOOT] Painel criado com ID: {panel_message_id}")
+            print("[SISTEMA] Painel criado e fixado com sucesso.")
         except Exception as e:
             print(f"[ERR BOOT] {e}")
-# =============================================================
-# 12.1 FUNÇÃO DE ATUALIZAÇÃO (EDIÇÃO DOS NÚMEROS)
-# =============================================================
-
-async def update_panel():
-    """Edita o painel existente com os números atualizados dos rastreios."""
-    global panel_message_id, total_weverse, total_social, total_tickets, total_buy
-    global last_weverse_check, last_social_check, last_ticket_check, last_buy_check
-
-    if not panel_message_id:
-        return
-
-    try:
-        data_show, city, dias = get_next_show()
-        
-        # O seu layout obrigatório (versão com variáveis dinâmicas)
-        text = f"""🪭⊙⊝⊜ARIRANG TOUR⊙⊝⊜🪭
-
-✈️ PRÓXIMAS DATAS
-🎫 Data: {data_show}
-📍 Local: {city}
-🔔 Faltam {dias} dias.
-
-•°• 👾•°• •°• •°• •°*ATUALIZAÇÕES* •°• •°• •°• •°• •°• 🛸
-
-🟣 Weverse {status_color(last_weverse_check)}
-   🎯 Acessos realizados: {total_weverse}
-   ⏱ Último rastreio há: {minutes_since(last_weverse_check)} min
-
-⚪ Redes sociais {status_color(last_social_check)}
-   🎯 Acessos realizados: {total_social}
-   ⏱ Último rastreio há: {minutes_since(last_social_check)} min
-
-🟠 Ticketmaster {status_color(last_ticket_check)}
-   🎯 Acessos realizados: {total_tickets}
-   ⏱ Último rastreio há: {minutes_since(last_ticket_check)} min
-
-🔵 Buyticket {status_color(last_buy_check)}
-   🎯 Acessos realizados: {total_buy}
-   ⏱ Último rastreio há: {minutes_since(last_buy_check)} min"""
-
-        # AQUI É A MÁGICA: edit_message_text em vez de send_message
-        await bot_ticket.edit_message_text(
-            chat_id=CHAT_ID, 
-            message_id=panel_message_id, 
-            text=text
-        )
-
-    except Exception as e:
-        print(f"[ERR UPDATE] {e}")
-        # Se der erro porque a mensagem foi deletada, limpamos o ID para o Bloco 12 recriar
-        if "message to edit not found" in str(e).lower():
-            panel_message_id = None
-
-
 
 # =========================
 # 13 ALERTAS WEVERSE (CORRIGIDO)
