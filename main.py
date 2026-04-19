@@ -431,7 +431,7 @@ INSTAGRAM_LINKS = {"bts": "https://www.instagram.com/bts.bighitofficial/"}
 TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"}
 
 # =============================================================
-# 12 FUNÇÃO DE BOOT (CRIAÇÃO E FIXAÇÃO)
+# 12 FUNÇÃO DE BOOT (TELEGRAM - CRIAÇÃO E FIXAÇÃO)
 # =============================================================
 
 panel_message_id = None
@@ -439,46 +439,52 @@ panel_initialized = False
 
 async def send_boot():
     global panel_message_id, panel_initialized
+    # Importante: Variáveis globais para o contador não zerar no boot
+    global total_tickets, total_buy, total_weverse, total_social
+    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
+    
     if panel_message_id is not None:
         return
 
-    data_show, city, dias = get_next_show()
+    # Usando a função unificada de agenda
+    data_show, city, d_prox, d_br = get_countdown_data()
     
-    text = f"""🪭**⊙⊝⊜ARIRANG TOUR⊙⊝⊜**🪭
+    # Negrito com '*' para compatibilidade total no Telegram
+    text = f"""🪭⊙⊝⊜*ARIRANG TOUR*⊙⊝⊜🪭
 
-✈️ PRÓXIMAS DATAS
-🎫 Data: {data_show}
-📍 Local: {city}
-🔔 Faltam {dias} dias.
-🔔 Faltam {dias} dias para o BTS no Brasil! 
+*✈️ PRÓXIMAS DATAS*
+*🎫 Data:* {data_show}
+*📍 Local:* {city}
+*🔔 Faltam* {d_prox} *dias.*
+*🔔 Faltam* {d_br} *dias para o BTS no Brasil!* 
 
-•°• 👾•°• °•°*ATUALIZAÇÕES*•°• °•°🛸
+*•°• 👾•°• °•°ATUALIZAÇÕES°•° •°•🛸*
 
-🟣 Weverse 🟢
-🎯 Acessos realizados: 0
-⏳ Último rastreio há: 0 min
+*🟣 Weverse* {status_color(last_weverse_check)}
+*🎯 Acessos realizados:* {total_weverse}
+*⏳ Último rastreio há:* {minutes_since(last_weverse_check)} min
 
-⚪ Redes sociais 🟢
-🎯 Acessos realizados: 0
-⏳ Último rastreio há: 0 min
+*⚪ Redes sociais* {status_color(last_social_check)}
+*🎯 Acessos realizados:* {total_social}
+*⏳ Último rastreio há:* {minutes_since(last_social_check)} min
 
-🟠 Ticketmaster 🟢
-🎯 Acessos realizados: 0
-⏳ Último rastreio há: 0 min
+*🟠 Ticketmaster* {status_color(last_ticket_check)}
+*🎯 Acessos realizados:* {total_tickets}
+*⏳ Último rastreio há:* {minutes_since(last_ticket_check)} min
 
-🔵 Buyticket 🟢
-🎯 Acessos realizados: 0
-⏳ Último rastreio há: 0 min"""
+*🔵 Buyticket* {status_color(last_buy_check)}
+*🎯 Acessos realizados:* {total_buy}
+*⏳ Último rastreio há:* {minutes_since(last_buy_check)} min"""
 
-    if bot_ticket and CHAT_ID:
+    if bot_ticket and PANEL_CHAT_ID: # Certifique-se que PANEL_CHAT_ID está correto
         try:
-            p_msg = await bot_ticket.send_message(chat_id=CHAT_ID, text=text)
+            p_msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=text, parse_mode="Markdown")
             panel_message_id = p_msg.message_id
-            await bot_ticket.pin_chat_message(chat_id=CHAT_ID, message_id=panel_message_id)
+            await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
             panel_initialized = True
-            print("[SISTEMA] Painel criado e fixado com sucesso.")
+            print("[SISTEMA] Painel Telegram criado e fixado.")
         except Exception as e:
-            print(f"[ERR BOOT] {e}")
+            print(f"[ERR BOOT TELEGRAM] {e}")
 
 # =============================================================
 # 12.1 PAINEL DISCORD (UPDATE - FIX CONTADORES)
@@ -488,49 +494,48 @@ discord_panel_msg_id = None
 
 async def update_discord_panel():
     global discord_panel_msg_id
-    # IMPORTANTE: Declarar as variáveis globais para puxar os dados do motor
+    # CRÍTICO: Sem isso o contador trava em 0
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
     
     channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
     if not channel: return
 
-    # Puxa os dados da agenda e os dias para os dois contadores
     data_show, city, d_prox, d_br = get_countdown_data()
     
     embed = discord.Embed(color=0x8A2BE2)
     
-    # Layout mantido exatamente como o modelo original
-    embed.description = f"""🪭**⊙⊝⊜ARIRANG TOUR⊙⊝⊜**🪭
+    # Layout padronizado com o Telegram, usando negrito em tudo que é fixo
+    embed.description = f"""🪭⊙⊝⊜**ARIRANG TOUR**⊙⊝⊜🪭
 
-✈️ PRÓXIMAS DATAS
-🎫 Data: {data_show}
-📍 Local: {city}
-🔔 Faltam {d_prox} dias.
-🔔 Faltam {d_br} dias para o BTS no Brasil! 
+**✈️ PRÓXIMAS DATAS**
+**🎫 Data:** {data_show}
+**📍 Local:** {city}
+**🔔 Faltam** {d_prox} **dias.**
+**🔔 Faltam** {d_br} **dias para o BTS no Brasil!**
 
-•°• 👾•°• °•°*ATUALIZAÇÕES*•°• °•°🛸
+ **•°• 👾•°• °•°ATUALIZAÇÕES°•° •°•🛸**
 
-🟣 Weverse {status_color(last_weverse_check)}
-🎯 Acessos realizados: {total_weverse}
-⏳ Último rastreio há: {minutes_since(last_weverse_check)} min
+**🟣 Weverse** {status_color(last_weverse_check)}
+**🎯 Acessos realizados:** {total_weverse}
+**⏳ Último rastreio há:** {minutes_since(last_weverse_check)} min
 
-⚪ Redes sociais {status_color(last_social_check)}
-🎯 Acessos realizados: {total_social}
-⏳ Último rastreio há: {minutes_since(last_social_check)} min
+**⚪ Redes sociais** {status_color(last_social_check)}
+**🎯 Acessos realizados:** {total_social}
+**⏳ Último rastreio há:** {minutes_since(last_social_check)} min
 
-🟠 Ticketmaster {status_color(last_ticket_check)}
-🎯 Acessos realizados: {total_tickets}
-⏳ Último rastreio há: {minutes_since(last_ticket_check)} min
+**🟠 Ticketmaster** {status_color(last_ticket_check)}
+**🎯 Acessos realizados:** {total_tickets}
+**⏳ Último rastreio há:** {minutes_since(last_ticket_check)} min
 
-🔵 Buyticket {status_color(last_buy_check)}
-🎯 Acessos realizados: {total_buy}
-⏳ Último rastreio há: {minutes_since(last_buy_check)} min"""
+**🔵 Buyticket** {status_color(last_buy_check)}
+**🎯 Acessos realizados:** {total_buy}
+**⏳ Último rastreio há:** {minutes_since(last_buy_check)} min"""
 
     try:
         if discord_panel_msg_id is None:
-            async for message in channel.history(limit=5):
-                if message.author == bot_discord.user:
+            async for message in channel.history(limit=10):
+                if message.author == bot_discord.user and message.embeds:
                     discord_panel_msg_id = message.id
                     await message.edit(embed=embed)
                     return
