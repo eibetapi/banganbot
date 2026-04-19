@@ -399,7 +399,7 @@ async def send_boot():
 📍 Local: {city}
 🔔 Faltam {dias} dias.
 
-•°• 👾•°• •°• •°• •°*ATUALIZAÇÕES* •°• •°• •°• •°• •°• 🛸
+•°• 👾•°• •°•°*ATUALIZAÇÕES* •°• •°• •°• 🛸
 
 🟣 Weverse {status_color(last_weverse_check)}
    🎯 Acessos realizados: {total_weverse}
