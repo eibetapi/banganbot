@@ -676,48 +676,63 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
         await run_full_test()
 
 # =============================================================
-# 18 MOTOR DE MONITORAMENTO (SOMA E ATUALIZA)
+# 18 MOTOR DE MONITORAMENTO (CONTADORES E CORREÇÃO DE BOOT)
 # =============================================================
 
 async def monitor_loop():
-    await bot_discord.wait_until_ready()
-    await send_boot() # Garante que a mensagem existe
+    """Motor principal: Executa o boot inicial e atualiza os contadores."""
     
-    # IMPORTANTE: Declarar globais para que a soma saia daqui e chegue no painel
-    global total_weverse, total_social, total_tickets, total_buy
-    global last_weverse_check, last_social_check, last_ticket_check, last_buy_check
+    # 1. Espera o bot estar pronto
+    await bot_discord.wait_until_ready()
+    
+    # 2. Executa o boot oficial (O Bloco 12 que definimos antes)
+    # Aqui corrigimos o erro NameError chamando o nome certo
+    try:
+        await send_boot() 
+        print("[SISTEMA] Painel inicializado com sucesso.")
+    except Exception as e:
+        print(f"[BOOT ERROR] Falha ao iniciar painel: {e}")
+
+    # 3. Variáveis globais para os contadores subirem
+    global total_tickets, total_buy, total_weverse, total_social
+    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # 1. Rastreio Weverse
-                await check_weverse(session)
-                total_weverse += 1
-                last_weverse_check = datetime.now()
+                # --- CICLO DE VARREDURA E SOMA ---
                 
-                # 2. Rastreio Redes Sociais
-                await check_social(session)
-                total_social += 1
-                last_social_check = datetime.now()
-
-                # 3. Rastreio Ticketmaster
+                # Ticketmaster
                 await check_ticketmaster(session)
                 total_tickets += 1
                 last_ticket_check = datetime.now()
-
-                # 4. Rastreio BuyTicket
+                
+                # BuyTicket
                 await check_buyticket(session)
                 total_buy += 1
                 last_buy_check = datetime.now()
 
-                # --- AGORA CHAMA A ATUALIZAÇÃO ---
-                await update_panel() 
+                # Weverse
+                await check_weverse(session)
+                total_weverse += 1
+                last_weverse_check = datetime.now()
 
-                await asyncio.sleep(30) # Espera 30s para o próximo ciclo
+                # Redes Sociais
+                await check_social(session)
+                total_social += 1
+                last_social_check = datetime.now()
+
+                # --- ATUALIZAÇÃO DO PAINEL ---
+                # Esta função (Bloco 13) vai editar a mensagem e mostrar os números
+                await update_panel()
+
+                # Intervalo para não ser banido dos sites e manter o bot ágil
+                await asyncio.sleep(30)
 
             except Exception as e:
-                print(f"[MONITOR ERROR] {e}")
+                print(f"[MONITOR ERROR] Falha no ciclo: {e}")
                 await asyncio.sleep(10)
+
 
 # =============================================================
 # 19  ENGINE DE ALERTA (BLOQUEIO DE CANAL INDEVIDO)
