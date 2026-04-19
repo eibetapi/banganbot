@@ -678,34 +678,32 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
         await send_notification("SISTEMA", "https://arirang.com", "Teste de Comando Telegram")
 
 # =============================================================
-# 18 MOTOR DE MONITORAMENTO (VERSÃO FINAL - SEM ERROS)
+# 18 MOTOR DE MONITORAMENTO (VERSÃO FINAL CORRIGIDA)
 # =============================================================
 
 async def monitor_loop():
     """
-    Motor principal: Gerante o boot e mantém o painel atualizado.
-    Substitui qualquer versão anterior para eliminar o NameError.
+    Motor principal: Garante o boot e mantém o painel 12.1 atualizado.
     """
     # 1. Aguarda o bot estar pronto
     await bot_discord.wait_until_ready()
     
-    # 2. INICIALIZAÇÃO (Correção do erro na linha 826)
-    # Trocamos 'safe_boot' pelo nome correto definido no Bloco 12: 'send_boot'
+    # 2. INICIALIZAÇÃO (Corrigindo o erro NameError da linha 828)
+    # Trocamos 'safe_boot' pelo nome correto que está no Bloco 12: 'send_boot'
     try:
         await send_boot() 
         print("[SISTEMA] Painel Arirang inicializado com sucesso.")
     except Exception as e:
         print(f"[BOOT ERROR] Falha ao iniciar: {e}")
 
-    # 3. Variáveis globais para os contadores subirem no painel
+    # 3. Variáveis globais para os contadores
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # Se o painel sumiu (foi deletado), o Bloco 12.1 limpa o ID 
-                # e aqui nós recriamos automaticamente chamando o send_boot.
+                # Se o painel foi deletado ou é a primeira vez, recria
                 if panel_message_id is None:
                     await send_boot()
 
@@ -727,16 +725,18 @@ async def monitor_loop():
                 last_social_check = datetime.now()
 
                 # --- ATUALIZAÇÃO DO PAINEL (BLOCO 12.1) ---
-                # Edita o layout fixado com os novos números e cores de status
+                # Edita a mensagem fixada com os números novos
                 await update_panel()
 
-                # Intervalo de 30 segundos
+                # Espera 30 segundos para o próximo ciclo
                 await asyncio.sleep(30)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] Falha no ciclo: {e}")
+                # Se o erro for de mensagem deletada, limpamos o ID para recriar no próximo loop
+                if "not found" in str(e).lower() or "deleted" in str(e).lower():
+                    panel_message_id = None
                 await asyncio.sleep(10)
-
 
 # =========================
 # 19 FETCH UNIVERSAL
