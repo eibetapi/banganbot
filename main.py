@@ -427,68 +427,32 @@ TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"}
 # O motor de busca no Bloco 8 lerá automaticamente a lista completa.
 
 # =============================================================
-# 12 FUNÇÃO DE BOOT (TELEGRAM - CRIAÇÃO E FIXAÇÃO)
+# 12 & 12.1 GESTÃO DO PAINEL (TELEGRAM & DISCORD)
 # =============================================================
 
 async def send_boot():
-    global panel_message_id, panel_initialized
+    """Cria o painel inicial se não existir."""
+    global panel_message_id
     
-    # Se já existe um ID na memória, não cria um novo para não duplicar fixados
+    # Se já temos um ID, não fazemos nada no boot para evitar duplicatas
     if panel_message_id is not None:
         return
 
     data_show, city, d_prox, d_br = get_countdown_data()
-    texto = f"""🪭 *⊙⊝⊜ARIRANG TOUR⊙⊝⊜* 🪭
-
-*✈️ PRÓXIMAS DATAS*
-*🎫 Data:* {data_show}
-*📍 Local:* {city}
-*🔔 Faltam* {d_prox} *dias.*
-*🔔 Faltam* {d_br} *dias para o BTS no Brasil!*
-
-•°•👾•°•°*ATUALIZAÇÕES*•°•°🛸
-
-*🟣 Weverse* {status_color(last_weverse_check)}
-*🎯 Acessos realizados:* {total_weverse}
-*⏳ Último rastreio há:* {minutes_since(last_weverse_check)} *min*
-
-*⚪ Redes sociais* {status_color(last_social_check)}
-*🎯 Acessos realizados:* {total_social}
-*⏳ Último rastreio há:* {minutes_since(last_social_check)} *min*
-
-*🟠 Ticketmaster* {status_color(last_ticket_check)}
-*🎯 Acessos realizados:* {total_tickets}
-*⏳ Último rastreio há:* {minutes_since(last_ticket_check)} *min*
-
-*🔵 Buyticket* {status_color(last_buy_check)}
-*🎯 Acessos realizados:* {total_buy}
-*⏳ Último rastreio há:* {minutes_since(last_buy_check)} *min*"""
+    texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
     if bot_ticket and PANEL_CHAT_ID:
         try:
-            # Envia a mensagem inicial
             p_msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
             panel_message_id = p_msg.message_id
-            
-            # FIXA a mensagem
             await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
-            panel_initialized = True
             print(f"[SISTEMA] Novo Painel Telegram fixado: {panel_message_id}")
         except Exception as e:
-            print(f"[ERR BOOT TELEGRAM] {e}")
+            print(f"[ERR BOOT] {e}")
 
-# =============================================================
-# 12.1 ATUALIZAÇÃO DOS PAINÉIS (TELEGRAM & DISCORD)
-# =============================================================
-
-async def update_panel():
-    global panel_message_id, PANEL_CHAT_ID, discord_panel_msg_id
-    
-    data_show, city, d_prox, d_br = get_countdown_data()
-    
-    # --- 1. ATUALIZAÇÃO TELEGRAM ---
-    if panel_message_id:
-        texto_tg = f"""🪭 ⊙⊝⊜*ARIRANG TOUR*⊙⊝⊜🪭
+def gerar_texto_painel(data_show, city, d_prox, d_br):
+    """Gera o padrão visual idêntico para ambos os apps."""
+    return f"""🪭 ⊙⊝⊜*ARIRANG TOUR*⊙⊝⊜🪭
 
 *✈️ PRÓXIMAS DATAS*
 *🎫 Data:* {data_show}
@@ -514,50 +478,50 @@ async def update_panel():
 *🎯 Acessos realizados:* {total_buy}
 *⏳ Último rastreio há:* {minutes_since(last_buy_check)} *min*"""
 
+async def update_panel():
+    """Edita as mensagens existentes em vez de criar novas."""
+    global panel_message_id, discord_panel_msg_id
+    
+    data_show, city, d_prox, d_br = get_countdown_data()
+    texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+
+    # --- EDITAR TELEGRAM ---
+    if panel_message_id and bot_ticket:
         try:
             await bot_ticket.edit_message_text(
                 chat_id=PANEL_CHAT_ID,
                 message_id=panel_message_id,
-                text=texto_tg,
+                text=texto,
                 parse_mode="Markdown"
             )
         except Exception as e:
+            print(f"[DEBUG] Erro ao editar Telegram: {e}")
+            # Se a mensagem foi deletada, resetamos para o send_boot criar outra
             if "message to edit not found" in str(e).lower():
                 panel_message_id = None
 
-    # --- 2. ATUALIZAÇÃO DISCORD ---
-    await update_discord_panel() # Chama a função do Discord
+    # --- EDITAR DISCORD ---
+    await update_discord_panel(texto)
 
-async def update_discord_panel():
+async def update_discord_panel(conteudo):
     global discord_panel_msg_id
+    if not DISCORD_PANEL_CHANNEL_ID: return
+    
     channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
     if not channel: return
 
-    data_show, city, d_prox, d_br = get_countdown_data()
-    
-    embed = discord.Embed(title="🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭", color=0x8A2BE2)
-    embed.description = f"""
-**✈️ PRÓXIMAS DATAS**
-**🎫 Data:** {data_show} | **📍 Local:** {city}
-**🔔 Faltam** {d_prox} **dias.**
-**🔔 Faltam** {d_br} **dias para o Brasil!**
-
-•°• 👾•°• °•°**ATUALIZAÇÕES**•°• °•°🛸
-
-**🟣 Weverse** {status_color(last_weverse_check)} | Acessos: {total_weverse}
-**⚪ Social** {status_color(last_social_check)} | Acessos: {total_social}
-**🟠 Ticketmaster** {status_color(last_ticket_check)} | Acessos: {total_tickets}
-**🔵 Buyticket** {status_color(last_buy_check)} | Acessos: {total_buy}
-"""
     try:
         if discord_panel_msg_id is None:
-            msg = await channel.send(embed=embed)
+            msg = await channel.send(content=conteudo)
             discord_panel_msg_id = msg.id
-            await msg.pin()
+            try: await msg.pin()
+            except: pass
         else:
             msg = await channel.fetch_message(discord_panel_msg_id)
-            await msg.edit(embed=embed)
-    except: pass
+            await msg.edit(content=conteudo)
+    except Exception as e:
+        print(f"[ERR DISCORD] {e}")
+        discord_panel_msg_id = None
 
 # =========================
 # 13 ALERTAS WEVERSE (CORRIGIDO)
@@ -917,9 +881,8 @@ async def fetch(session, url):
 
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
-    last_ticket_check = time.time() # Atualiza o tempo ANTES para garantir o pulso
+    last_ticket_check = time.time()
     if 'TICKET_LINKS' not in globals(): return
-    
     for url in TICKET_LINKS:
         html = await fetch(session, url)
         if html:
@@ -931,13 +894,12 @@ async def check_ticketmaster(session):
 
 async def check_buyticket(session):
     global last_buy_check, total_buy
-    last_buy_check = time.time() # Garante bolinha piscando
+    last_buy_check = time.time() # Atualiza SEMPRE que a função rodar
     if 'BUY_LINKS' not in globals(): return
-    
     for url in BUY_LINKS:
         html = await fetch(session, url)
         if html:
-            total_buy += 1
+            total_buy += 1 # Contador de sucesso
             if is_new(url, html):
                 found = "esgotado" not in html.lower()
                 # try: await buy_reposicao(url, url, found)
@@ -947,12 +909,10 @@ async def check_weverse(session):
     global last_weverse_check, total_weverse
     last_weverse_check = time.time()
     if 'WEVERSE_LINKS' not in globals(): return
-    
     for url in WEVERSE_LINKS:
         html = await fetch(session, url)
         if html:
             total_weverse += 1
-            # Lógica Weverse (Bloco 13) aqui
 
 async def check_social(session):
     global last_social_check, total_social
