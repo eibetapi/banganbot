@@ -262,13 +262,14 @@ def status_color(last_check):
 # =========================
 
 import aiohttp
+
 http_session = None
 
 async def get_session():
-global http_session
-if http_session is None or http_session.closed:
-http_session = aiohttp.ClientSession()
-return http_session
+    global http_session
+    if http_session is None or http_session.closed:
+        http_session = aiohttp.ClientSession()
+    return http_session
 
 # =========================
 # 9 EMOJIS
