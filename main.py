@@ -366,7 +366,6 @@ def get_countdown_data():
 # =========================
 # 9 SESSION (FIX: CLIENT SESSION ÚNICA)
 # =========================
-import aiohttp
 
 http_session = None
 
@@ -390,16 +389,17 @@ def get_member_emoji(member_name):
 def format_member(member_name):
     emoji = get_member_emoji(member_name)
     name = str(member_name).upper()
-    return emoji, name 
+    return emoji, name
 
 # =========================
 # 11 ROTEAMENTO DE ALERTAS (AJUSTADO)
 # =========================
 
-async def send_alert(alert_type, message): # Nome alterado para bater com os outros blocos
+async def send_alert(alert_type, message):
     if bot_ticket is not None:
         try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
+            # Usando PANEL_CHAT_ID para manter consistência com o Bloco 1
+            await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=message, parse_mode="Markdown")
         except Exception as e:
             print(f"[TELEGRAM ERROR] {e}")
 
@@ -468,13 +468,13 @@ async def send_boot():
 *🎯 Acessos realizados:* {total_buy}
 *⏳ Último rastreio há:* {minutes_since(last_buy_check)} *min*"""
 
-if bot_ticket and PANEL_CHAT_ID:
+    if bot_ticket and PANEL_CHAT_ID:
         try:
             # Envia a mensagem inicial
-            p_msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=text, parse_mode="Markdown")
+            p_msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
             panel_message_id = p_msg.message_id
             
-            # FIXA a mensagem (Isso sobrepõe fixados anteriores no topo)
+            # FIXA a mensagem
             await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
             panel_initialized = True
             print(f"[SISTEMA] Novo Painel Telegram fixado: {panel_message_id}")
@@ -491,34 +491,34 @@ async def update_panel():
 
     data_show, city, d_prox, d_br = get_countdown_data()
     
-    embed = discord.Embed(color=0x8A2BE2)
-    embed.description = f"""🪭 **⊙⊝⊜ARIRANG TOUR⊙⊝⊜** 🪭
+    # Texto para o Telegram (Edição)
+    texto = f"""🪭 *⊙⊝⊜ARIRANG TOUR⊙⊝⊜* 🪭
 
-**✈️ PRÓXIMAS DATAS**
-**🎫 Data:** {data_show}
-**📍 Local:** {city}
-**🔔 Faltam** {d_prox} **dias.**
-**🔔 Faltam** {d_br} **dias para o BTS no Brasil!**
+*✈️ PRÓXIMAS DATAS*
+*🎫 Data:* {data_show}
+*📍 Local:* {city}
+*🔔 Faltam* {d_prox} *dias.*
+*🔔 Faltam* {d_br} *dias para o BTS no Brasil!*
 
-•°• 👾•°• °•°**ATUALIZAÇÕES**•°• °•°🛸
+•°• 👾•°• °•°*ATUALIZAÇÕES*•°• °•°🛸
 
-**🟣 Weverse** {status_color(last_weverse_check)}
-**🎯 Acessos realizados:** {total_weverse}
-**⏳ Último rastreio há:** {minutes_since(last_weverse_check)} **min**
+*🟣 Weverse* {status_color(last_weverse_check)}
+*🎯 Acessos realizados:* {total_weverse}
+*⏳ Último rastreio há:* {minutes_since(last_weverse_check)} *min*
 
-**⚪ Redes sociais** {status_color(last_social_check)}
-**🎯 Acessos realizados:** {total_social}
-**⏳ Último rastreio há:** {minutes_since(last_social_check)} **min**
+*⚪ Redes sociais* {status_color(last_social_check)}
+*🎯 Acessos realizados:* {total_social}
+*⏳ Último rastreio há:* {minutes_since(last_social_check)} *min*
 
-**🟠 Ticketmaster** {status_color(last_ticket_check)}
-**🎯 Acessos realizados:** {total_tickets}
-**⏳ Último rastreio há:** {minutes_since(last_ticket_check)} **min**
+*🟠 Ticketmaster* {status_color(last_ticket_check)}
+*🎯 Acessos realizados:* {total_tickets}
+*⏳ Último rastreio há:* {minutes_since(last_ticket_check)} *min*
 
-**🔵 Buyticket** {status_color(last_buy_check)}
-**🎯 Acessos realizados:** {total_buy}
-**⏳ Último rastreio há:** {minutes_since(last_buy_check)} **min**"""
+*🔵 Buyticket* {status_color(last_buy_check)}
+*🎯 Acessos realizados:* {total_buy}
+*⏳ Último rastreio há:* {minutes_since(last_buy_check)} *min*"""
 
- try:
+    try:
         await bot_ticket.edit_message_text(
             chat_id=PANEL_CHAT_ID,
             message_id=panel_message_id,
@@ -526,7 +526,6 @@ async def update_panel():
             parse_mode="Markdown"
         )
     except Exception as e:
-        # Se a mensagem foi deletada, o ID morre aqui
         if "message to edit not found" in str(e).lower():
             print("[AVISO] Mensagem fixada deletada. Resetando ID...")
             panel_message_id = None
@@ -735,7 +734,7 @@ async def run_full_test(platform="both"):
     # --- ATUALIZAÇÃO DO PAINEL (REGISTRO DO TESTE) ---
     try:
         await update_panel()          # Atualiza Telegram
-        await update_discord_panel()  # Atualiza Discord (Borda Roxa)
+        await update_discord_panel()  # Atualiza Discord
     except:
         pass
 
@@ -748,7 +747,7 @@ async def test_ticket_reposicao(url, key, found, platform="both"):
 📅 *Data:* 28/10/2026
 🔗 *Link:* {url}
 ✅ *Status:* Liberado"""
-    await send_alert("reposicao", msg, platform)
+    await send_alert("reposicao", msg)
 
 async def test_agenda(data, platform="both"):
     msg = f"""{TEST_HEADER}
@@ -757,7 +756,7 @@ async def test_agenda(data, platform="both"):
 📅 *Data:* 28/10/2026
 🏙️ *Cidade:* São Paulo
 🌎 *País:* Brasil"""
-    await send_alert("agenda", msg, platform)
+    await send_alert("agenda", msg)
 
 async def test_weverse_post(url, member_name, title, message_translated, found, platform="both"):
     msg = f"""{TEST_HEADER}
@@ -765,7 +764,7 @@ async def test_weverse_post(url, member_name, title, message_translated, found, 
 🩷*WEVERSE POST*🩷
 👤 {member_name.upper()} publicou uma mensagem!
 🔗 {url}"""
-    await send_alert("weverse_post", msg, platform)
+    await send_alert("weverse_post", msg)
 
 async def test_instagram_post(url, member_name, title, found, platform="both"):
     msg = f"""{TEST_HEADER}
@@ -773,7 +772,7 @@ async def test_instagram_post(url, member_name, title, found, platform="both"):
 🌟*INSTAGRAM POST*🌟
 👤 {member_name} postou uma foto!
 🔗 {url}"""
-    await send_alert("instagram_post", msg, platform)
+    await send_alert("instagram_post", msg)
 
 async def test_tiktok_post(url, member_name, title, found, platform="both"):
     msg = f"""{TEST_HEADER}
@@ -781,7 +780,7 @@ async def test_tiktok_post(url, member_name, title, found, platform="both"):
 🎵*TIKTOK POST*🎵
 👤 {member_name.upper()} postou um vídeo!
 🔗 {url}"""
-    await send_alert("tiktok_post", msg, platform)
+    await send_alert("tiktok_post", msg)
 
 # =============================================================
 # 17 MOTOR DE MONITORAMENTO (LIMPEZA TOTAL DE CARACTERES)
@@ -874,7 +873,6 @@ async def fetch(session, url):
 # =========================
 # 19 CHECKS (CORREÇÃO DE TIME)
 # =========================
-import time # Garante que o time.time() funcione
 
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
@@ -884,10 +882,9 @@ async def check_ticketmaster(session):
         if html and is_new(url, html):
             found = "esgotado" not in html.lower()
             total_tickets += 1
+            # Chamando a função de alerta de reposição
             await ticket_reposicao(url, url, found)
-            last_ticket_check = datetime.now() # Usando datetime para bater com o painel
-
-# ... (Mantenha suas outras funções check_buy, check_weverse, check_social como estão)
+            last_ticket_check = time.time()
 
 # =========================
 # 20 DISCORD: EVENTO ON_READY
