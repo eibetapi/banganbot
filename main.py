@@ -678,33 +678,33 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
         await send_notification("SISTEMA", "https://arirang.com", "Teste de Comando Telegram")
 
 # =============================================================
-# 18 MOTOR DE MONITORAMENTO (VERSÃO UNIFICADA)
+# 18 MOTOR DE MONITORAMENTO (VERSÃO FINAL CORRIGIDA)
 # =============================================================
 
 async def monitor_loop():
     """
     Motor principal: Garante o boot e mantém o painel atualizado.
-    Este bloco substitui os antigos 18 e 19.
+    Substitui qualquer versão anterior para evitar NameError.
     """
-    # 1. Aguarda conexão
+    # 1. Aguarda conexão dos bots
     await bot_discord.wait_until_ready()
     
-    # 2. Inicialização do Painel (Chama o Bloco 12)
+    # 2. INICIALIZAÇÃO DO PAINEL (Correção do erro na linha 826)
+    # Trocamos 'safe_boot' por 'send_boot', que é o nome real no Bloco 12
     try:
         await send_boot() 
         print("[SISTEMA] Painel Arirang inicializado com sucesso.")
     except Exception as e:
         print(f"[BOOT ERROR] Falha ao iniciar: {e}")
 
-    # 3. Variáveis globais para os contadores
+    # 3. Variáveis globais para os contadores subirem no painel
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # Se o painel foi deletado manualmente, o Bloco 12.1 limpa o ID 
-                # e aqui nós recriamos automaticamente.
+                # Se o painel sumiu (foi deletado), recria automaticamente
                 if panel_message_id is None:
                     await send_boot()
 
@@ -726,15 +726,15 @@ async def monitor_loop():
                 last_social_check = datetime.now()
 
                 # --- ATUALIZAÇÃO DO PAINEL (BLOCO 12.1) ---
+                # Edita o layout fixado com os novos números e cores
                 await update_panel()
 
-                # Espera 30 segundos para o próximo ciclo
+                # Intervalo de 30 segundos entre as varreduras
                 await asyncio.sleep(30)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] Falha no ciclo: {e}")
                 await asyncio.sleep(10)
-
 
 # =========================
 # 19 FETCH UNIVERSAL
