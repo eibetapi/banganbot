@@ -964,3 +964,4 @@ if __name__ == "__main__":
         print("\n[DESLIGANDO] Motores Arirang parados com sucesso. Até logo, Wootteo! 🛸")
 
 
+  
