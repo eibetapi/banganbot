@@ -1197,25 +1197,26 @@ if __name__ == "__main__":
 
     keep_alive()
 
-    # =========================
-    # 43 TELEGRAM (SEM run_polling)
-    # =========================
-    async def start_telegram():
-        global bot_ticket
+ # =========================
+# 43 TELEGRAM (CORRIGIDO)
+# =========================
 
-        bot_ticket = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
+async def start_telegram():
+    global bot_ticket
 
-        bot_ticket.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands)
-        )
-        bot_ticket.add_handler(
-            MessageHandler(filters.COMMAND, handle_commands)
-        )
+    bot_ticket = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
 
-          await bot_ticket.initialize()
-        await bot_ticket.start()
+    bot_ticket.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands)
+    )
+    bot_ticket.add_handler(
+        MessageHandler(filters.COMMAND, handle_commands)
+    )
 
-        print("[TELEGRAM] Bot iniciado com sucesso")
+    await bot_ticket.initialize()
+    await bot_ticket.start()
+
+    print("[TELEGRAM] Bot iniciado com sucesso")
 
     # =========================
     # 44 MAIN (ORDEM CORRETA)
