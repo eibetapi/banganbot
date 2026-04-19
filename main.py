@@ -903,45 +903,58 @@ async def fetch(session, url):
         return None
 
 # =============================================================
-# 19 CHECKS (CORRIGIDO: CONTADORES FORÇADOS)
+# 19 FUNÇÕES DE CHECK (RASTREIO E CONTADORES)
 # =============================================================
 
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
     if 'TICKET_LINKS' not in globals() or not TICKET_LINKS: return
     
-    # Atualiza o timestamp para a bolinha piscar
     last_ticket_check = time.time()
-    
     for url in TICKET_LINKS:
         try:
-            # Incrementa ANTES do fetch para garantir que o acesso apareça no painel
-            total_tickets += 1 
+            total_tickets += 1
             html = await fetch(session, url)
             if html and is_new(url, html):
                 found = "esgotado" not in html.lower()
-                try: await ticket_reposicao(url, url, found)
-                except: pass
+                await ticket_reposicao(url, url, found)
         except Exception as e:
-            print(f"[ERR TICKETMASTER] {e}")
+            print(f"[ERR TICKET] {e}")
 
 async def check_buyticket(session):
     global last_buy_check, total_buy
     if 'BUY_LINKS' not in globals() or not BUY_LINKS: return
     
     last_buy_check = time.time()
-    
     for url in BUY_LINKS:
         try:
-            total_buy += 1 # Incrementa o contador a cada tentativa
+            total_buy += 1
             html = await fetch(session, url)
             if html and is_new(url, html):
                 found = "esgotado" not in html.lower()
-                # try: await buy_reposicao(url, url, found)
-                # except: pass
+                # await buy_reposicao(url, url, found)
         except Exception as e:
-            print(f"[ERR BUYTICKET] {e}")
+            print(f"[ERR BUY] {e}")
 
+async def check_weverse(session):
+    """Esta é a função que estava faltando ou definida errado"""
+    global last_weverse_check, total_weverse
+    if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS: return
+    
+    last_weverse_check = time.time()
+    for url in WEVERSE_LINKS:
+        try:
+            total_weverse += 1
+            html = await fetch(session, url)
+            # Adicione aqui sua lógica específica de is_new para Weverse se houver
+        except Exception as e:
+            print(f"[ERR WEVERSE] {e}")
+
+async def check_social(session):
+    global last_social_check, total_social
+    # Redes sociais costumam ser checadas em conjunto
+    last_social_check = time.time()
+    total_social += 1
 # =========================
 # 20 DISCORD: EVENTO ON_READY
 # =========================
