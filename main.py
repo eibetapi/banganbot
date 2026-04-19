@@ -887,57 +887,82 @@ async def teste_discord(interaction: discord.Interaction):
     finally:
         bot_ticket = original_bot_ticket
 
-# =============================================================
-# 17.1 COMANDOS DE GATILHO (TELEGRAM & DISCORD)
-# =============================================================
+# =========================
+# 17 COMANDO /TESTE (DISCORD) - CORRIGIDO (ÚNICO)
+# =========================
 
-# --- TELEGRAM ---
-async def handle_commands_telegram(update, context):
-    if not update.message or not update.message.text: return
-    user_cmd = update.message.text.lower()
-    
-    if "/teste" in user_cmd:
-        # Apenas executa, sem responder mensagens de texto
-        await run_full_test_telegram()
-        await update_panel()
-        
-    elif "/ping" in user_cmd:
-        await update.message.reply_text(f"🏓 Pong!")
-
-    elif "/comandos" in user_cmd:
-        await update.message.reply_text("`/ping`, `/teste`, `/comandos`", parse_mode="Markdown")
-
-# --- DISCORD ---
 @bot_discord.tree.command(name="teste", description="Dispara os alertas de teste")
 async def teste_discord(interaction: discord.Interaction):
-    # Defer silencioso (ephemeral=True e não envia texto depois)
+    global bot_ticket
+    original_bot_ticket = bot_ticket
+
     await interaction.response.defer(ephemeral=True)
+
     try:
+        # bloqueia Telegram durante teste
+        bot_ticket = None
+
         await run_full_test_discord()
         await update_panel()
-        # Deleta a mensagem de "O bot está pensando" para ficar totalmente limpo
-        await interaction.delete_original_response()
-    except:
-        pass
 
-# =============================================================
-# 17.2 MOTOR DE TESTE REAL (TELEGRAM)
-# =============================================================
+        await interaction.delete_original_response()
+
+    except Exception as e:
+        print(f"[TESTE ERROR] {e}")
+
+    finally:
+        bot_ticket = original_bot_ticket
+
+
+# =========================
+# 17.1 MOTOR DE TESTE REAL (DISCORD) - CORRIGIDO
+# =========================
+
+async def run_full_test_discord():
+    """Executa os alertas reais do Bloco 16 para o Discord"""
+    try:
+        # 1. Ticket test (usa função existente correta)
+        await test_ticket_reposicao(
+            "https://www.ticketmaster.com.br/",
+            "TESTE DISCORD",
+            True,
+            platform="both"
+        )
+
+        # 2. Weverse test
+        await test_weverse_post(
+            WEVERSE_LINKS[0],
+            "bts",
+            "Update",
+            "Conteúdo Teste",
+            True,
+            platform="both"
+        )
+
+        # 3. Social / YouTube test
+        await test_youtube_live("https://www.youtube.com/@BTS/live")
+
+    except Exception as e:
+        print(f"[DEBUG] Erro Teste Discord: {e}")
+
+
+# =========================
+# 17.2 MOTOR DE TESTE REAL (TELEGRAM) - CORRIGIDO
+# =========================
 
 async def run_full_test_telegram():
     """Executa os alertas reais do Bloco 16"""
     try:
-        # Puxamos as funções do escopo global para evitar o erro de 'not defined'
-        funcs = globals()
-        
-        # 1. Teste de Ingressos
-        if 'ticket_reposicao' in funcs:
-            await funcs['ticket_reposicao']("TESTE", "https://www.ticketmaster.com.br/", True)
-        
-        # 2. Teste de Redes Sociais
-        if 'youtube_live' in funcs:
-            await funcs['youtube_live']("https://www.youtube.com/@BTS/live")
-            
+        # Ticket test correto
+        await test_ticket_reposicao(
+            "TESTE",
+            "https://www.ticketmaster.com.br/",
+            True
+        )
+
+        # YouTube test
+        await test_youtube_live("https://www.youtube.com/@BTS/live")
+
     except Exception as e:
         print(f"[DEBUG] Erro Teste TG: {e}")
 
