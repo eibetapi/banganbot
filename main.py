@@ -366,7 +366,7 @@ name = str(member_name).upper()
 return emoji, name 
 
 # =========================
-# 10 DISCORD + TELEGRAM ROUTER (FIX TOTAL)
+# 10 CONTENT HASH + DETECÇÃO DE MUDANÇA (FIX)
 # =========================
 
 CONTENT_HASH = {}
@@ -381,7 +381,7 @@ def is_new(url: str, html: str):
     """
     ✔ Detecta mudança real de conteúdo
     ✔ Evita spam duplicado
-    ✔ Funciona mesmo se página mudar levemente
+    ✔ Funciona mesmo com pequenas alterações na página
     """
 
     if not html:
@@ -395,43 +395,13 @@ def is_new(url: str, html: str):
         CONTENT_HASH[url] = new_hash
         return True
 
-    # mudou conteúdo
+    # conteúdo mudou
     if old_hash != new_hash:
         CONTENT_HASH[url] = new_hash
         return True
 
     return False
 
-
-def send_telegram(message):
-    global bot_ticket
-
-    if not bot_ticket:
-        return
-
-    try:
-        asyncio.create_task(
-            bot_ticket.send_message(
-                chat_id=CHAT_ID,
-                text=message
-            )
-        )
-    except Exception:
-        pass
-
-
-async def send_discord(channel_id, message):
-    global bot_discord
-
-    if not bot_discord:
-        return None
-
-    try:
-        channel = await bot_discord.fetch_channel(channel_id)
-        if channel:
-            return await channel.send(message)
-    except Exception:
-        return None
 
     # =========================
     # 11 TELEGRAM (SEMPRE PRIMEIRO)
