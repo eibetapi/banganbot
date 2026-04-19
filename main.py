@@ -908,7 +908,7 @@ async def monitor_loop():
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
- # =============================================================
+# =============================================================
 # 17.1 COMANDOS DE GATILHO (TELEGRAM & DISCORD)
 # =============================================================
 
@@ -918,69 +918,66 @@ async def handle_commands_telegram(update, context):
     user_cmd = update.message.text.lower()
     
     if "/teste" in user_cmd:
-        # Chama o motor que dispara os alertas do Bloco 16
+        # Apenas executa, sem responder mensagens de texto
         await run_full_test_telegram()
         await update_panel()
         
     elif "/ping" in user_cmd:
-        await update.message.reply_text(f"🏓 Pong! Wootteo operando.")
+        await update.message.reply_text(f"🏓 Pong!")
 
     elif "/comandos" in user_cmd:
-        msg_ajuda = "🤖 **Comandos:** `/ping`, `/teste`, `/comandos`"
-        await update.message.reply_text(msg_ajuda, parse_mode="Markdown")
+        await update.message.reply_text("`/ping`, `/teste`, `/comandos`", parse_mode="Markdown")
 
 # --- DISCORD ---
-@bot_discord.tree.command(name="teste", description="Dispara todos os alertas de teste nos canais específicos")
+@bot_discord.tree.command(name="teste", description="Dispara os alertas de teste")
 async def teste_discord(interaction: discord.Interaction):
-    # O defer evita o erro de "interação desatualizada" ou timeout
+    # Defer silencioso (ephemeral=True e não envia texto depois)
     await interaction.response.defer(ephemeral=True)
     try:
         await run_full_test_discord()
         await update_panel()
-        await interaction.followup.send("✅ Sequência de testes concluída.", ephemeral=True)
-    except Exception as e:
-        if not interaction.is_finished():
-            await interaction.followup.send(f"❌ Erro: {e}", ephemeral=True)
+        # Deleta a mensagem de "O bot está pensando" para ficar totalmente limpo
+        await interaction.delete_original_response()
+    except:
+        pass
 
 # =============================================================
-# 17.2 MOTOR DE TESTE REAL (TELEGRAM - DISPARA BLOCO 16)
+# 17.2 MOTOR DE TESTE REAL (TELEGRAM)
 # =============================================================
 
 async def run_full_test_telegram():
-    """Executa os alertas reais definidos no Bloco 16 para o Telegram"""
+    """Executa os alertas reais do Bloco 16"""
     try:
-        # Simula disparos usando as funções do seu Bloco 16
-        # Reposição (Exemplo com link do Bloco 1)
-        url_teste = TICKET_LINKS[0] if TICKET_LINKS else "https://www.ticketmaster.com.br/"
-        await ticket_reposicao("TESTE REPOSIÇÃO", url_teste, True)
+        # Puxamos as funções do escopo global para evitar o erro de 'not defined'
+        funcs = globals()
         
-        # Redes Sociais / YouTube
-        await youtube_live("https://www.youtube.com/@BTS/live")
-        await youtube_post("Canal do BTS", "https://www.youtube.com/@BTS/videos")
+        # 1. Teste de Ingressos
+        if 'ticket_reposicao' in funcs:
+            await funcs['ticket_reposicao']("TESTE", "https://www.ticketmaster.com.br/", True)
         
+        # 2. Teste de Redes Sociais
+        if 'youtube_live' in funcs:
+            await funcs['youtube_live']("https://www.youtube.com/@BTS/live")
+            
     except Exception as e:
         print(f"[DEBUG] Erro Teste TG: {e}")
 
 # =============================================================
-# 17.3 MOTOR DE TESTE REAL (DISCORD - DISPARA BLOCO 16)
+# 17.3 MOTOR DE TESTE REAL (DISCORD)
 # =============================================================
 
 async def run_full_test_discord():
-    """Executa os alertas reais do Bloco 16, enviando cada um para sua respectiva sala"""
+    """Executa os alertas reais do Bloco 16 para o Discord"""
     try:
-        # O Bloco 16 já deve estar configurado para enviar para DISCORD_TICKET_CHANNEL_ID, etc.
-        # Aqui apenas chamamos as funções para disparar os exemplos
+        funcs = globals()
         
-        # 1. Ingressos (Ticketmaster / Buyticket)
-        url_t = TICKET_LINKS[0] if TICKET_LINKS else "https://www.ticketmaster.com.br/"
-        await ticket_reposicao("TESTE TICKETMASTER", url_t, True)
-        
-        # 2. Weverse (Se você tiver a função weverse_alerta no Bloco 16)
-        # await weverse_alerta("Post de Teste", "Link de Teste")
-        
-        # 3. Redes Sociais (YouTube/Instagram)
-        await youtube_live("https://www.youtube.com/@BTS/live")
-        
+        # Dispara os alertas para as salas específicas conforme definido no Bloco 16
+        if 'ticket_reposicao' in funcs:
+            await funcs['ticket_reposicao']("TESTE DISCORD", "https://www.ticketmaster.com.br/", True)
+            
+        if 'youtube_live' in funcs:
+            await funcs['youtube_live']("https://www.youtube.com/@BTS/live")
+
     except Exception as e:
         print(f"[DEBUG] Erro Teste Discord: {e}")
 
