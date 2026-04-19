@@ -784,7 +784,7 @@ async def test_tiktok_post(url, member_name, title, found, platform="both"):
     await send_alert("tiktok_post", msg, platform)
 
 # =============================================================
-# 17 MOTOR DE MONITORAMENTO (VERSÃO UNIFICADA E CORRIGIDA)
+# 17 MOTOR DE MONITORAMENTO (VERSÃO CORRIGIDA)
 # =============================================================
 
 async def monitor_loop():
@@ -794,16 +794,15 @@ async def monitor_loop():
     # 1. Aguarda o bot estar pronto
     await bot_discord.wait_until_ready()
     
-    # 2. DECLARAÇÃO DE GLOBAIS (Essencial para evitar erros de 'local variable')
+    # 2. Declaração de Globais
     global panel_message_id, discord_panel_msg_id
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
-    # 3. INICIALIZAÇÃO
+    # 3. Inicialização dos Painéis
     try:
-        # Tenta rodar o boot. Se falhar por falta de ID, avisa no log.
         await send_boot()            # Cria/Fixa Painel Telegram
-        await update_discord_panel()  # Cria Painel Discord (Borda Roxa)
+        await update_discord_panel()  # Cria Painel Discord
         print("[SISTEMA] Painéis Arirang inicializados com sucesso.")
     except Exception as e:
         print(f"[BOOT ERROR] Falha ao iniciar: {e}")
@@ -812,7 +811,7 @@ async def monitor_loop():
         print("[MONITOR] Loop de varredura iniciado.")
         while True:
             try:
-                # CORREÇÃO: Usa a global panel_message_id para checar se o painel existe
+                # Se o post foi deletado, reseta para criar um novo
                 if panel_message_id is None:
                     await send_boot()
 
@@ -828,20 +827,17 @@ async def monitor_loop():
 
                 await check_social(session)
 
-                # --- ATUALIZAÇÃO DOS PAINÉIS ---
-                try:
-                    await update_panel()          
-                    await update_discord_panel()  
-                except Exception as up_err:
-                    print(f"[UPDATE ERROR] Falha ao atualizar painéis: {up_err}")
+                # --- ATUALIZAÇÃO DOS PAINÉIS (EDITA O EXISTENTE) ---
+                await update_panel()          
+                await update_discord_panel()  
 
                 # Pausa de 30 segundos entre ciclos
                 await asyncio.sleep(30)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] Falha no ciclo: {e}")
-                # Se o erro for de mensagem deletada no Telegram, reseta o ID para recriar
-                if "not found" in str(e).lower() or "message to edit not found" in str(e).lower():
+                # Se o erro for de mensagem deletada, limpa o ID para o próximo ciclo criar uma nova
+                if "not found" in str(e).lower():
                     panel_message_id = None
                 await asyncio.sleep(10)
 
