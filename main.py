@@ -784,7 +784,7 @@ async def test_tiktok_post(url, member_name, title, found, platform="both"):
     await send_alert("tiktok_post", msg, platform)
 
 # =============================================================
-# 17 MOTOR DE MONITORAMENTO (ESTRUTURA INTEGRADA)
+# 17 MOTOR DE MONITORAMENTO (LIMPO DE CARACTERES DO DOCS)
 # =============================================================
 
 async def monitor_loop():
@@ -794,16 +794,16 @@ async def monitor_loop():
     # 1. Aguarda o bot estar pronto
     await bot_discord.wait_until_ready()
     
-    # 2. Declaração de Globais
+    # 2. Declaracao de Globais
     global panel_message_id, discord_panel_msg_id
     global total_tickets, total_buy, total_weverse, total_social
     global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
-    # 3. Inicialização dos Painéis
+    # 3. Inicializacao dos Paineis
     try:
-        await send_boot()            # Cria/Fixa Painel Telegram
-        await update_discord_panel()  # Cria/Busca Painel Discord
-        print("[SISTEMA] Painéis Arirang inicializados com sucesso.")
+        await send_boot()
+        await update_discord_panel()
+        print("[SISTEMA] Paineis Arirang inicializados com sucesso.")
     except Exception as e:
         print(f"[BOOT ERROR] Falha ao iniciar: {e}")
 
@@ -812,33 +812,28 @@ async def monitor_loop():
         print("[MONITOR] Loop de varredura iniciado.")
         while True:
             try:
-                # Se o post foi deletado, o ID estará None e ele recria
+                # Se o post foi deletado, o ID estara None e ele recria
                 if panel_message_id is None:
                     await send_boot()
 
                 # --- VARREDURA ---
                 await check_ticketmaster(session)
                 await asyncio.sleep(2)
-                
                 await check_buyticket(session)
                 await asyncio.sleep(2)
-
                 await check_weverse(session)
                 await asyncio.sleep(2)
-
                 await check_social(session)
 
-                # --- ATUALIZAÇÃO DOS PAINÉIS (EDITA O EXISTENTE) ---
+                # --- ATUALIZACAO DOS PAINEIS ---
                 try:
                     await update_panel()          
                     await update_discord_panel()
                 except Exception as up_err:
-                    # Se falhar porque a mensagem sumiu, reseta o ID
                     if "not found" in str(up_err).lower():
                         panel_message_id = None
                     print(f"[UPDATE ERROR] {up_err}")
 
-                # Pausa de 30 segundos entre ciclos
                 await asyncio.sleep(30)
 
             except Exception as e:
