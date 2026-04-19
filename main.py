@@ -441,24 +441,22 @@ LAST_WEVERSE_LIVE_URL = None
 async def weverse_post(url, member_name, title, message_translated, found):
     global LAST_WEVERSE_POST_URL
     
-    # Trava Anti-Spam: Ignora se o link for o mesmo do último alerta
     if url == LAST_WEVERSE_POST_URL:
         return
     LAST_WEVERSE_POST_URL = url
     
     emoji = get_member_emoji(member_name)
+    # CORREÇÃO: Aspas triplas para evitar SyntaxError
     msg = f"""🩷*WEVERSE POST*🩷
 {emoji} {member_name.upper()} publicou uma mensagem:
 📌 {title}
 {message_translated}
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("weverse_post", msg)
 
 async def test_weverse_live(url, member_name, found):
     global LAST_WEVERSE_LIVE_URL
     
-    # Trava para Lives: Evita avisar várias vezes sobre a mesma live aberta
     if url == LAST_WEVERSE_LIVE_URL:
         return
     LAST_WEVERSE_LIVE_URL = url
@@ -466,8 +464,7 @@ async def test_weverse_live(url, member_name, found):
     emoji = get_member_emoji(member_name)
     msg = f"""📹*WEVERSE LIVE*📹
 {emoji} {member_name.upper()} está ao vivo!
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("weverse_live", msg)
 
 async def test_weverse_news(url, member_name, message_translated, found):
@@ -481,8 +478,7 @@ async def test_weverse_news(url, member_name, message_translated, found):
     msg = f"""🚨*WEVERSE NEWS*🚨
 {emoji} {member_name.upper()} publicou uma notícia:
 📌 {message_translated}
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("weverse_news", msg)
 
 async def test_weverse_media(url, member_name, title, message_translated, found):
@@ -497,22 +493,19 @@ async def test_weverse_media(url, member_name, title, message_translated, found)
 {emoji} {member_name.upper()} publicou uma nova mídia!
 ⭐️ {title}
 {message_translated}
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("weverse_media", msg)
 
 # =========================
 # 14 ALERTAS INSTAGRAM (CORRIGIDO)
 # =========================
 
-# Memória para evitar repetição do último post/story
 LAST_INSTA_POST_LINK = None
 LAST_INSTA_STORY_LINK = None
 
 async def instagram_post(url, member_name, title, found):
     global LAST_INSTA_POST_LINK
     
-    # Trava Anti-Spam
     if url == LAST_INSTA_POST_LINK:
         return
     LAST_INSTA_POST_LINK = url
@@ -520,12 +513,11 @@ async def instagram_post(url, member_name, title, found):
     emoji, name = format_member(member_name)
     msg = f"""🌟*INSTAGRAM POST*🌟
 {emoji} {name} postou uma foto!
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("instagram_post", msg)
 
 async def instagram_reel(url, member_name, title, found):
-    global LAST_INSTA_POST_LINK # Reels e Posts compartilham a mesma trava
+    global LAST_INSTA_POST_LINK
     
     if url == LAST_INSTA_POST_LINK:
         return
@@ -534,8 +526,7 @@ async def instagram_reel(url, member_name, title, found):
     emoji, name = format_member(member_name)
     msg = f"""🎬*INSTAGRAM REELS*🎬
 {emoji} {name} postou um reels!
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("instagram_reels", msg)
 
 async def instagram_story(url, member_name, title, found):
@@ -548,40 +539,33 @@ async def instagram_story(url, member_name, title, found):
     emoji, name = format_member(member_name)
     msg = f"""🫧*INSTAGRAM STORIES*🫧
 {emoji} {name} atualizou os stories!
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("instagram_stories", msg)
 
 async def instagram_live(url, member_name, title, found):
     emoji, name = format_member(member_name)
     msg = f"""🎥*INSTAGRAM LIVE*🎥
 {emoji} {name} está ao vivo!
-🔗 {url}
-"""
+🔗 {url}"""
     await send_alert("instagram_live", msg)
 
 # =========================
 # 15 ALERTAS TIKTOK (CORRIGIDO)
 # =========================
 
-# Memória para evitar que o mesmo post repita (Spam)
 LAST_TIKTOK_LINK = None
 
 async def tiktok_post(url, member_name, title, found):
     global LAST_TIKTOK_LINK
     
-    # CORREÇÃO DO LINK: Garante que o underline não seja removido
-    # O link oficial deve ser sempre respeitado
     link_correto = "https://www.tiktok.com/@bts_official_bighit"
     
-    # Se a URL recebida não tiver o link completo, nós montamos
     if "video/" in url:
         video_id = url.split("video/")[1].split("?")[0]
         final_url = f"{link_correto}/video/{video_id}"
     else:
         final_url = link_correto
 
-    # TRAVA ANTI-SPAM: Só envia se o link for diferente do último
     if final_url == LAST_TIKTOK_LINK:
         return
     
@@ -590,18 +574,18 @@ async def tiktok_post(url, member_name, title, found):
     
     msg = f"""🎵*TIKTOK POST*🎵
 {emoji} {member_name.upper()} postou um vídeo!
-🔗 *Link:* {final_url}
-"""
-    # Envia para o roteador oficial do Bloco 21
+🔗 *Link:* {final_url}"""
+    
     await send_alert("tiktok_post", msg)
 
 async def tiktok_live(url, member_name, title, found):
     emoji = get_member_emoji(member_name)
     msg = f"""🎥*TIKTOK LIVE*🎥
 {emoji} {member_name.upper()} está ao vivo no TikTok!
-🔗 *Link:* https://www.tiktok.com/@bts_official_bighit/live
-"""
+🔗 *Link:* https://www.tiktok.com/@bts_official_bighit/live"""
+    
     await send_alert("tiktok_live", msg)
+
 
 # =============================================================
 # 16 SISTEMA DE TESTE (ROTEADO PARA AS SALAS CERTAS)
