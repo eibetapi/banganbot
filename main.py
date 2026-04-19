@@ -861,37 +861,13 @@ async def test_youtube_live(url="https://www.youtube.com/@BTS/live", platform="b
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 COMANDO /TESTE (DISCORD)
+# 17 COMANDO /TESTE (DISCORD) - ÚNICO
 # =========================
 
-@bot_discord.tree.command(name="teste", description="Dispara os alertas de teste")
-async def teste_discord(interaction: discord.Interaction):
-
-    global bot_ticket
-    original_bot_ticket = bot_ticket
-
-    try:
-        await interaction.response.defer(ephemeral=True)
-
-        # bloqueia envio para Telegram durante o teste
-        bot_ticket = None
-
-        await run_full_test_discord()
-        await update_panel()
-
-        await interaction.delete_original_response()
-
-    except:
-        pass
-
-    finally:
-        bot_ticket = original_bot_ticket
-
-# =========================
-# 17 COMANDO /TESTE (DISCORD) - CORRIGIDO (ÚNICO)
-# =========================
-
-@bot_discord.tree.command(name="teste", description="Dispara os alertas de teste")
+@bot_discord.tree.command(
+    name="teste",
+    description="Dispara os alertas de teste"
+)
 async def teste_discord(interaction: discord.Interaction):
     global bot_ticket
     original_bot_ticket = bot_ticket
@@ -902,7 +878,10 @@ async def teste_discord(interaction: discord.Interaction):
         # bloqueia Telegram durante teste
         bot_ticket = None
 
+        # executa teste completo (única versão)
         await run_full_test_discord()
+
+        # atualiza painel após teste
         await update_panel()
 
         await interaction.delete_original_response()
@@ -915,13 +894,13 @@ async def teste_discord(interaction: discord.Interaction):
 
 
 # =========================
-# 17.1 MOTOR DE TESTE REAL (DISCORD) - CORRIGIDO
+# MOTOR DE TESTE (DISCORD) — ÚNICO
 # =========================
 
 async def run_full_test_discord():
-    """Executa os alertas reais do Bloco 16 para o Discord"""
+    """Executa os alertas reais do sistema para Discord"""
     try:
-        # 1. Ticket test (usa função existente correta)
+        # 1. Ticket test
         await test_ticket_reposicao(
             "https://www.ticketmaster.com.br/",
             "TESTE DISCORD",
@@ -939,60 +918,10 @@ async def run_full_test_discord():
             platform="both"
         )
 
-        # 3. Social / YouTube test
-        await test_youtube_live("https://www.youtube.com/@BTS/live")
-
-    except Exception as e:
-        print(f"[DEBUG] Erro Teste Discord: {e}")
-
-
-# =========================
-# 17.2 MOTOR DE TESTE REAL (TELEGRAM) - CORRIGIDO
-# =========================
-
-async def run_full_test_telegram():
-    """Executa os alertas reais do Bloco 16"""
-    try:
-        # Ticket test correto
-        await test_ticket_reposicao(
-            "TESTE",
-            "https://www.ticketmaster.com.br/",
-            True
+        # 3. YouTube test
+        await test_youtube_live(
+            "https://www.youtube.com/@BTS/live"
         )
-
-        # YouTube test
-        await test_youtube_live("https://www.youtube.com/@BTS/live")
-
-    except Exception as e:
-        print(f"[DEBUG] Erro Teste TG: {e}")
-
-# =========================
-# 17.3 MOTOR DE TESTE REAL (DISCORD) - ÚNICO (CORRETO)
-# =========================
-
-async def run_full_test_discord():
-    """Executa os alertas reais do Bloco 16 para o Discord"""
-    try:
-        # Ticket test
-        await test_ticket_reposicao(
-            "https://www.ticketmaster.com.br/",
-            "TESTE DISCORD",
-            True,
-            platform="both"
-        )
-
-        # Weverse test
-        await test_weverse_post(
-            WEVERSE_LINKS[0],
-            "bts",
-            "Update",
-            "Conteúdo Teste",
-            True,
-            platform="both"
-        )
-
-        # YouTube test
-        await test_youtube_live("https://www.youtube.com/@BTS/live")
 
     except Exception as e:
         print(f"[DEBUG] Erro Teste Discord: {e}")
@@ -1179,4 +1108,4 @@ if __name__ == "__main__":
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
     except (KeyboardInterrupt, SystemExit):
-        print("\n[DESLIGANDO] Motores Arirang parados.") 
+        print("\n[DESLIGANDO] Motores Arirang parados.")
