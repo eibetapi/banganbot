@@ -403,19 +403,19 @@ async def send_boot():
 
 🟣 Weverse {status_color(last_weverse_check)}
    🎯 Acessos realizados: {total_weverse}
-   ⏱ Último rastreio há: {minutes_since(last_weverse_check)} min
+  ⏳ Último rastreio há: {minutes_since(last_weverse_check)} min
 
 ⚪ Redes sociais {status_color(last_social_check)}
    🎯 Acessos realizados: {total_social}
-   ⏱ Último rastreio há: {minutes_since(last_social_check)} min
+   ⏳Último rastreio há: {minutes_since(last_social_check)} min
 
 🟠 Ticketmaster {status_color(last_ticket_check)}
    🎯 Acessos realizados: {total_tickets}
-   ⏱ Último rastreio há: {minutes_since(last_ticket_check)} min
+   ⏳ Último rastreio há: {minutes_since(last_ticket_check)} min
 
 🔵 Buyticket {status_color(last_buy_check)}
    🎯 Acessos realizados: {total_buy}
-   ⏱ Último rastreio há: {minutes_since(last_buy_check)} min
+   ⏳ Último rastreio há: {minutes_since(last_buy_check)} min
 """
 
     # --- ENVIO TELEGRAM (Posta e Fixa) ---
@@ -674,342 +674,129 @@ async def tiktok_live(url, member_name, title, found):
     await send_alert("tiktok_live", msg)
 
 # =============================================================
-# 17 SISTEMA DE TESTE SOB DEMANDA (/TESTE)
+# 17 SISTEMA DE TESTE (ROTEADO PARA AS SALAS CERTAS)
 # =============================================================
 
 TEST_HEADER = "⚠️ TESTE ⚠️"
 
 async def run_full_test():
-    """
-    DISPARADOR ÚNICO: 
-    Esta função só é chamada quando o usuário digita /teste.
-    """
-    # Links e dados fictícios para a simulação completa
+    """Executa a sequência de testes enviando para os canais específicos."""
     t_link = "https://www.ticketmaster.com.br/arirang-test"
-    b_link = "https://buyticketbrasil.com/evento-teste"
     
-    # 1. Testes de Tickets e Agenda
+    # 1. Testes de Tickets (Vão para a sala de Tickets)
     await test_ticket_reposicao(t_link, "28/10/2026", True)
-    await asyncio.sleep(1)
-    await test_ticket_nova_data(t_link, "30/10/2026", True)
-    await asyncio.sleep(1)
-    await test_buy_revenda(b_link, "28/10/2026", True)
     await asyncio.sleep(1)
     await test_agenda({"date": "28/10/2026", "city": "São Paulo", "country": "Brasil"})
     
-    # 2. Testes de Weverse
+    # 2. Testes de Weverse (Vão para a sala de Weverse)
     await asyncio.sleep(1)
     await test_weverse_post(t_link, "bts", "Update", "Conteúdo Teste", True)
-    await test_weverse_live(t_link, "jungkook", True)
-    await test_weverse_news(t_link, "rm", "msg", True)
-    await test_weverse_media(t_link, "v", "title", "msg", True)
     
-    # 3. Testes de Redes Sociais
+    # 3. Testes de Redes Sociais (Vão para a sala Social)
     await asyncio.sleep(1)
     await test_instagram_post(t_link, "bts", "post", True)
-    await test_instagram_reel(t_link, "bts", "reel", True)
-    await test_instagram_story(t_link, "bts", "story", True)
-    await test_instagram_live(t_link, "bts", "live", True)
-    await test_tiktok_post(t_link, "bts", "video", True)
-    await test_tiktok_live(t_link, "bts", "live", True)
+    await test_tiktok_post("https://www.tiktok.com/@bts_official_bighit", "bts", "video", True)
 
-# --- FUNÇÕES DE LAYOUT PARA O TESTE ---
+# --- FUNÇÕES DE LAYOUT PARA O TESTE (AJUSTADAS) ---
 
 async def test_ticket_reposicao(url, key, found):
-    msg = f"""{TEST_HEADER}
-
-🔥*ALERTA DE REPOSIÇÃO*🔥
-📅 *Data:* 28/10/2026
-🔗 *Link:* https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10
-📍 *Setor:* PISTA PREMIUM
-🎫 *Categoria:* INTEIRA
-🛡️ *Tipo:* REPOSIÇÃO LIBERADA
-📊 *Quantidade:* 1.250 ingressos
-💰 *Preço:* R$ 1.290,00
-📡 *Fila estimada:* 18.432 pessoas
-✅ *Status:* {resolve_status(found)}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_ticket_nova_data(url, key, found):
-    msg = f"""{TEST_HEADER}
-
-🎁*ALERTA DE NOVA DATA*🎁
-📅 *Data:* 30/10/2026
-🔗 *Link:* https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-30-10
-📍 *Local:* São Paulo, Brasil
-🎫 *Categoria:* DATA EXTRA ADICIONADA
-🛡️ *Tipo:* ANÚNCIO OFICIAL
-📊 *Quantidade:* 2 datas adicionais liberadas
-📢 *Motivo:* alta demanda global
-✅ *Status:* {resolve_status(found)}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_buy_revenda(url, key, found):
-    msg = f"""{TEST_HEADER}
-
-🔵*REVENDA BUY*🔵
-📅 *Data:* 28/10/2026
-🔗 *Link:* https://buyticketbrasil.com/evento/bts-2026-world-tour-arirang
-📍 *Plataforma:* BuyTicket Brasil
-💰 *Valor:* R$ 2.150,00 (revenda dinâmica)
-🎫 *Categoria:* VIP + MEIA
-🛡️ *Tipo:* REVENDA CONFIRMADA
-📊 *Disponíveis:* 312 ingressos
-⚠️ *Risco:* médio
-✅ *Status:* {resolve_status(found)}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
+    msg = f"{TEST_HEADER}\n\n🔥*ALERTA DE REPOSIÇÃO*🔥\n📅 *Data:* 28/10/2026\n🔗 *Link:* {url}\n✅ *Status:* Liberado"
+    await send_alert("reposicao", msg)
 
 async def test_agenda(data):
-    msg = f"""{TEST_HEADER}
-
-💜*AGENDA NOVAS DATAS*💜
-📅 *Data:* 28/10/2026
-🏙️ *Cidade:* São Paulo
-🌎 *País:* Brasil
-🏟️ *Local:* Allianz Parque
-🎫 *Turnê:* ARIRANG WORLD TOUR
-⚠️ *Status:* anúncio parcial liberado
-📢 *Observação:* venda inicia em breve
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
+    msg = f"{TEST_HEADER}\n\n💜*AGENDA NOVAS DATAS*💜\n📅 *Data:* 28/10/2026\n🏙️ *Cidade:* São Paulo\n🌎 *País:* Brasil"
+    await send_alert("agenda", msg)
 
 async def test_weverse_post(url, member_name, title, message_translated, found):
-    emoji = get_member_emoji(member_name)
-    msg = f"""{TEST_HEADER}
-
-🩷*WEVERSE POST*🩷
-{emoji} {member_name.upper()} publicou uma mensagem:
-📌 *Título:* {title}
-💬 *Conteúdo:* "We are coming back stronger than ever 💜"
-🔗 {url}
-📊 *Engajamento:* 2.4M likes | 580k comentários
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_weverse_live(url, member_name, found):
-    emoji = get_member_emoji(member_name)
-    msg = f"""{TEST_HEADER}
-
-📹*WEVERSE LIVE*📹
-{emoji} {member_name.upper()} está ao vivo!
-🔗 {url}
-👀 *Viewers:* 1.2M assistindo
-⏱️ *Duração:* 00:18:42
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_weverse_news(url, member_name, message_translated, found):
-    emoji = get_member_emoji(member_name)
-    msg = f"""{TEST_HEADER}
-
-🚨*WEVERSE NEWS*🚨
-{emoji} {member_name.upper()} publicou uma notícia:
-📌 *Atualização:* novo conteúdo exclusivo liberado
-💬 "Special announcement coming soon"
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_weverse_media(url, member_name, title, message_translated, found):
-    emoji = get_member_emoji(member_name)
-    msg = f"""{TEST_HEADER}
-
-📀*WEVERSE MÍDIA*📀
-{emoji} {member_name.upper()} publicou uma nova mídia!
-⭐️ *Título:* {title}
-🎬 *Tipo:* behind the scenes
-📸 *Formato:* HD exclusive content
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
+    msg = f"{TEST_HEADER}\n\n🩷*WEVERSE POST*🩷\n👤 {member_name.upper()} publicou uma mensagem!\n🔗 {url}"
+    await send_alert("weverse_post", msg)
 
 async def test_instagram_post(url, member_name, title, found):
-    emoji, name = format_member(member_name)
-    msg = f"""{TEST_HEADER}
-
-🌟*INSTAGRAM POST*🌟
-{emoji} {name} postou uma foto!
-📌 *Legenda:* “Back on stage 💜”
-❤️ *Likes:* 8.9M
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_instagram_reel(url, member_name, title, found):
-    emoji, name = format_member(member_name)
-    msg = f"""{TEST_HEADER}
-
-🎬*INSTAGRAM REELS*🎬
-{emoji} {name} postou um reels!
-🎵 *Música:* trending audio #1 global
-👀 *Views:* 12.4M
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_instagram_story(url, member_name, title, found):
-    emoji, name = format_member(member_name)
-    msg = f"""{TEST_HEADER}
-
-🫧*INSTAGRAM STORIES*🫧
-{emoji} {name} atualizou os stories!
-📸 *Tipo:* bastidores da turnê
-⏳ *Duração:* 24h
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_instagram_live(url, member_name, title, found):
-    emoji, name = format_member(member_name)
-    msg = f"""{TEST_HEADER}
-
-🎥*INSTAGRAM LIVE*🎥
-{emoji} {name} está ao vivo!
-👀 *Viewers:* 780k
-💬 *Chat:* ativo
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
+    msg = f"{TEST_HEADER}\n\n🌟*INSTAGRAM POST*🌟\n👤 {member_name} postou uma foto!\n🔗 {url}"
+    await send_alert("instagram_post", msg)
 
 async def test_tiktok_post(url, member_name, title, found):
-    emoji = get_member_emoji(member_name)
-    msg = f"""{TEST_HEADER}
-
-🎵*TIKTOK POST*🎵
-{emoji} {member_name.upper()} postou um vídeo!
-🔥 *Views:* 6.7M em 2h
-❤️ *Likes:* 1.1M
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-
-async def test_tiktok_live(url, member_name, title, found):
-    emoji = get_member_emoji(member_name)
-    msg = f"""{TEST_HEADER}
-
-🎥*TIKTOK LIVE*🎥
-{emoji} {member_name.upper()} está ao vivo no TikTok!
-👀 *Viewers:* 540k
-💬 *Chat:* explosivo
-🔗 {url}
-"""
-    if bot_ticket: await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
+    msg = f"{TEST_HEADER}\n\n🎵*TIKTOK POST*🎵\n👤 {member_name.upper()} postou um vídeo!\n🔗 {url}"
+    await send_alert("tiktok_post", msg)
 
 
 # =============================================================
-# 18 COMANDOS DE INTERAÇÃO (TELEGRAM + DISCORD)
+# 18 COMANDOS (GATILHO DIRETO)
 # =============================================================
 
-# --- HANDLER TELEGRAM (PV EXCLUSIVO) ---
-async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Processa comandos enviados diretamente ao bot no Telegram.
-    """
-    if not update.message or not update.message.text:
-        return
-        
-    # Restringe comandos ao seu privado para segurança
-    if update.message.chat.type != "private":
-        return
-    
-    command = update.message.text.lower().strip()
-
-    if command == "/teste":
-        await update.message.reply_text("🧪 [TELEGRAM] Iniciando sequência de testes detalhados...")
-        await run_full_test()
-        await update.message.reply_text("✅ Sequência de testes finalizada.")
-
-    elif command == "/ping":
-        await update.message.reply_text("🏓 Pong! O sistema Arirang está operacional.")
-
-    elif command == "/status":
-        uptime = get_uptime()
-        await update.message.reply_text(f"📊 *STATUS DO SISTEMA*\n\n⏱ Uptime: {uptime}\n🛰️ Monitoramento: Ativo", parse_mode="Markdown")
-
-# --- COMANDO DISCORD (SLASH COMMAND) ---
-@bot_discord.tree.command(name="teste", description="Executa a sequência completa de alertas de teste")
+# --- DISCORD (SLASH COMMAND) ---
+@bot_discord.tree.command(name="teste", description="Dispara modelos de teste para as salas")
 async def discord_teste(interaction: discord.Interaction):
-    """
-    Comando slash (/) para o Discord.
-    """
-    await interaction.response.send_message("🧪 [DISCORD] Iniciando sequência de testes detalhados...")
-    
-    try:
-        await run_full_test()
-        await interaction.followup.send("✅ Testes disparados com sucesso para os canais oficiais.")
-    except Exception as e:
-        await interaction.followup.send(f"❌ Erro ao executar testes: {e}")
+    """Executa o teste e responde apenas com um check invisível ou efêmero."""
+    # O interaction.response é obrigatório no Discord, então usamos uma resposta rápida
+    await interaction.response.send_message("🧪 Executando modelos...", ephemeral=True, delete_after=2)
+    await run_full_test()
 
-@bot_discord.tree.command(name="ping", description="Verifica se o bot está online")
-async def discord_ping(interaction: discord.Interaction):
-    latency = round(bot_discord.latency * 1000)
-    await interaction.response.send_message(f"🏓 Pong! Latência: {latency}ms")
+# --- TELEGRAM ---
+async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text: return
+    if update.message.chat.type != "private": return
+    
+    if update.message.text.lower().strip() == "/teste":
+        await run_full_test()
 
 # =============================================================
-# 19 SAFE BOOT E MOTOR DE MONITORAMENTO
+# 19 SAFE BOOT E MOTOR DE MONITORAMENTO (CONTADORES LIGADOS)
 # =============================================================
 
 async def safe_boot():
-    """
-    Garante que o anúncio de inicialização (Boot) ocorra apenas uma vez 
-    e que o painel seja criado corretamente.
-    """
     global panel_initialized
-    
     if panel_initialized:
         return
-
     try:
-        # Envia a mensagem de BOOT (Bloco 02/12)
-        await send_boot()
-        print("[SISTEMA] Mensagem de Boot enviada ao Telegram.")
-        
-        # Marca como inicializado para não repetir se o bot reconectar
+        await send_boot() # Dispara o painel oficial (Bloco 12)
         panel_initialized = True
-        
     except Exception as e:
-        print(f"[SAFE_BOOT ERROR] Falha ao inicializar sistema: {e}")
+        print(f"[SAFE_BOOT ERROR] {e}")
 
 async def monitor_loop():
-    """
-    Motor principal: varre os sites em ciclos infinitos com intervalos de segurança.
-    """
-    # Espera o bot do Discord estar 100% pronto antes de começar
+    """Motor principal que alimenta os contadores do painel."""
     await bot_discord.wait_until_ready()
-    
-    # Executa o boot inicial
     await safe_boot()
     
-    print("[MONITOR] Ciclo de varredura iniciado com sucesso.")
+    # Declaramos as globais para conseguir atualizar os números
+    global total_tickets, total_buy, total_weverse, total_social
+    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # 1. Checa Ticketmaster
+                # 1. Ticketmaster
                 await check_ticketmaster(session)
-                await asyncio.sleep(5) # Pausa técnica
+                total_tickets += 1
+                last_ticket_check = datetime.now()
+                await asyncio.sleep(2)
 
-                # 2. Checa BuyTicket
+                # 2. BuyTicket
                 await check_buyticket(session)
-                await asyncio.sleep(5)
+                total_buy += 1
+                last_buy_check = datetime.now()
+                await asyncio.sleep(2)
 
-                # 3. Checa Weverse
+                # 3. Weverse
                 await check_weverse(session)
-                await asyncio.sleep(5)
+                total_weverse += 1
+                last_weverse_check = datetime.now()
+                await asyncio.sleep(2)
 
-                # 4. Checa Redes Sociais (Insta/TikTok)
+                # 4. Redes Sociais
                 await check_social(session)
+                total_social += 1
+                last_social_check = datetime.now()
 
-                # 5. Intervalo Geral antes da próxima rodada completa
-                # Ajustado para 30 segundos para manter o bot ágil mas seguro
+                # --- AÇÃO CRÍTICA: Atualiza o Painel com os novos números ---
+                await update_panel() 
+
+                # Intervalo entre rodadas completas
                 await asyncio.sleep(30)
 
             except Exception as e:
-                print(f"[MONITOR ERROR] Ocorreu uma falha no ciclo: {e}")
-                # Em caso de erro grave, espera 10 segundos antes de tentar de novo
+                print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
 # =============================================================
