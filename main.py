@@ -680,8 +680,8 @@ async def monitor_loop():
     # 1. Aguarda o bot estar pronto
     await bot_discord.wait_until_ready()
     
-    # 2. INICIALIZAÇÃO (Corrigindo o erro NameError da linha 828)
-    # Trocamos 'safe_boot' pelo nome correto que está no Bloco 12: 'send_boot'
+    # 2. INICIALIZAÇÃO (Corrigindo o erro NameError da linha 820)
+    # Trocamos 'safe_boot' pelo nome correto que está no seu Bloco 12: 'send_boot'
     try:
         await send_boot() 
         print("[SISTEMA] Painel Arirang inicializado com sucesso.")
@@ -695,11 +695,11 @@ async def monitor_loop():
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # Se o painel foi deletado ou é a primeira vez, recria
+                # Se o painel foi deletado ou é a primeira vez, recria usando o nome certo
                 if panel_message_id is None:
                     await send_boot()
 
-                # --- VARREDURA E CONTAGEM ---
+                # --- VARREDURA E CONTAGEM (Bloco 20) ---
                 await check_ticketmaster(session)
                 total_tickets += 1
                 last_ticket_check = datetime.now()
@@ -716,8 +716,8 @@ async def monitor_loop():
                 total_social += 1
                 last_social_check = datetime.now()
 
-                # --- ATUALIZAÇÃO DO PAINEL (BLOCO 12.1) ---
-                # Edita a mensagem fixada com os números novos
+                # --- ATUALIZAÇÃO DO PAINEL ---
+                # Certifique-se que a função update_panel existe no seu código!
                 await update_panel()
 
                 # Espera 30 segundos para o próximo ciclo
@@ -725,7 +725,7 @@ async def monitor_loop():
 
             except Exception as e:
                 print(f"[MONITOR ERROR] Falha no ciclo: {e}")
-                # Se o erro for de mensagem deletada, limpamos o ID para recriar no próximo loop
+                # Se a mensagem foi deletada, limpamos o ID para recriar no próximo loop
                 if "not found" in str(e).lower() or "deleted" in str(e).lower():
                     panel_message_id = None
                 await asyncio.sleep(10)
