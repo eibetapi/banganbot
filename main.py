@@ -220,45 +220,42 @@ AGENDA = [
 # 7 CONTROLE
 # =========================
 
-boot_lock = asyncio.Lock()
-boot_initialized = False
-
 def get_uptime():
-s = int(time.time() - start_time)
-return f"{s//3600}h {(s%3600)//60}m {s%60}s"
+    s = int(time.time() - start_time)
+    return f"{s//3600}h {(s%3600)//60}m {s%60}s"
 
 def resolve_status(found):
-return "DISPONÍVEL" if found else "ESGOTADO"
+    return "DISPONÍVEL" if found else "ESGOTADO"
 
 def clean(v):
-return v if v and str(v).strip() else "ESGOTADO"
+    return v if v and str(v).strip() else "ESGOTADO"
 
 def days_left(date_str):
-try:
-d = datetime.strptime(date_str, "%d/%m/%Y")
-delta = (d - datetime.now()).days
-return max(delta, 0)
-except:
-return 0
+    try:
+        d = datetime.strptime(date_str, "%d/%m/%Y")
+        delta = (d - datetime.now()).days
+        return max(delta, 0)
+    except:
+        return 0
 
 def minutes_since(ts):
-return int((time.time() - ts) / 60)
+    return int((time.time() - ts) / 60)
 
 def get_next_show():
-now = datetime.now()
+    now = datetime.now()
 
-for item in AGENDA:
-try:
-dt_show = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
-if dt_show > now:
-return item[0], f"{item[1]}, {item[2]}", days_left(item[0])
-except:
-continue
+    for item in AGENDA:
+        try:
+            dt_show = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
+            if dt_show > now:
+                return item[0], f"{item[1]}, {item[2]}", days_left(item[0])
+        except:
+            continue
 
-return "Continua…", "---", 0
+    return "Continua…", "---", 0
 
 def status_color(last_check):
-return "🟢" if (time.time() - last_check) < 1800 else "🔴"
+    return "🟢" if (time.time() - last_check) < 1800 else "🔴"
 
 # =========================
 # 8 SESSION
