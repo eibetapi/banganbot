@@ -661,10 +661,10 @@ async def test_tiktok_post(url, member_name, title, found):
 # --- DISCORD (SLASH COMMAND) ---
 @bot_discord.tree.command(name="teste", description="Dispara modelos de teste para as salas")
 async def discord_teste(interaction: discord.Interaction):
-    """Executa o teste e responde apenas com um check invisível ou efêmero."""
-    # O interaction.response é obrigatório no Discord, então usamos uma resposta rápida
-    await interaction.response.send_message("🧪 Executando modelos...", ephemeral=True, delete_after=2)
-    await run_full_test()
+    """Executa o teste e responde de forma efêmera."""
+    await interaction.response.send_message("🧪 Executando modelos de teste...", ephemeral=True, delete_after=2)
+    # Chama a função de notificação que corrigimos com aspas triplas
+    await send_notification("SISTEMA", "https://arirang.com", "Teste de Comando Discord")
 
 # --- TELEGRAM ---
 async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -672,78 +672,21 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
     if update.message.chat.type != "private": return
     
     if update.message.text.lower().strip() == "/teste":
-        await run_full_test()
+        await send_notification("SISTEMA", "https://arirang.com", "Teste de Comando Telegram")
 
 # =============================================================
-# 18 MOTOR DE MONITORAMENTO (CONTADORES E CORREÇÃO DE BOOT)
-# =============================================================
-
-async def monitor_loop():
-    """Motor principal: Executa o boot inicial e atualiza os contadores."""
-    
-    # 1. Espera o bot estar pronto
-    await bot_discord.wait_until_ready()
-    
-    # 2. Executa o boot oficial (O Bloco 12 que definimos antes)
-    # Aqui corrigimos o erro NameError chamando o nome certo
-    try:
-        await send_boot() 
-        print("[SISTEMA] Painel inicializado com sucesso.")
-    except Exception as e:
-        print(f"[BOOT ERROR] Falha ao iniciar painel: {e}")
-
-    # 3. Variáveis globais para os contadores subirem
-    global total_tickets, total_buy, total_weverse, total_social
-    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
-
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                # --- CICLO DE VARREDURA E SOMA ---
-                
-                # Ticketmaster
-                await check_ticketmaster(session)
-                total_tickets += 1
-                last_ticket_check = datetime.now()
-                
-                # BuyTicket
-                await check_buyticket(session)
-                total_buy += 1
-                last_buy_check = datetime.now()
-
-                # Weverse
-                await check_weverse(session)
-                total_weverse += 1
-                last_weverse_check = datetime.now()
-
-                # Redes Sociais
-                await check_social(session)
-                total_social += 1
-                last_social_check = datetime.now()
-
-                # --- ATUALIZAÇÃO DO PAINEL ---
-                # Esta função (Bloco 13) vai editar a mensagem e mostrar os números
-                await update_panel()
-
-                # Intervalo para não ser banido dos sites e manter o bot ágil
-                await asyncio.sleep(30)
-
-            except Exception as e:
-                print(f"[MONITOR ERROR] Falha no ciclo: {e}")
-                await asyncio.sleep(10)
-# =============================================================
-# 19 MOTOR DE MONITORAMENTO (VERSÃO CORRIGIDA)
+# 18 MOTOR DE MONITORAMENTO (VERSÃO UNIFICADA)
 # =============================================================
 
 async def monitor_loop():
     """
-    Motor principal: Garante o boot e mantém o painel 12.1 atualizado.
+    Motor principal: Garante o boot e mantém o painel atualizado.
+    Este bloco substitui os antigos 18 e 19.
     """
-    # 1. Aguarda o bot estar pronto
+    # 1. Aguarda conexão
     await bot_discord.wait_until_ready()
     
-    # 2. INICIALIZAÇÃO (Corrigindo o erro NameError da linha 916)
-    # Trocamos 'safe_boot' pelo nome correto que está no Bloco 12: 'send_boot'
+    # 2. Inicialização do Painel (Chama o Bloco 12)
     try:
         await send_boot() 
         print("[SISTEMA] Painel Arirang inicializado com sucesso.")
@@ -757,7 +700,8 @@ async def monitor_loop():
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # Se o painel foi deletado, o Bloco 12.1 limpa o ID e aqui recriamos
+                # Se o painel foi deletado manualmente, o Bloco 12.1 limpa o ID 
+                # e aqui nós recriamos automaticamente.
                 if panel_message_id is None:
                     await send_boot()
 
@@ -779,7 +723,6 @@ async def monitor_loop():
                 last_social_check = datetime.now()
 
                 # --- ATUALIZAÇÃO DO PAINEL (BLOCO 12.1) ---
-                # Edita o layout fixado com os novos números
                 await update_panel()
 
                 # Espera 30 segundos para o próximo ciclo
@@ -789,8 +732,9 @@ async def monitor_loop():
                 print(f"[MONITOR ERROR] Falha no ciclo: {e}")
                 await asyncio.sleep(10)
 
+
 # =========================
-# 20 FETCH UNIVERSAL
+# 19 FETCH UNIVERSAL
 # =========================
 
 async def fetch(session, url):
@@ -805,7 +749,7 @@ async def fetch(session, url):
         return None
 
 # =========================
-# 21 CHECKS (MONITORAMENTO ATIVO)
+# 20 CHECKS (MONITORAMENTO ATIVO)
 # =========================
 
 async def check_ticketmaster(session):
@@ -866,7 +810,7 @@ async def check_social(session):
             last_social_check = time.time()
             await update_panel()
 # =========================
-# 22 LOOP PRINCIPAL (MOTOR)
+# 21 LOOP PRINCIPAL (MOTOR)
 # =========================
 
 async def monitor_loop():
@@ -898,7 +842,7 @@ async def monitor_loop():
                 await asyncio.sleep(10)
 
 # =========================
-# 23 DISCORD: EVENTO ON_READY
+# 22 DISCORD: EVENTO ON_READY
 # =========================
 
 @bot_discord.event
@@ -921,7 +865,7 @@ async def on_ready():
         print(f"❌ Erro na sincronização: {e}")
 
 # =========================
-# 24 INICIALIZAÇÃO FINAL (MAIN)
+# 23 INICIALIZAÇÃO FINAL (MAIN)
 # =========================
 
 async def main():
@@ -959,4 +903,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         # Finalização limpa ao pressionar Ctrl+C
         print("\n🛸 Desligando motores e recolhendo Wootteo...")  
- 
