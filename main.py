@@ -284,7 +284,7 @@ AGENDA = [
 ]
 
 # =========================
-# 8 CONTROLE (AJUSTADO)
+# 8 CONTROLE (VERSÃO AGENDA REAL)
 # =========================
 boot_lock = asyncio.Lock()
 boot_initialized = False
@@ -300,12 +300,11 @@ def clean(v):
     return v if v and str(v).strip() else "ESGOTADO"
 
 def days_left(date_str):
-    """Calcula dias restantes para uma data específica no formato DD/MM/AAAA"""
+    """Calcula dias restantes comparando apenas as datas (D-Day)"""
     try:
-        # Usamos .date() para garantir que o cálculo seja baseado no dia e não nos segundos
-        d = datetime.strptime(date_str, "%d/%m/%Y").date()
-        hoje = datetime.now().date()
-        delta = (d - hoje).days
+        target = datetime.strptime(date_str, "%d/%m/%Y").date()
+        today = datetime.now().date()
+        delta = (target - today).days
         return max(delta, 0)
     except:
         return 0
@@ -314,49 +313,49 @@ def minutes_since(ts):
     return int((time.time() - ts) / 60)
 
 def status_color(last_check):
-    # Se o último rastreio foi há menos de 30 minutos, fica verde
     return "🟢" if (time.time() - last_check) < 1800 else "🔴"
 
 def get_countdown_data():
     """
-    Retorna os dados processados para o painel:
-    (data_show, local, dias_prox, dias_brasil)
+    Varre a AGENDA do Bloco 7 e retorna os dados corretos para o painel.
     """
-    now = datetime.now()
+    now_date = datetime.now().date()
     
-    # 1. Busca o Próximo Show Geral na Agenda
     prox_data = "Continua…"
     prox_local = "---"
-    dias_prox = 0
-    
+    d_prox = 0
+    d_br = 0
+
+    # 1. Encontrar o próximo show na Agenda (Geral)
     if 'AGENDA' in globals() and AGENDA:
         for item in AGENDA:
             try:
-                # item[0]=data, item[3]=hora
-                dt_show = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
-                if dt_show > now:
+                # Comparamos apenas a data para saber qual o próximo show da lista
+                data_show_dt = datetime.strptime(item[0], "%d/%m/%Y").date()
+                if data_show_dt >= now_date:
                     prox_data = item[0]
                     prox_local = f"{item[1]}, {item[2]}"
-                    dias_prox = days_left(item[0])
+                    d_prox = (data_show_dt - now_date).days
                     break
             except:
                 continue
 
-    # 2. Busca especificamente o primeiro show no BRASIL na Agenda
-    # Se não encontrar na agenda, usa a data padrão 28/10/2026
-    dias_brasil = 0
+    # 2. Encontrar o primeiro show no BRASIL na Agenda
     found_br = False
     if 'AGENDA' in globals():
         for item in AGENDA:
-            if "brasil" in item[2].lower() or "brazil" in item[2].lower():
-                dias_brasil = days_left(item[0])
-                found_br = True
-                break
+            if "Brasil" in item[2]:
+                data_br_dt = datetime.strptime(item[0], "%d/%m/%Y").date()
+                if data_br_dt >= now_date:
+                    d_br = (data_br_dt - now_date).days
+                    found_br = True
+                    break
     
+    # Se já passou ou não achou na agenda, usa a data base 28/10/2026
     if not found_br:
-        dias_brasil = days_left("28/10/2026")
+        d_br = days_left("28/10/2026")
 
-    return prox_data, prox_local, dias_prox, dias_brasil
+    return prox_data, prox_local, d_prox, d_br
 
 # =========================
 # 9 SESSION (FIX: CLIENT SESSION ÚNICA)
@@ -476,24 +475,26 @@ async def send_boot():
             print(f"[ERR BOOT] {e}")
 
 # =============================================================
-# 12.1 PAINEL DISCORD (UPDATE - LAYOUT FIDELIDADE TOTAL)
+# 12.1 PAINEL DISCORD (UPDATE - FIX CONTADORES)
 # =============================================================
 
 discord_panel_msg_id = None
 
 async def update_discord_panel():
     global discord_panel_msg_id
+    # IMPORTANTE: Declarar as variáveis globais para puxar os dados do motor
+    global total_tickets, total_buy, total_weverse, total_social
+    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
     
     channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
     if not channel: return
 
-    # Chama a função ajustada do Bloco 8 para separar os dias
+    # Puxa os dados da agenda e os dias para os dois contadores
     data_show, city, d_prox, d_br = get_countdown_data()
     
-    # Criando o Embed com a borda roxa solicitada
     embed = discord.Embed(color=0x8A2BE2)
     
-    # O conteúdo abaixo mantém seu alinhamento exato, corrigindo apenas as variáveis
+    # Layout mantido exatamente como o modelo original
     embed.description = f"""🪭⊙⊝⊜ARIRANG TOUR⊙⊝⊜🪭
 
 ✈️ PRÓXIMAS DATAS
@@ -522,7 +523,6 @@ async def update_discord_panel():
 
     try:
         if discord_panel_msg_id is None:
-            # Busca se já existe uma mensagem do bot para evitar duplicar
             async for message in channel.history(limit=5):
                 if message.author == bot_discord.user:
                     discord_panel_msg_id = message.id
@@ -722,24 +722,22 @@ async def tiktok_live(url, member_name, title, found):
 
 TEST_HEADER = "⚠️ TESTE ⚠️"
 
-async def run_full_test():
+async def run_full_test(platform="both"):
     """Executa a sequência de testes enviando para os canais específicos."""
-    t_link = "https://www.ticketmaster.com.br/arirang-test"
     
-    # 1. Testes de Tickets
-    await test_ticket_reposicao(t_link, "28/10/2026", True)
+    # 1. Testes de Tickets (Puxando links oficiais das listas)
+    await test_ticket_reposicao(TICKET_LINKS[0], "28/10/2026", True, platform)
     await asyncio.sleep(1)
-    await test_agenda({"date": "28/10/2026", "city": "São Paulo", "country": "Brasil"})
+    await test_agenda({"date": "28/10/2026", "city": "São Paulo", "country": "Brasil"}, platform)
     
     # 2. Testes de Weverse
     await asyncio.sleep(1)
-    # Chama o seu layout de teste do Weverse
-    await test_weverse_post(t_link, "bts", "Update", "Conteúdo Teste", True)
+    await test_weverse_post(WEVERSE_LINKS[0], "bts", "Update", "Conteúdo Teste", True, platform)
     
-    # 3. Testes de Redes Sociais
+    # 3. Testes de Redes Sociais (Puxando links corretos dos dicionários)
     await asyncio.sleep(1)
-    await test_instagram_post(t_link, "bts", "post", True)
-    await test_tiktok_post("https://www.tiktok.com/@bts_official_bighit", "bts", "video", True)
+    await test_instagram_post(INSTAGRAM_LINKS["bts"], "bts", "post", True, platform)
+    await test_tiktok_post(TIKTOK_LINKS["bts"], "bts", "video", True, platform)
 
     # --- ATUALIZAÇÃO DO PAINEL (REGISTRO DO TESTE) ---
     try:
@@ -750,47 +748,47 @@ async def run_full_test():
 
 # --- FUNÇÕES DE LAYOUT PARA O TESTE (PRESERVADAS) ---
 
-async def test_ticket_reposicao(url, key, found):
+async def test_ticket_reposicao(url, key, found, platform="both"):
     msg = f"""{TEST_HEADER}
 
 🔥*ALERTA DE REPOSIÇÃO*🔥
 📅 *Data:* 28/10/2026
 🔗 *Link:* {url}
 ✅ *Status:* Liberado"""
-    await send_alert("reposicao", msg)
+    await send_alert("reposicao", msg, platform)
 
-async def test_agenda(data):
+async def test_agenda(data, platform="both"):
     msg = f"""{TEST_HEADER}
 
 💜*AGENDA NOVAS DATAS*💜
 📅 *Data:* 28/10/2026
 🏙️ *Cidade:* São Paulo
 🌎 *País:* Brasil"""
-    await send_alert("agenda", msg)
+    await send_alert("agenda", msg, platform)
 
-async def test_weverse_post(url, member_name, title, message_translated, found):
+async def test_weverse_post(url, member_name, title, message_translated, found, platform="both"):
     msg = f"""{TEST_HEADER}
 
 🩷*WEVERSE POST*🩷
 👤 {member_name.upper()} publicou uma mensagem!
 🔗 {url}"""
-    await send_alert("weverse_post", msg)
+    await send_alert("weverse_post", msg, platform)
 
-async def test_instagram_post(url, member_name, title, found):
+async def test_instagram_post(url, member_name, title, found, platform="both"):
     msg = f"""{TEST_HEADER}
 
 🌟*INSTAGRAM POST*🌟
 👤 {member_name} postou uma foto!
 🔗 {url}"""
-    await send_alert("instagram_post", msg)
+    await send_alert("instagram_post", msg, platform)
 
-async def test_tiktok_post(url, member_name, title, found):
+async def test_tiktok_post(url, member_name, title, found, platform="both"):
     msg = f"""{TEST_HEADER}
 
 🎵*TIKTOK POST*🎵
 👤 {member_name.upper()} postou um vídeo!
 🔗 {url}"""
-    await send_alert("tiktok_post", msg)
+    await send_alert("tiktok_post", msg, platform)
 
 # =============================================================
 # 17 MOTOR DE MONITORAMENTO (VERSÃO UNIFICADA E CORRIGIDA)
@@ -862,18 +860,20 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
     user_cmd = update.message.text.lower()
     if "/teste" in user_cmd:
         await update.message.reply_text("🚀 Iniciando sequência de testes Arirang...")
-        await run_full_test()
+        # Chama o teste especificando a plataforma Telegram
+        await run_full_test(platform="telegram")
         # Força atualização para o registro aparecer no painel na hora
         await update_panel()
         await update_discord_panel()
     elif "/ping" in user_cmd:
-        await update.message.reply_text(f"🏓 Pong! Wootteo operando há {get_uptime()}")
+        await update.message.reply_text(f"🏓 Pong! Uptime: {get_uptime()}")
 
 # No Discord (Slash Command)
 @bot_discord.tree.command(name="teste", description="Executa o teste completo de layout e roteamento")
 async def teste_discord(interaction: discord.Interaction):
     await interaction.response.send_message("🚀 Iniciando sequência de testes nos canais específicos...", ephemeral=True)
-    await run_full_test()
+    # Chama o teste especificando a plataforma Discord
+    await run_full_test(platform="discord")
     # Força atualização para o registro aparecer no painel na hora
     await update_panel()
     await update_discord_panel()
