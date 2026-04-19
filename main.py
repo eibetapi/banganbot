@@ -445,7 +445,7 @@ TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"}
 async def update_panel():
     """
     Função mestra: Tenta editar os painéis existentes. 
-    Se não encontrar o ID, busca no histórico antes de criar um novo.
+    Se não encontrar o ID, cria um novo (ou recupera no Discord via histórico).
     """
     global panel_message_id, discord_panel_msg_id
     
@@ -455,12 +455,6 @@ async def update_panel():
     # --- LÓGICA TELEGRAM ---
     if bot_ticket and PANEL_CHAT_ID:
         try:
-            # 1. Recuperação de ID (Ajustado para v20+)
-            if not panel_message_id:
-                # Nota: get_chat_history não existe no objeto Bot. 
-                # Se não tiver o ID, vamos postar um novo para garantir.
-                pass 
-
             if panel_message_id:
                 await bot_ticket.edit_message_text(
                     chat_id=PANEL_CHAT_ID,
@@ -469,12 +463,12 @@ async def update_panel():
                     parse_mode="Markdown"
                 )
             else:
-                # Cria um novo e fixa
+                # Se não tem ID salvo, cria novo e fixa
                 msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
                 panel_message_id = msg.message_id
                 await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
         except Exception as e:
-            # Se der erro de "Message to edit not found", resetamos o ID
+            # Se a mensagem foi deletada ou não encontrada, reseta o ID para o próximo ciclo
             if "not found" in str(e).lower() or "not modified" in str(e).lower():
                 panel_message_id = None
             print(f"[DEBUG] Erro Telegram: {e}")
@@ -485,7 +479,7 @@ async def update_panel():
         if channel:
             embed = discord.Embed(description=texto, color=0x8A2BE2) # Borda Roxa
             try:
-                # Busca automática se o ID for perdido
+                # Busca automática se o ID for perdido (Persistência)
                 if not discord_panel_msg_id:
                     async for message in channel.history(limit=5):
                         if message.author == bot_discord.user:
@@ -496,6 +490,7 @@ async def update_panel():
                     msg = await channel.fetch_message(discord_panel_msg_id)
                     await msg.edit(content=None, embed=embed)
                 else:
+                    # Envia novo sem fixar (pin)
                     msg = await channel.send(embed=embed)
                     discord_panel_msg_id = msg.id
             except Exception as e:
@@ -543,7 +538,6 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
   🔵 **Buyticket** {status_color(last_buy_check)}
   🎯 Acessos realizados: **{total_buy}**
   ⏳ Último rastreio há: **{minutes_since(last_buy_check)} min**"""
-
 
 # =========================
 # 13 ALERTAS WEVERSE (CORRIGIDO)
