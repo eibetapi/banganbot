@@ -959,3 +959,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         # Finalização limpa ao pressionar Ctrl+C
         print("\n🛸 Desligando motores e recolhendo Wootteo...")  
+ 
