@@ -1170,9 +1170,9 @@ async def monitor_loop():
                 await asyncio.sleep(10)
 
 
-=========================
-42 START BOT (OBRIGATÓRIO)
-=========================
+# =========================
+# 42 START BOT (OBRIGATÓRIO)
+# =========================
 if __name__ == "__main__":
 
     keep_alive()
@@ -1194,7 +1194,7 @@ if __name__ == "__main__":
 
         await bot_ticket.initialize()
         await bot_ticket.start()
-        await bot_ticket.updater.start_polling()
+        await bot_ticket.run_polling()
 
     # =========================
     # 44 RUN
@@ -1206,3 +1206,4 @@ if __name__ == "__main__":
         )
 
     asyncio.run(main())
+
