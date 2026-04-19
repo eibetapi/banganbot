@@ -12,20 +12,8 @@ import re
 from datetime import datetime
 
 # =========================
-# 1 DISCORD (CORRIGIDO - INSTÂNCIA ÚNICA)
+# 1 DISCORD (SAFE BOOT CORRIGIDO)
 # =========================
-
-import discord
-from discord.ext import commands
-from discord import app_commands
-
-intents = discord.Intents.default()
-intents.message_content = True
-
-bot_discord = commands.Bot(
-command_prefix="!",
-intents=intents
-)
 
 @bot_discord.event
 async def on_ready():
@@ -37,10 +25,10 @@ async def on_ready():
     except Exception as e:
         print(f"[DISCORD SYNC ERROR] {e}")
 
-    # 🚀 BOOT ÚNICO (ANTI DUPLICAÇÃO)
+    await asyncio.sleep(3)
+
     await safe_boot()
 
-    # 🚀 MONITOR (UMA VEZ SÓ)
     bot_discord.loop.create_task(monitor_loop())
 
 # =========================
@@ -96,6 +84,37 @@ def is_new(url: str, html: str):
         CONTENT_HASH[url] = new_hash
         return True
     return False
+
+# =========================
+# 4 CONFIG GLOBAL (OBRIGATÓRIO)
+# =========================
+
+CONTENT_HASH = {}
+
+# 🔥 pode usar env OU valor fixo
+CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID", "0"))
+
+check_weverse = 0
+check_social = 0
+check_ticket = 0
+check_buy = 0
+
+last_weverse_check = time.time()
+last_social_check = time.time()
+last_ticket_check = time.time()
+last_buy_check = time.time()
+
+start_time = time.time()
+
+panel_message_id = None
+panel_chat_id = None
+panel_initialized = False
+
+discord_panel_message_id = None
+
+bot_ticket = None
+
+boot_lock = asyncio.Lock()
 
 # =========================
 # 5 LINKS
@@ -1171,14 +1190,15 @@ async def monitor_loop():
 
 
 # =========================
-# 42 START BOT (OBRIGATÓRIO)
+# 42 START BOT (CORRIGIDO REAL)
 # =========================
+
 if __name__ == "__main__":
 
     keep_alive()
 
     # =========================
-    # 43 TELEGRAM
+    # 43 TELEGRAM (SEM run_polling)
     # =========================
     async def start_telegram():
         global bot_ticket
@@ -1192,18 +1212,20 @@ if __name__ == "__main__":
             MessageHandler(filters.COMMAND, handle_commands)
         )
 
-        await bot_ticket.initialize()
+          await bot_ticket.initialize()
         await bot_ticket.start()
-        await bot_ticket.run_polling()
+
+        print("[TELEGRAM] Bot iniciado com sucesso")
 
     # =========================
-    # 44 RUN
+    # 44 MAIN (ORDEM CORRETA)
     # =========================
     async def main():
-        await asyncio.gather(
-            start_telegram(),
-            bot_discord.start(os.getenv("DISCORD_TOKEN"))
-        )
+
+        await start_telegram()
+
+        await bot_discord.start(os.getenv("DISCORD_TOKEN"))
 
     asyncio.run(main())
+
 
