@@ -498,28 +498,28 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
     return f"""🪭 ⊙⊝⊜ **ARIRANG TOUR** ⊙⊝⊜ 🪭
 
 **✈️ PRÓXIMAS DATAS**
-**🎫 Data:** {data_show}
-**📍 Local:** {city}
-**🔔 Faltam** {d_prox} **dias.**
-**🔔 Faltam** {d_br}** dias para o BTS no Brasil!
+  🎫 Data: **{data_show}**
+  📍 Local: **{city}**
+  🔔 Faltam **{d_prox}** dias.
+  🔔 Faltam **{d_br}** dias para o BTS no Brasil!
 
-•°•👾•°•°**ATUALIZAÇÕES**•°•°🛸
+•°•👾•°•° **ATUALIZAÇÕES** •°•°🛸
 
-**🟣 Weverse** {status_color(last_weverse_check)}
-**🎯 Acessos realizados:** {total_weverse}
-**⏳ Último rastreio há:** {minutes_since(last_weverse_check)} min
+  🟣 **Weverse** {status_color(last_weverse_check)}
+  🎯 Acessos realizados:** {total_weverse}
+  ⏳ Último rastreio há:** {minutes_since(last_weverse_check)} min
 
-**⚪ Redes sociais** {status_color(last_social_check)}
-**🎯 Acessos realizados:** {total_social}
-**⏳ Último rastreio há:** {minutes_since(last_social_check)} min
+  ⚪ **Redes sociais** {status_color(last_social_check)}
+  🎯 Acessos realizados:** {total_social}
+  ⏳ Último rastreio há:** {minutes_since(last_social_check)} min
 
-**🟠 Ticketmaster** {status_color(last_ticket_check)}
-**🎯 Acessos realizados:** {total_tickets}
-**⏳ Último rastreio há:** {minutes_since(last_ticket_check)} min
+  🟠 **Ticketmaster** {status_color(last_ticket_check)}
+  🎯 Acessos realizados:** {total_tickets}
+  ⏳ Último rastreio há:** {minutes_since(last_ticket_check)} min
 
-**🔵 Buyticket** {status_color(last_buy_check)}
-**🎯 Acessos realizados:** {total_buy}
-**⏳ Último rastreio há:** {minutes_since(last_buy_check)} **min**"""
+  🔵 **Buyticket** {status_color(last_buy_check)}
+  🎯 Acessos realizados:** {total_buy}
+  ⏳ Último rastreio há:** {minutes_since(last_buy_check)} **min**"""
 
 async def update_panel():
     """Edita as mensagens existentes em vez de criar novas."""
@@ -744,6 +744,35 @@ async def tiktok_live(url, member_name, title, found):
     await send_alert("tiktok_live", msg)
     await update_panel()
 
+async def youtube_post(url, final_url):
+    global total_youtube, last_youtube_check
+    total_youtube += 1
+    last_youtube_check = time.time()
+    
+    # Texto fixo para o grupo
+    msg = f"""🎞️*YOUTUBE POST*🎞️
+💜 **BTS** postou um vídeo novo!
+🔗 *Link:* {final_url}"""
+    
+    await send_alert("youtube_post", msg)
+    await update_panel()
+
+async def youtube_live(url):
+    global total_youtube, last_youtube_check
+    total_youtube += 1
+    last_youtube_check = time.time()
+    
+    # Link padrão para lives do canal oficial
+    live_url = "https://www.youtube.com/@BTS/live"
+    
+    msg = f"""📹*YOUTUBE LIVE*📹
+🚨 **BTS** está ao vivo agora no YouTube!
+🔗 *Link:* {live_url}"""
+    
+    await send_alert("youtube_live", msg)
+    await update_panel()
+
+
 # =============================================================
 # 16 SISTEMA DE TESTE (ROTEADO PARA AS SALAS CERTAS)
 # =============================================================
@@ -817,6 +846,27 @@ async def test_tiktok_post(url, member_name, title, found, platform="both"):
 👤 {member_name.upper()} postou um vídeo!
 🔗 {url}"""
     await send_alert("tiktok_post", msg)
+
+async def test_youtube_post(url="https://www.youtube.com/@BTS", platform="both"):
+    msg = f"""{TEST_HEADER}
+
+🎞️*YOUTUBE POST*🎞️
+💜 **BTS** postou um vídeo novo!
+🔗 *Link:* {url}
+✅ *Status:* Teste de Alerta"""
+    
+    # "social" ou o slug que você usa para notificações de redes sociais
+    await send_alert("youtube_post", msg)
+
+async def test_youtube_live(url="https://www.youtube.com/@BTS/live", platform="both"):
+    msg = f"""{TEST_HEADER}
+
+📹*YOUTUBE LIVE*📹
+🚨 **BTS** está ao vivo agora no YouTube!
+🔗 *Link:* {url}
+✅ *Status:* Teste de Live"""
+    
+    await send_alert("youtube_live", msg)
 
 # =============================================================
 # 17 MOTOR DE MONITORAMENTO (CONTROLE DE FLUXO)
@@ -953,7 +1003,6 @@ async def check_buyticket(session):
             print(f"[ERR BUY] {e}")
 
 async def check_weverse(session):
-    """Esta é a função que estava faltando ou definida errado"""
     global last_weverse_check, total_weverse
     if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS: return
     
@@ -962,15 +1011,72 @@ async def check_weverse(session):
         try:
             total_weverse += 1
             html = await fetch(session, url)
-            # Adicione aqui sua lógica específica de is_new para Weverse se houver
+            if html and is_new(url, html):
+                # Aqui você pode chamar a função de alerta do Weverse
+                pass
         except Exception as e:
             print(f"[ERR WEVERSE] {e}")
 
 async def check_social(session):
+    """Monitoramento de redes sociais (Instagram, TikTok, Twitter)"""
     global last_social_check, total_social
-    # Redes sociais costumam ser checadas em conjunto
+    if 'SOCIAL_LINKS' not in globals() or not SOCIAL_LINKS: return
+    
     last_social_check = time.time()
-    total_social += 1
+    for url in SOCIAL_LINKS:
+        try:
+            total_social += 1
+            html = await fetch(session, url)
+            if html and is_new(url, html):
+                # Logica de disparo de alerta social
+                pass
+        except Exception as e:
+            print(f"[ERR SOCIAL] {e}")
+
+async def check_youtube(session):
+    """Monitoramento de Vídeos e Lives no Canal Oficial"""
+    global last_youtube_check, total_youtube
+    youtube_url = "https://www.youtube.com/@BTS"
+    
+    last_youtube_check = time.time()
+    try:
+        total_youtube += 1
+        # Busca a aba de vídeos para detectar novidades e lives
+        html = await fetch(session, f"{youtube_url}/videos")
+        
+        if html:
+            # Detecta se há uma live acontecendo
+            is_live = '{"text":"AO VIVO"}' in html or '"style":"LIVE"' in html or "watch?v=" in html and "live" in html.lower()
+            
+            if is_live:
+                # Dispara alerta de LIVE se for novidade
+                if is_new(youtube_url + "/live", "LIVE"):
+                    await enviar_alerta_social(f"🚨 **LIVE NO YOUTUBE!**\n\nO canal do BTS está ao vivo agora!\n🔗 {youtube_url}/live")
+            
+            elif is_new(youtube_url, html):
+                # Dispara alerta de VÍDEO NOVO
+                await enviar_alerta_social(f"🔴 **VÍDEO NOVO NO YOUTUBE**\n\nConteúdo novo disponível no canal @BTS!\n🔗 {youtube_url}")
+                
+    except Exception as e:
+        print(f"[ERR YOUTUBE] {e}")
+
+# =============================================================
+# 19.1 AUXILIAR DE ALERTA SOCIAL (SIMPLIFICADO)
+# =============================================================
+
+async def enviar_alerta_social(mensagem):
+    """Envia o alerta para os canais de redes sociais no TG e Discord"""
+    # Envio Telegram
+    if bot_ticket and PANEL_CHAT_ID:
+        try: await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode="Markdown")
+        except: pass
+        
+    # Envio Discord
+    channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
+    if channel:
+        try: await channel.send(content=mensagem)
+        except: pass
+
 # =========================
 # 20 DISCORD: EVENTO ON_READY
 # =========================
