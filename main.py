@@ -326,7 +326,6 @@ def format_member(member_name):
     name = str(member_name).upper()
     return emoji, name
 
-
 # =========================
 # 10 DISCORD + TELEGRAM ROUTER (CORRIGIDO)
 # =========================
@@ -339,10 +338,14 @@ def send_telegram(message):
 
     try:
         asyncio.create_task(
-            bot_ticket.send_message(chat_id=CHAT_ID, text=message)
+            bot_ticket.send_message(
+                chat_id=CHAT_ID,
+                text=message
+            )
         )
     except Exception:
         pass
+
 
 async def send_discord(channel_id, message):
     global bot_discord
@@ -356,11 +359,6 @@ async def send_discord(channel_id, message):
             return await channel.send(message)
     except Exception:
         return None
-
-def send_alert(alert_type, message):
-    """
-    Router principal de alertas (Telegram + Discord)
-    """
 
     # =========================
     # 11 TELEGRAM (SEMPRE PRIMEIRO)
@@ -403,13 +401,6 @@ def send_alert(alert_type, message):
         loop.create_task(
             send_discord(DISCORD_SOCIAL_CHANNEL_ID, message)
         )
-
-    # 🧠 fallback seguro (evita crash se esquecer categoria)
-    else:
-        if 'DISCORD_NEWS_CHANNEL_ID' in globals():
-            loop.create_task(
-                send_discord(DISCORD_NEWS_CHANNEL_ID, message)
-            )
 
 # =========================
 # 14 BOOT FIX (INÍCIO LIMPO)
@@ -1209,7 +1200,7 @@ if __name__ == "__main__":
 
     keep_alive()
 
- # =========================
+# =========================
 # 43 TELEGRAM (CORRIGIDO)
 # =========================
 
@@ -1230,15 +1221,25 @@ async def start_telegram():
 
     print("[TELEGRAM] Bot iniciado com sucesso")
 
-    # =========================
-    # 44 MAIN (ORDEM CORRETA)
-    # =========================
-    async def main():
 
-        await start_telegram()
+# =========================
+# 44 MAIN (ORDEM CORRETA)
+# =========================
 
-        await bot_discord.start(os.getenv("DISCORD_TOKEN"))
+async def main():
 
+    await start_telegram()
+
+    await bot_discord.start(os.getenv("DISCORD_TOKEN"))
+
+
+# =========================
+# 45 ENTRYPOINT
+# =========================
+
+if __name__ == "__main__":
+    keep_alive()
     asyncio.run(main())
+
 
 
