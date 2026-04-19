@@ -26,7 +26,10 @@ from telegram.ext import ContextTypes
 # ==========================================
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-CHAT_ID = -1003972186058
+
+# <--- INSIRA O ID DO TELEGRAM ABAIXO (Mantenha o -100 se for Canal/Grupo)
+CHAT_ID = -1003972186058 
+
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 
 bot_ticket = None
@@ -177,6 +180,7 @@ X_LINKS = [
     "https://x.com/BTS_twt"
 ]
 
+
 # =========================
 # 7 AGENDA FIXA
 # =========================
@@ -251,7 +255,7 @@ AGENDA = [
 ]
 
 # =========================
-#  8 CONTROLE
+# 8 CONTROLE
 # =========================
 boot_lock = asyncio.Lock()
 boot_initialized = False
@@ -279,7 +283,6 @@ def minutes_since(ts):
 
 def get_next_show():
     now = datetime.now()
-    # Certifique-se de que a lista AGENDA exista no seu Bloco de Configurações
     if 'AGENDA' not in globals(): return "Continua…", "---", 0
     
     for item in AGENDA:
@@ -303,7 +306,6 @@ http_session = None
 
 async def get_session():
     global http_session
-    # Mantém uma única sessão aberta para evitar erro de conectores abertos
     if http_session is None or http_session.closed:
         http_session = aiohttp.ClientSession()
     return http_session
@@ -328,30 +330,24 @@ def format_member(member_name):
 # 11 ROTEAMENTO DE ALERTAS (FIX: TELEGRAM SAFE)
 # =========================
 async def send_to_all(alert_type, message):
-    # Envio para o Telegram (Só se o bot existir)
     if bot_ticket is not None:
         try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=message)
+            await bot_ticket.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
         except Exception as e:
             print(f"[TELEGRAM ERROR] {e}")
 
-    # Envio para o Discord
     try:
         loop = asyncio.get_running_loop()
         
-        # Tickets
         if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
             loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
         
-        # Weverse
         elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
             loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
         
-        # Social
         elif alert_type in ["instagram_post", "instagram_reels", "instagram_stories", "instagram_live", "tiktok_post", "tiktok_live"]:
             loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
         
-        # News/Outros
         else:
             if 'DISCORD_NEWS_CHANNEL_ID' in globals():
                 loop.create_task(send_discord(DISCORD_NEWS_CHANNEL_ID, message))
@@ -364,25 +360,21 @@ async def send_to_all(alert_type, message):
 async def send_boot():
     global panel_message_id, panel_chat_id, panel_initialized
     
-    # Prevenção: só roda se os bots estiverem minimamente prontos
     if not bot_discord: return
 
     async with boot_lock:
         msg = "🛸•°•Wootteo entrando em rota°•°🛸"
 
-        # Aviso Telegram
         if bot_ticket:
             try:
                 await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
             except: pass
 
-        # Aviso Discord
         try:
             channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
             if channel: await channel.send(msg)
         except: pass
 
-        # Inicialização do Painel Telegram (apenas 1 vez)
         if bot_ticket and (not panel_initialized or not panel_message_id):
             try:
                 panel = await bot_ticket.send_message(
@@ -390,29 +382,24 @@ async def send_boot():
                     text="👾 PAINEL DE CONTROLE 👾\n\nInicializando sistema de tour..."
                 )
                 panel_message_id = panel.message_id
+                panel_chat_id = CHAT_ID
                 panel_initialized = True
                 try:
                     await bot_ticket.pin_chat_message(chat_id=CHAT_ID, message_id=panel_message_id)
                 except: pass
             except: pass
 
-        # Chama o update inicial do painel
         await update_panel()
+
 # =============================================================
 # 13 PAINEL FIXADO (TEMPO REAL + SEM SPAM)
 # =============================================================
 
-# INICIALIZAÇÃO OBRIGATÓRIA (Topo do Bloco)
+# INICIALIZAÇÃO OBRIGATÓRIA
 panel_message_id = None
 panel_chat_id = None
 panel_initialized = False
 last_panel_text = None
-
-# Contadores globais (Garantindo que comecem em zero)
-total_weverse = 0
-total_social = 0
-total_tickets = 0
-total_buy = 0
 
 async def update_panel():
     global panel_message_id, panel_chat_id, last_panel_text
@@ -461,13 +448,14 @@ async def update_panel():
         last_panel_text = text
 
         await bot_ticket.edit_message_text(
-            chat_id=panel_chat_id,
+            chat_id=panel_chat_id if panel_chat_id else CHAT_ID,
             message_id=panel_message_id,
             text=text
         )
 
     except Exception as e:
         print(f"[PAINEL ERROR] {e}")
+
 
 # =========================
 # 14 ALERTAS OFICIAIS
@@ -483,11 +471,7 @@ async def ticket_reposicao(url, key, found):
 🛡️ *Tipo:* ESGOTADO
 ✅ *Status:* {resolve_status(found)}
 """
-        if bot_ticket:
-            try:
-                await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-            except Exception as e:
-                print(f"[ERROR TICKET REPOSICAO] {e}")
+        await send_to_all("reposicao", msg)
 
 async def ticket_nova_data(url, key, found):
     if any(x in str(key) for x in ["28/10", "30/10", "31/10"]) or "Brasil" in str(key):
@@ -500,11 +484,7 @@ async def ticket_nova_data(url, key, found):
 📊 *Quantidade:* ESGOTADO
 ✅ *Status:* {resolve_status(found)}
 """
-        if bot_ticket:
-            try:
-                await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-            except Exception as e:
-                print(f"[ERROR NOVA DATA] {e}")
+        await send_to_all("nova_data", msg)
 
 async def buy_revenda(url, key, found):
     if any(x in str(key) for x in ["28/10", "30/10", "31/10"]):
@@ -517,11 +497,7 @@ async def buy_revenda(url, key, found):
 🛡️ *Tipo:* ESGOTADO
 ✅ *Status:* {resolve_status(found)}
 """
-        if bot_ticket:
-            try:
-                await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-            except Exception as e:
-                print(f"[ERROR BUY REVENDA] {e}")
+        await send_to_all("revenda", msg)
 
 async def agenda_update(data):
     country = str(data.get('country', ''))
@@ -533,11 +509,7 @@ async def agenda_update(data):
 🌎 *País:* {clean(data.get('country'))}
 ⚠️*Mais informações em breve!*
 """
-        if bot_ticket:
-            try:
-                await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-            except Exception as e:
-                print(f"[ERROR AGENDA UPDATE] {e}")
+        await send_to_all("agenda", msg)
 
 
 # =========================
@@ -552,11 +524,7 @@ async def weverse_post(url, member_name, title, message_translated, found):
 {message_translated}
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR WEVERSE POST] {e}")
+    await send_to_all("weverse_post", msg)
 
 async def test_weverse_live(url, member_name, found):
     emoji = get_member_emoji(member_name)
@@ -564,11 +532,7 @@ async def test_weverse_live(url, member_name, found):
 {emoji} {member_name.upper()} está ao vivo!
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR WEVERSE LIVE] {e}")
+    await send_to_all("weverse_live", msg)
 
 async def test_weverse_news(url, member_name, message_translated, found):
     emoji = get_member_emoji(member_name)
@@ -577,11 +541,7 @@ async def test_weverse_news(url, member_name, message_translated, found):
 📌 {message_translated}
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR WEVERSE NEWS] {e}")
+    await send_to_all("weverse_news", msg)
 
 async def test_weverse_media(url, member_name, title, message_translated, found):
     emoji = get_member_emoji(member_name)
@@ -591,11 +551,7 @@ async def test_weverse_media(url, member_name, title, message_translated, found)
 {message_translated}
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR WEVERSE MEDIA] {e}")
+    await send_to_all("weverse_media", msg)
 
 # =========================
 # 16 ALERTAS INSTAGRAM
@@ -607,11 +563,7 @@ async def instagram_post(url, member_name, title, found):
 {emoji} {name} postou uma foto!
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR INSTAGRAM POST] {e}")
+    await send_to_all("instagram_post", msg)
 
 async def instagram_reel(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -619,11 +571,7 @@ async def instagram_reel(url, member_name, title, found):
 {emoji} {name} postou um reels!
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR INSTAGRAM REEL] {e}")
+    await send_to_all("instagram_reels", msg)
 
 async def instagram_story(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -631,11 +579,7 @@ async def instagram_story(url, member_name, title, found):
 {emoji} {name} atualizou os stories!
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR INSTAGRAM STORY] {e}")
+    await send_to_all("instagram_stories", msg)
 
 async def instagram_live(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -643,11 +587,7 @@ async def instagram_live(url, member_name, title, found):
 {emoji} {name} está ao vivo!
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR INSTAGRAM LIVE] {e}")
+    await send_to_all("instagram_live", msg)
 
 # =========================
 # 17 ALERTAS TIKTOK
@@ -659,11 +599,7 @@ async def tiktok_post(url, member_name, title, found):
 {emoji} {member_name.upper()} postou um vídeo!
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR TIKTOK POST] {e}")
+    await send_to_all("tiktok_post", msg)
 
 async def tiktok_live(url, member_name, title, found):
     emoji = get_member_emoji(member_name)
@@ -671,11 +607,7 @@ async def tiktok_live(url, member_name, title, found):
 {emoji} {member_name.upper()} está ao vivo no TikTok!
 🔗 {url}
 """
-    if bot_ticket:
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[ERROR TIKTOK LIVE] {e}")
+    await send_to_all("tiktok_live", msg)
 
 
 # =============================================================
@@ -931,7 +863,7 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text("🏓 Pong! O sistema Arirang está operacional.")
 
     elif command == "/status":
-        uptime = get_uptime() # Supõe que você tem essa função de utilitário
+        uptime = get_uptime()
         await update.message.reply_text(f"📊 *STATUS DO SISTEMA*\n\n⏱ Uptime: {uptime}\n🛰️ Monitoramento: Ativo", parse_mode="Markdown")
 
 # --- COMANDO DISCORD (SLASH COMMAND) ---
@@ -942,12 +874,9 @@ async def discord_teste(interaction: discord.Interaction):
     """
     await interaction.response.send_message("🧪 [DISCORD] Iniciando sequência de testes detalhados...")
     
-    # Executa a mesma função de teste do Telegram
     try:
         await run_full_test()
-        # Como o run_full_test envia mensagens para o Telegram, 
-        # enviamos um feedback final no Discord também.
-        await interaction.followup.send("✅ Testes disparados com sucesso para o canal oficial.")
+        await interaction.followup.send("✅ Testes disparados com sucesso para os canais oficiais.")
     except Exception as e:
         await interaction.followup.send(f"❌ Erro ao executar testes: {e}")
 
@@ -971,7 +900,7 @@ async def safe_boot():
         return
 
     try:
-        # Envia a mensagem de BOOT (Bloco 02)
+        # Envia a mensagem de BOOT (Bloco 02/12)
         await send_boot()
         print("[SISTEMA] Mensagem de Boot enviada ao Telegram.")
         
@@ -1019,6 +948,7 @@ async def monitor_loop():
                 print(f"[MONITOR ERROR] Ocorreu uma falha no ciclo: {e}")
                 # Em caso de erro grave, espera 10 segundos antes de tentar de novo
                 await asyncio.sleep(10)
+
 # =========================
 # 21 ALERT ENGINE (ROTEAMENTO INTELIGENTE)
 # =========================
@@ -1054,7 +984,7 @@ async def send_alert(alert_type, message):
                 loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
 
             # Categorização Redes Sociais
-            elif alert_type in ["instagram_post", "instagram_reel", "instagram_story", "instagram_live", "tiktok_post", "tiktok_live"]:
+            elif alert_type in ["instagram_post", "instagram_reels", "instagram_stories", "instagram_live", "tiktok_post", "tiktok_live"]:
                 loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
 
             # Notícias Gerais / Fallback
@@ -1141,12 +1071,16 @@ async def check_social(session):
                 await tiktok_post(url, member, "Update", True)
             last_social_check = time.time()
             await update_panel()
-
 # =========================
 # 24 LOOP PRINCIPAL (MOTOR)
 # =========================
 
 async def monitor_loop():
+    """
+    Executa a varredura contínua. 
+    Nota: monitor_loop já foi definido no Bloco 20, 
+    esta versão reafirma a ordem de execução.
+    """
     await bot_discord.wait_until_ready()
     await safe_boot() # Dispara Boot e Painel uma única vez
     
@@ -1163,7 +1097,7 @@ async def monitor_loop():
                 await asyncio.sleep(2)
                 await check_social(session)
 
-                # Pausa de 30 segundos entre ciclos
+                # Pausa de 30 segundos entre ciclos para evitar bans
                 await asyncio.sleep(30)
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
@@ -1177,11 +1111,13 @@ async def monitor_loop():
 async def on_ready():
     print(f"✅ Logado no Discord como {bot_discord.user}")
     
+    # Define a atividade "Ouvindo Arirang 🛸"
     await bot_discord.change_presence(
         activity=discord.Activity(type=discord.ActivityType.listening, name="Arirang 🛸"),
         status=discord.Status.online
     )
 
+    # Sincroniza os comandos slash (/teste, /ping)
     try:
         synced = await bot_discord.tree.sync()
         print(f"✅ {len(synced)} comandos slash sincronizados.")
@@ -1193,21 +1129,30 @@ async def on_ready():
 # =========================
 
 async def main():
-    # 1. Inicia o monitor em segundo plano
+    """
+    Ponto de entrada principal do sistema Arirang.
+    """
+    # 1. Inicia o monitor em segundo plano como uma Task
     asyncio.create_task(monitor_loop())
     
-    # 2. Configura Handlers do Telegram (v20+)
-    # Aqui é onde o /teste e outros comandos são registrados
+    # 2. Configura Handlers do Telegram (python-telegram-bot v20+)
+    # O handler 'handle_commands_telegram' gerencia o /teste, /ping e /status
     if 'application' in globals():
+        from telegram.ext import CommandHandler
+        
         application.add_handler(CommandHandler("teste", handle_commands_telegram))
+        application.add_handler(CommandHandler("ping", handle_commands_telegram))
+        application.add_handler(CommandHandler("status", handle_commands_telegram))
+        
         await application.initialize()
         await application.start()
         await application.updater.start_polling()
         print("[SISTEMA] Telegram operativo.")
 
-    # 3. Inicia o Discord (Bloqueante)
+    # 3. Inicia o Discord (Este comando é bloqueante, mantendo o script vivo)
     try:
-        token = os.getenv('DISCORD_TOKEN')
+        # Puxa o token das variáveis de ambiente ou do seu Bloco de Configurações
+        token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
         await bot_discord.start(token)
     except Exception as e:
         print(f"[FATAL] Erro ao iniciar bot: {e}")
@@ -1216,6 +1161,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n🛸 Desligando motores...")
-
-
+        # Finalização limpa ao pressionar Ctrl+C
+        print("\n🛸 Desligando motores e recolhendo Wootteo...")
