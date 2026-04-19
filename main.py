@@ -16,18 +16,19 @@ from discord import app_commands
 import aiohttp
 from bs4 import BeautifulSoup
 from flask import Flask
-from telegram import Bot
+
+# Ajuste nos imports do Telegram para evitar NameError
+from telegram import Bot, Update
+from telegram.ext import ContextTypes
 
 # ==========================================
 # 1 CONFIGURAÇÃO DE CREDENCIAIS & TELEGRAM
 # ==========================================
 
-# Recupera as chaves do Railway
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-CHAT_ID = -1003972186058  # Seu ID fixo
+CHAT_ID = -1003972186058
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 
-# Inicializa o Telegram com proteção contra erro NoneType
 bot_ticket = None
 if TELEGRAM_TOKEN:
     try:
@@ -37,7 +38,7 @@ if TELEGRAM_TOKEN:
         print(f"[ERRO CONFIG TELEGRAM] {e}")
 
 # ==========================================
-# 2 CONTADORES GLOBAIS (AJUSTADOS)
+# 2 CONTADORES GLOBAIS
 # ==========================================
 total_tickets = 0
 total_buy = 0
@@ -51,7 +52,6 @@ last_social_check = time.time()
 
 start_time = time.time()
 
-# Cache de monitoramento
 CONTENT_HASH = {}
 SEEN_TICKET = set()
 SEEN_BUY = set()
@@ -69,7 +69,6 @@ intents.presences = True
 
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
-# IDs dos Canais
 DISCORD_PANEL_CHANNEL_ID = 1494667029150695625
 DISCORD_TICKETS_CHANNEL_ID = 1494670074374651985
 DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461
@@ -93,10 +92,7 @@ async def on_ready():
     except Exception as e:
         print(f"[DISCORD SYNC ERROR] {e}")
 
-    # Inicia o servidor web interno para o Railway não desligar
     keep_alive()
-    
-    # Inicia o monitoramento
     bot_discord.loop.create_task(monitor_loop())
 
 # =========================
@@ -119,7 +115,7 @@ def keep_alive():
         keep_alive._running = True
 
 # =========================
-# FUNÇÕES DE UTILIDADE
+# 5 FUNÇÕES DE UTILIDADE
 # =========================
 
 def make_hash(data: str):
@@ -134,8 +130,9 @@ def is_new(url: str, html: str):
         return True
     return False
 
+
 # =========================
-# 5 LINKS
+# 6 LINKS
 # =========================
 
 TICKET_LINKS = [
@@ -181,7 +178,7 @@ X_LINKS = [
 ]
 
 # =========================
-# 6 AGENDA FIXA
+# 7 AGENDA FIXA
 # =========================
 
 AGENDA = [
@@ -254,9 +251,8 @@ AGENDA = [
 ]
 
 # =========================
-# 7 CONTROLE
+#  8 CONTROLE
 # =========================
-
 boot_lock = asyncio.Lock()
 boot_initialized = False
 
@@ -283,7 +279,9 @@ def minutes_since(ts):
 
 def get_next_show():
     now = datetime.now()
-
+    # Certifique-se de que a lista AGENDA exista no seu Bloco de Configurações
+    if 'AGENDA' not in globals(): return "Continua…", "---", 0
+    
     for item in AGENDA:
         try:
             dt_show = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
@@ -291,40 +289,31 @@ def get_next_show():
                 return item[0], f"{item[1]}, {item[2]}", days_left(item[0])
         except:
             continue
-
     return "Continua…", "---", 0
 
 def status_color(last_check):
     return "🟢" if (time.time() - last_check) < 1800 else "🔴"
 
 # =========================
-# 8 SESSION
+# 9 SESSION (FIX: CLIENT SESSION ÚNICA)
 # =========================
-
 import aiohttp
 
 http_session = None
 
 async def get_session():
     global http_session
+    # Mantém uma única sessão aberta para evitar erro de conectores abertos
     if http_session is None or http_session.closed:
         http_session = aiohttp.ClientSession()
     return http_session
 
 # =========================
-# 9 EMOJIS
+# 10 EMOJIS
 # =========================
-
 MEMBER_EMOJI = {
-    "rm": "🐨",
-    "jin": "🐹",
-    "suga": "🐱",
-    "jhope": "🐿️",
-    "jimin": "🐥",
-    "v": "🐻",
-    "jungkook": "🐰",
-    "bts": "💜",
-    "wootteo": "🛸"
+    "rm": "🐨", "jin": "🐹", "suga": "🐱", "jhope": "🐿️",
+    "jimin": "🐥", "v": "🐻", "jungkook": "🐰", "bts": "💜", "wootteo": "🛸"
 }
 
 def get_member_emoji(member_name):
@@ -336,116 +325,84 @@ def format_member(member_name):
     return emoji, name 
 
 # =========================
-# 10 CONTENT HASH + DETECÇÃO DE MUDANÇA (FIX DEFINITIVO)
+# 11 ROTEAMENTO DE ALERTAS (FIX: TELEGRAM SAFE)
 # =========================
-
-# (Removi a definição duplicada e vazia que estava causando o crash)
-
 async def send_to_all(alert_type, message):
-    # =========================
-    # 11 TELEGRAM (SEMPRE PRIMEIRO)
-    # =========================
-    await send_telegram(message)
+    # Envio para o Telegram (Só se o bot existir)
+    if bot_ticket is not None:
+        try:
+            await bot_ticket.send_message(chat_id=CHAT_ID, text=message)
+        except Exception as e:
+            print(f"[TELEGRAM ERROR] {e}")
 
-    # =========================
-    # 12 LOOP SAFE
-    # =========================
+    # Envio para o Discord
     try:
         loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-
-    # =========================
-    # 13 DISCORD ROUTING
-    # =========================
-
-    # 🎫 Tickets / eventos
-    if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
-        loop.create_task(
-            send_discord(DISCORD_TICKETS_CHANNEL_ID, message)
-        )
-
-    # 🩷 Weverse
-    elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
-        loop.create_task(
-            send_discord(DISCORD_WEVERSE_CHANNEL_ID, message)
-        )
-
-    # 📱 Redes sociais
-    elif alert_type in [
-        "instagram_post", "instagram_reels", "instagram_stories", "instagram_live",
-        "tiktok_post", "tiktok_live"
-    ]:
-        loop.create_task(
-            send_discord(DISCORD_SOCIAL_CHANNEL_ID, message)
-        )
-
-    # 🧠 fallback seguro
-    else:
-        if 'DISCORD_NEWS_CHANNEL_ID' in globals():
-            loop.create_task(
-                send_discord(DISCORD_NEWS_CHANNEL_ID, message)
-            )
+        
+        # Tickets
+        if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
+            loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
+        
+        # Weverse
+        elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
+            loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
+        
+        # Social
+        elif alert_type in ["instagram_post", "instagram_reels", "instagram_stories", "instagram_live", "tiktok_post", "tiktok_live"]:
+            loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
+        
+        # News/Outros
+        else:
+            if 'DISCORD_NEWS_CHANNEL_ID' in globals():
+                loop.create_task(send_discord(DISCORD_NEWS_CHANNEL_ID, message))
+    except Exception as e:
+        print(f"[DISCORD ROUTING ERROR] {e}")
 
 # =========================
-# 14 BOOT FIX (INÍCIO LIMPO)
+# 12 BOOT FIX (INÍCIO LIMPO)
 # =========================
-
 async def send_boot():
-    global panel_message_id, panel_chat_id, panel_initialized, discord_panel_message_id
-
-    if not bot_ticket or not bot_discord:
-        return
+    global panel_message_id, panel_chat_id, panel_initialized
+    
+    # Prevenção: só roda se os bots estiverem minimamente prontos
+    if not bot_discord: return
 
     async with boot_lock:
         msg = "🛸•°•Wootteo entrando em rota°•°🛸"
 
-        # TELEGRAM
-        try:
-            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
-        except Exception:
-            pass
+        # Aviso Telegram
+        if bot_ticket:
+            try:
+                await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+            except: pass
 
-        # DISCORD
+        # Aviso Discord
         try:
-            channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
-            if channel:
-                await channel.send(msg)
-        except Exception:
-            pass
+            channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
+            if channel: await channel.send(msg)
+        except: pass
 
-        # PAINEL (1x)
-        if not panel_initialized or not panel_message_id:
+        # Inicialização do Painel Telegram (apenas 1 vez)
+        if bot_ticket and (not panel_initialized or not panel_message_id):
             try:
                 panel = await bot_ticket.send_message(
                     chat_id=CHAT_ID,
-                    text="👾 PAINEL DE CONTROLE 👾\n\nInicializando..."
+                    text="👾 PAINEL DE CONTROLE 👾\n\nInicializando sistema de tour..."
                 )
-
                 panel_message_id = panel.message_id
-                panel_chat_id = CHAT_ID
                 panel_initialized = True
-
                 try:
-                    await bot_ticket.pin_chat_message(
-                        chat_id=CHAT_ID,
-                        message_id=panel_message_id
-                    )
-                except Exception:
-                    pass
+                    await bot_ticket.pin_chat_message(chat_id=CHAT_ID, message_id=panel_message_id)
+                except: pass
+            except: pass
 
-            except Exception:
-                return
-
+        # Chama o update inicial do painel
         await update_panel()
-
-# (Removi a função send_boot duplicada que estava logo abaixo)
-
 # =========================
-# 19 PAINEL FIXADO (TEMPO REAL + SEM SPAM)
+# 13 PAINEL FIXADO (TEMPO REAL + SEM SPAM)
 # =========================
 
-last_panel_text = None  # 🔥 evita editar sem mudança
+last_panel_text = None  
 
 async def update_panel():
     global panel_message_id, panel_chat_id, last_panel_text
@@ -471,19 +428,19 @@ async def update_panel():
 •°• 👾•°• •°• •°• •°*ATUALIZAÇÕES* •°• •°• •°• •°• •°• 🛸
 
 🟣 Weverse {status_color(last_weverse_check)}
-   🎯 Acessos realizados: {check_weverse}
+   🎯 Acessos realizados: {total_weverse}
    ⏱ Último rastreio há: {weverse_min} min
 
 ⚪ Redes sociais {status_color(last_social_check)}
-   🎯 Acessos realizados: {check_social}
+   🎯 Acessos realizados: {total_social}
    ⏱ Último rastreio há: {social_min} min
 
 🟠 Ticketmaster {status_color(last_ticket_check)}
-   🎯 Acessos realizados: {check_ticket}
+   🎯 Acessos realizados: {total_tickets}
    ⏱ Último rastreio há: {ticket_min} min
 
 🔵 Buyticket {status_color(last_buy_check)}
-   🎯 Acessos realizados: {check_buy}
+   🎯 Acessos realizados: {total_buy}
    ⏱ Último rastreio há: {buy_min} min
 """
 
@@ -503,7 +460,7 @@ async def update_panel():
 
 
 # =========================
-# 21 ALERTAS OFICIAIS
+# 14 ALERTAS OFICIAIS
 # =========================
 
 async def ticket_reposicao(url, key, found):
@@ -516,7 +473,8 @@ async def ticket_reposicao(url, key, found):
 🛡️ *Tipo:* ESGOTADO
 ✅ *Status:* {resolve_status(found)}
 """
-        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+        if bot_ticket:
+            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def ticket_nova_data(url, key, found):
     if any(x in str(key) for x in ["28/10", "30/10", "31/10"]) or "Brasil" in str(key):
@@ -529,7 +487,8 @@ async def ticket_nova_data(url, key, found):
 📊 *Quantidade:* ESGOTADO
 ✅ *Status:* {resolve_status(found)}
 """
-        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+        if bot_ticket:
+            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def buy_revenda(url, key, found):
     if any(x in str(key) for x in ["28/10", "30/10", "31/10"]):
@@ -542,12 +501,12 @@ async def buy_revenda(url, key, found):
 🛡️ *Tipo:* ESGOTADO
 ✅ *Status:* {resolve_status(found)}
 """
-        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+        if bot_ticket:
+            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def agenda_update(data):
     country = str(data.get('country', ''))
     city = str(data.get('city', ''))
-
     if "Brasil" in country or "Paulo" in city or "Brasil" in str(data):
         msg = f"""💜*AGENDA NOVAS DATAS*💜
 📅 *Data:* {clean(data.get('date'))}
@@ -555,10 +514,11 @@ async def agenda_update(data):
 🌎 *País:* {clean(data.get('country'))}
 ⚠️*Mais informações em breve!*
 """
-        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+        if bot_ticket:
+            await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 # =========================
-# 22 ALERTAS WEVERSE
+# 15 ALERTAS WEVERSE
 # =========================
 
 async def weverse_post(url, member_name, title, message_translated, found):
@@ -569,7 +529,8 @@ async def weverse_post(url, member_name, title, message_translated, found):
 {message_translated}
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_weverse_live(url, member_name, found):
     emoji = get_member_emoji(member_name)
@@ -577,7 +538,8 @@ async def test_weverse_live(url, member_name, found):
 {emoji} {member_name.upper()} está ao vivo!
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_weverse_news(url, member_name, message_translated, found):
     emoji = get_member_emoji(member_name)
@@ -586,7 +548,8 @@ async def test_weverse_news(url, member_name, message_translated, found):
 📌 {message_translated}
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_weverse_media(url, member_name, title, message_translated, found):
     emoji = get_member_emoji(member_name)
@@ -596,10 +559,11 @@ async def test_weverse_media(url, member_name, title, message_translated, found)
 {message_translated}
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 # =========================
-# 23 ALERTAS INSTAGRAM
+# 16 ALERTAS INSTAGRAM
 # =========================
 
 async def instagram_post(url, member_name, title, found):
@@ -608,7 +572,8 @@ async def instagram_post(url, member_name, title, found):
 {emoji} {name} postou uma foto!
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def instagram_reel(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -616,7 +581,8 @@ async def instagram_reel(url, member_name, title, found):
 {emoji} {name} postou um reels!
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def instagram_story(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -624,7 +590,8 @@ async def instagram_story(url, member_name, title, found):
 {emoji} {name} atualizou os stories!
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def instagram_live(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -632,10 +599,11 @@ async def instagram_live(url, member_name, title, found):
 {emoji} {name} está ao vivo!
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 # =========================
-# 24 ALERTAS TIKTOK
+# 17 ALERTAS TIKTOK
 # =========================
 
 async def tiktok_post(url, member_name, title, found):
@@ -644,7 +612,8 @@ async def tiktok_post(url, member_name, title, found):
 {emoji} {member_name.upper()} postou um vídeo!
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def tiktok_live(url, member_name, title, found):
     emoji = get_member_emoji(member_name)
@@ -652,10 +621,11 @@ async def tiktok_live(url, member_name, title, found):
 {emoji} {member_name.upper()} está ao vivo no TikTok!
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 # =========================
-# 25 ALERTAS DE TESTE (UNIFICADO)
+# 18 ALERTAS DE TESTE (UNIFICADO)
 # =========================
 
 TEST_HEADER = "⚠️ TESTE ⚠️"
@@ -674,7 +644,8 @@ async def test_ticket_reposicao(url, key, found):
 📡 *Fila estimada:* 18.432 pessoas
 ✅ *Status:* {resolve_status(found)}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_ticket_nova_data(url, key, found):
     msg = f"""{TEST_HEADER}
@@ -689,7 +660,8 @@ async def test_ticket_nova_data(url, key, found):
 📢 *Motivo:* alta demanda global
 ✅ *Status:* {resolve_status(found)}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_buy_revenda(url, key, found):
     msg = f"""{TEST_HEADER}
@@ -705,7 +677,8 @@ async def test_buy_revenda(url, key, found):
 ⚠️ *Risco:* médio
 ✅ *Status:* {resolve_status(found)}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_agenda(data):
     msg = f"""{TEST_HEADER}
@@ -719,7 +692,8 @@ async def test_agenda(data):
 ⚠️ *Status:* anúncio parcial liberado
 📢 *Observação:* venda inicia em breve
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_weverse_post(url, member_name, title, message_translated, found):
     emoji = get_member_emoji(member_name)
@@ -732,7 +706,8 @@ async def test_weverse_post(url, member_name, title, message_translated, found):
 🔗 {url}
 📊 *Engajamento:* 2.4M likes | 580k comentários
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_weverse_live(url, member_name, found):
     emoji = get_member_emoji(member_name)
@@ -744,7 +719,8 @@ async def test_weverse_live(url, member_name, found):
 👀 *Viewers:* 1.2M assistindo
 ⏱️ *Duração:* 00:18:42
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_weverse_news(url, member_name, message_translated, found):
     emoji = get_member_emoji(member_name)
@@ -756,7 +732,8 @@ async def test_weverse_news(url, member_name, message_translated, found):
 💬 "Special announcement coming soon"
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_weverse_media(url, member_name, title, message_translated, found):
     emoji = get_member_emoji(member_name)
@@ -769,7 +746,8 @@ async def test_weverse_media(url, member_name, title, message_translated, found)
 📸 *Formato:* HD exclusive content
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_instagram_post(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -781,7 +759,8 @@ async def test_instagram_post(url, member_name, title, found):
 ❤️ *Likes:* 8.9M
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_instagram_reel(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -793,7 +772,8 @@ async def test_instagram_reel(url, member_name, title, found):
 👀 *Views:* 12.4M
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_instagram_story(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -805,7 +785,8 @@ async def test_instagram_story(url, member_name, title, found):
 ⏳ *Duração:* 24h
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_instagram_live(url, member_name, title, found):
     emoji, name = format_member(member_name)
@@ -817,7 +798,8 @@ async def test_instagram_live(url, member_name, title, found):
 💬 *Chat:* ativo
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_tiktok_post(url, member_name, title, found):
     emoji = get_member_emoji(member_name)
@@ -829,7 +811,8 @@ async def test_tiktok_post(url, member_name, title, found):
 ❤️ *Likes:* 1.1M
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 async def test_tiktok_live(url, member_name, title, found):
     emoji = get_member_emoji(member_name)
@@ -841,10 +824,11 @@ async def test_tiktok_live(url, member_name, title, found):
 💬 *Chat:* explosivo
 🔗 {url}
 """
-    await bot_ticket.send_message(chat_id=CHAT_ID, text=msg)
+    if bot_ticket:
+        await bot_ticket.send_message(chat_id=CHAT_ID, text=msg, parse_mode="Markdown")
 
 # =========================
-# 26 COMANDOS (PV EXCLUSIVO TELEGRAM)
+# 19 COMANDOS (PV EXCLUSIVO TELEGRAM)
 # =========================
 
 async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -857,58 +841,49 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
 
     if text.strip() == "/teste":
-        await bot_ticket.send_message(
-            chat_id=CHAT_ID,
-            text="🧪 INICIANDO TESTE COMPLETO DE ALERTAS..."
-        )
+        if bot_ticket:
+            await bot_ticket.send_message(chat_id=CHAT_ID, text="🧪 INICIANDO TESTE COMPLETO...")
 
-        await test_ticket_reposicao(TICKET_LINKS[0], "28/10/2026", True)
-        await test_ticket_nova_data(TICKET_LINKS[1], "30/10/2026", True)
-        await test_buy_revenda(BUY_LINKS[0], "28/10/2026", True)
+            # Para os testes funcionarem, vamos usar URLs genéricas caso as listas estejam vazias
+            t_link = TICKET_LINKS[0] if 'TICKET_LINKS' in globals() and TICKET_LINKS else "http://teste.com"
+            b_link = BUY_LINKS[0] if 'BUY_LINKS' in globals() and BUY_LINKS else "http://teste.com"
+            tk_link = TIKTOK_LINKS["bts"] if 'TIKTOK_LINKS' in globals() and "bts" in TIKTOK_LINKS else "http://teste.com"
 
-        await test_agenda({
-            "date": "28/10/2026",
-            "city": "São Paulo",
-            "country": "Brasil"
-        })
+            await test_ticket_reposicao(t_link, "28/10/2026", True)
+            await test_ticket_nova_data(t_link, "30/10/2026", True)
+            await test_buy_revenda(b_link, "28/10/2026", True)
 
-        await test_weverse_post(TICKET_LINKS[0], "bts", "Update", "msg", True)
-        await test_weverse_live(TICKET_LINKS[0], "jungkook", True)
-        await test_weverse_news(TICKET_LINKS[0], "rm", "msg", True)
-        await test_weverse_media(TICKET_LINKS[0], "v", "title", "msg", True)
+            await test_agenda({"date": "28/10/2026", "city": "São Paulo", "country": "Brasil"})
 
-        await test_instagram_post(TIKTOK_LINKS["bts"], "bts", "post", True)
-        await test_instagram_reel(TIKTOK_LINKS["bts"], "bts", "reel", True)
-        await test_instagram_story(TIKTOK_LINKS["bts"], "bts", "story", True)
-        await test_instagram_live(TIKTOK_LINKS["bts"], "bts", "live", True)
+            await test_weverse_post(t_link, "bts", "Update", "msg", True)
+            await test_weverse_live(t_link, "jungkook", True)
+            await test_weverse_news(t_link, "rm", "msg", True)
+            await test_weverse_media(t_link, "v", "title", "msg", True)
 
-        await test_tiktok_post(TIKTOK_LINKS["bts"], "bts", "video", True)
-        await test_tiktok_live(TIKTOK_LINKS["bts"], "bts", "live", True)
+            await test_instagram_post(tk_link, "bts", "post", True)
+            await test_instagram_reel(tk_link, "bts", "reel", True)
+            await test_instagram_story(tk_link, "bts", "story", True)
+            await test_instagram_live(tk_link, "bts", "live", True)
 
-        await bot_ticket.send_message(
-            chat_id=CHAT_ID,
-            text="✅ TESTE COMPLETO FINALIZADO (TELEGRAM + DISCORD)"
-        )
+            await test_tiktok_post(tk_link, "bts", "video", True)
+            await test_tiktok_live(tk_link, "bts", "live", True)
+
+            await bot_ticket.send_message(chat_id=CHAT_ID, text="✅ TESTE FINALIZADO")
 
     elif "/ping" in text:
-        await bot_ticket.send_message(chat_id=CHAT_ID, text="🏓 Bot ativo e funcionando!")
+        if bot_ticket:
+            await bot_ticket.send_message(chat_id=CHAT_ID, text="🏓 Bot ativo e funcionando!")
 
     elif "/status" in text:
-        await bot_ticket.send_message(
-            chat_id=CHAT_ID,
-            text=f"""📊 STATUS DO BOT
+        if bot_ticket:
+            await bot_ticket.send_message(
+                chat_id=CHAT_ID,
+                text=f"📊 STATUS DO BOT\n\n⏱ Uptime: {get_uptime()}"
+            )
 
-🟣 Weverse: OK
-⚪ Redes sociais: OK
-🟠 Ticketmaster: OK
-🔵 Buyticket: OK
-
-⏱ Uptime: {get_uptime()}
-"""
-        )
 
 # =========================
-# 28 SAFE BOOT (1X + GARANTIDO)
+# 20 SAFE BOOT (1X + GARANTIDO)
 # =========================
 
 boot_executed = False
@@ -919,8 +894,8 @@ async def safe_boot():
     if boot_executed:
         return
 
-    if not bot_ticket:
-        print("[SAFE_BOOT] bot_ticket ainda não pronto")
+    # Espera o bot do Discord estar pronto antes de disparar o boot do Telegram
+    if not bot_discord or not bot_discord.is_ready():
         return
 
     boot_executed = True
@@ -928,81 +903,61 @@ async def safe_boot():
     try:
         await send_boot()
         print("[BOOT] Executado com sucesso (1x)")
-
     except Exception as e:
         print(f"[SAFE_BOOT ERROR] {e}")
 
 # =========================
-# 29 ALERT ENGINE (ANTI-SPAM REAL + SINCRONIZADO)
+# 21 ALERT ENGINE (ROTEAMENTO INTELIGENTE)
 # =========================
 
 ALERT_LOCK = asyncio.Lock()
 
 async def send_alert(alert_type, message):
     """
-    🔥 ALERT ENGINE CORRIGIDO:
-    - evita duplicação
-    - sincroniza Telegram + Discord
-    - protege contra spam paralelo
+    Envia alertas para Telegram e Discord de forma sincronizada.
     """
     async with ALERT_LOCK:
-        # Lógica continua na parte 2...
-        pass
-
-# =============================================================
-# BLOCO 30 & 31 INTEGRADOS (DENTRO DE UMA FUNÇÃO ASYNC)
-# =============================================================
-
-async def send_alert(alert_type, message):
-    """
-    Envia alertas para Telegram e Discord com roteamento inteligente
-    """
-    # --- 30 TELEGRAM (OBRIGATÓRIO) ---
-    try:
+        # --- TELEGRAM (OBRIGATÓRIO) ---
         if bot_ticket:
-            await bot_ticket.send_message(
-                chat_id=CHAT_ID,
-                text=message
-            )
-    except Exception as e:
-        print(f"[ALERT TELEGRAM ERROR] {e}")
+            try:
+                await bot_ticket.send_message(
+                    chat_id=CHAT_ID,
+                    text=message,
+                    parse_mode="Markdown"
+                )
+            except Exception as e:
+                print(f"[ALERT TELEGRAM ERROR] {e}")
 
-    # --- 31 DISCORD (ROTEAMENTO LIMPO) ---
-    try:
-        loop = asyncio.get_running_loop()
-        
-        # 🔥 PADRONIZAÇÃO DE CATEGORIAS (ROTEAMENTO POR CANAL)
-        if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
-            loop.create_task(
-                send_discord(DISCORD_TICKETS_CHANNEL_ID, message)
-            )
-
-        elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
-            loop.create_task(
-                send_discord(DISCORD_WEVERSE_CHANNEL_ID, message)
-            )
-
-        elif alert_type in [
-            "instagram_post", "instagram_reel", "instagram_story", "instagram_live",
-            "tiktok_post", "tiktok_live"
-        ]:
-            loop.create_task(
-                send_discord(DISCORD_SOCIAL_CHANNEL_ID, message)
-            )
-
-        else:
-            loop.create_task(
-                send_discord(DISCORD_NEWS_CHANNEL_ID, message)
-            )
+        # --- DISCORD (ROTEAMENTO POR CANAL) ---
+        try:
+            loop = asyncio.get_running_loop()
             
-    except RuntimeError:
-        print("[DISCORD ERROR] Loop de eventos não encontrado.")
-    except Exception as e:
-        print(f"[DISCORD ROUTING ERROR] {e}")
+            if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
+                loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
+
+            elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
+                loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
+
+            elif alert_type in ["instagram_post", "instagram_reel", "instagram_story", "instagram_live", "tiktok_post", "tiktok_live"]:
+                loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
+
+            else:
+                # Fallback para notícias gerais
+                if 'DISCORD_NEWS_CHANNEL_ID' in globals():
+                    loop.create_task(send_discord(DISCORD_NEWS_CHANNEL_ID, message))
+                
+        except Exception as e:
+            print(f"[DISCORD ROUTING ERROR] {e}")
+
+# =========================
+# 22 FETCH UNIVERSAL
+# =========================
 
 async def fetch(session, url):
+    """Download seguro com timeout e headers básicos"""
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
-        async with session.get(url, timeout=20) as response:
+        async with session.get(url, headers=headers, timeout=20) as response:
             if response.status != 200:
                 return None
             return await response.text()
@@ -1010,171 +965,164 @@ async def fetch(session, url):
         return None
 
 # =========================
-# 32 FETCH UNIVERSAL
-# =========================
-import aiohttp
-import asyncio
-import time
-
-async def fetch(session, url):
-    """Download seguro com timeout protegido"""
-    try:
-        async with session.get(url, timeout=20) as response:
-            if response.status != 200:
-                return None
-            return await response.text()
-    except Exception:
-        return None
-
-# =========================
-# 33 CHECKS (NOMES DE VARIÁVEIS CORRIGIDOS)
+# 23-24 CHECKS (MONITORAMENTO ATIVO)
 # =========================
 
 async def check_ticketmaster(session):
-    global last_ticket_check, total_tickets # 🔥 Nome alterado
+    global last_ticket_check, total_tickets
+    if 'TICKET_LINKS' not in globals(): return
+    
     for url in TICKET_LINKS:
         html = await fetch(session, url)
         if html and is_new(url, html):
             found = "esgotado" not in html.lower()
-            total_tickets += 1 # ✅ Agora o Python sabe que é um número
+            total_tickets += 1
+            # Chama o alerta visual detalhado que você pediu no Bloco 14
             await ticket_reposicao(url, url, found)
-            await send_alert("ticket", f"🎫 Ticket update detectado:\n{url}")
             last_ticket_check = time.time()
             await update_panel()
 
 async def check_buyticket(session):
-    global last_buy_check, total_buy # 🔥 Nome alterado
+    global last_buy_check, total_buy
+    if 'BUY_LINKS' not in globals(): return
+    
     for url in BUY_LINKS:
         html = await fetch(session, url)
         if html and is_new(url, html):
             found = "esgotado" not in html.lower()
             total_buy += 1
+            # Alerta visual detalhado do Bloco 14
             await buy_revenda(url, url, found)
-            await send_alert("revenda", f"🔵 BuyTicket update:\n{url}")
             last_buy_check = time.time()
             await update_panel()
 
 async def check_weverse(session):
-    global last_weverse_check, total_weverse # 🔥 Nome alterado
+    global last_weverse_check, total_weverse
+    if 'WEVERSE_LINKS' not in globals(): return
+    
     for url in WEVERSE_LINKS:
         html = await fetch(session, url)
         if html and is_new(url, html):
             total_weverse += 1
-            await test_weverse_post(url, "bts", "Update", "Novo conteúdo", True)
-            await send_alert("weverse_post", f"🩷 Weverse update:\n{url}")
+            # Chama o alerta detalhado do Bloco 15
+            await weverse_post(url, "bts", "Update Detectado", "O conteúdo da página mudou.", True)
             last_weverse_check = time.time()
             await update_panel()
 
-# =========================
-# 34 CHECK SOCIAL (NOMES DE VARIÁVEIS CORRIGIDOS)
-# =========================
 async def check_social(session):
-    global last_social_check, total_social # 🔥 Nome alterado
-    all_links = list(INSTAGRAM_LINKS.items()) + list(TIKTOK_LINKS.items())
+    global last_social_check, total_social
+    # Pega os links dos dicionários de configuração
+    insta = list(INSTAGRAM_LINKS.items()) if 'INSTAGRAM_LINKS' in globals() else []
+    ttok = list(TIKTOK_LINKS.items()) if 'TIKTOK_LINKS' in globals() else []
+    all_links = insta + ttok
+    
     for member, url in all_links:
         html = await fetch(session, url)
         if html and is_new(url, html):
             total_social += 1
             if "instagram" in url:
-                await instagram_post(url, member, "update", True)
-                await send_alert("instagram_post", f"📷 Instagram update ({member.upper()}):\n{url}")
+                await instagram_post(url, member, "Update", True)
             elif "tiktok" in url:
-                await tiktok_post(url, member, "update", True)
-                await send_alert("tiktok_post", f"🎵 TikTok update ({member.upper()}):\n{url}")
-    last_social_check = time.time()
-    await update_panel()
+                await tiktok_post(url, member, "Update", True)
+            last_social_check = time.time()
+            await update_panel()
 
 # =========================
-# 35 LOOP PRINCIPAL
+# 25 LOOP PRINCIPAL
 # =========================
+
 async def monitor_loop():
     await bot_discord.wait_until_ready()
+    
+    # Executa o boot uma única vez após o Discord conectar
+    await safe_boot()
+    
     print("[MONITOR] Loop iniciado com sucesso.")
 
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # Ordem de execução com pequenos sleeps para evitar picos de CPU
+                # Monitoramento sequencial com proteção de tempo
                 await check_ticketmaster(session)
-                await asyncio.sleep(5)
+                await asyncio.sleep(2) # Pequena pausa entre sites para evitar bloqueios
 
                 await check_buyticket(session)
-                await asyncio.sleep(5)
+                await asyncio.sleep(2)
 
                 await check_weverse(session)
-                await asyncio.sleep(5)
+                await asyncio.sleep(2)
 
                 await check_social(session)
 
-                # Intervalo de descanso antes da próxima rodada completa
+                # Espera 30 segundos antes da próxima varredura completa
                 await asyncio.sleep(30)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
+# =========================
+# 26-30 MONITORAMENTO (INTEGRADO NO LOOP)
+# =========================
+# (Esta parte faz parte da lógica interna do monitor_loop definida no Bloco 25)
 
+# =========================
+# 31 DISCORD: EVENTO ON_READY
+# =========================
 
-
-                # =========================
-                # 36 TICKETMASTER
-                # =========================
-                await check_ticketmaster(session)
-
-                await asyncio.sleep(5)
-
-                # =========================
-                # 37 BUYTICKET
-                # =========================
-                await check_buyticket(session)
-
-                await asyncio.sleep(5)
-
-                # =========================
-                # 38 WEVERSE
-                # =========================
-                await check_weverse(session)
-
-                await asyncio.sleep(5)
-
-                # =========================
-                # 39 SOCIAL
-                # =========================
-                await check_social(session)
-
-                # =========================
-                # 40 INTERVALO GERAL
-                # =========================
-                await asyncio.sleep(30)
-
-            except Exception as e:
-                print(f"[MONITOR ERROR] {e}")
-                await asyncio.sleep(10)
 @bot_discord.event
 async def on_ready():
-    print(f"✅ Logado como {bot_discord.user}")
+    print(f"✅ Logado no Discord como {bot_discord.user}")
     
-    # Status de Ouvindo Arirang
+    # Status personalizado
     await bot_discord.change_presence(
         activity=discord.Activity(type=discord.ActivityType.listening, name="Arirang 🛸"),
         status=discord.Status.online
     )
 
-    # Sincroniza comandos / para o bot responder ao /teste
+    # Sincroniza comandos Slash (/)
     try:
         synced = await bot_discord.tree.sync()
         print(f"✅ {len(synced)} comandos slash sincronizados.")
     except Exception as e:
-        print(f"❌ Erro na sincronização: {e}")
+        print(f"❌ Erro na sincronização de comandos: {e}")
+
+# =========================
+# 32 INICIALIZAÇÃO FINAL (MAIN)
+# =========================
 
 async def main():
-    # Inicia o monitor loop em paralelo
+    """
+    Ponto de entrada único para iniciar o monitor e os bots.
+    """
+    # 1. Inicia o loop de monitoramento em segundo plano
     asyncio.create_task(monitor_loop())
     
+    # 2. Configura os comandos do Telegram (Application) se estiver usando v20+
+    # Se você estiver usando o bot_ticket apenas como objeto de envio, ignore a parte de handlers.
+    # Mas se precisar de comandos no Telegram:
+    if 'app_telegram' in globals() and app_telegram:
+        asyncio.create_task(app_telegram.initialize())
+        asyncio.create_task(app_telegram.start())
+        asyncio.create_task(app_telegram.updater.start_polling())
+
+    # 3. Inicia o Bot do Discord (Bloqueante)
     try:
-        await bot_discord.start(os.getenv('DISCORD_TOKEN'))
+        token = os.getenv('DISCORD_TOKEN')
+        if not token:
+            print("[FATAL] DISCORD_TOKEN não encontrado nas variáveis de ambiente.")
+            return
+            
+        await bot_discord.start(token)
     except Exception as e:
-        print(f"[FATAL] Não foi possível iniciar o bot: {e}")
+        print(f"[FATAL] Falha crítica ao iniciar o sistema: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        # Garante que o loop de eventos do asyncio gerencie tudo
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[DESLIGANDO] Wootteo retornando para a base... 🛸")
+    except Exception as e:
+        print(f"[ERROR] Ocorreu um erro inesperado: {e}")
+
 
