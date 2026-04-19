@@ -812,28 +812,29 @@ async def monitor_loop():
     # 1. Aguarda o bot estar pronto
     await bot_discord.wait_until_ready()
     
-    # 2. INICIALIZAÇÃO
+    # 2. DECLARAÇÃO DE GLOBAIS (Essencial para evitar erros de 'local variable')
+    global panel_message_id, discord_panel_msg_id
+    global total_tickets, total_buy, total_weverse, total_social
+    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
+
+    # 3. INICIALIZAÇÃO
     try:
+        # Tenta rodar o boot. Se falhar por falta de ID, avisa no log.
         await send_boot()            # Cria/Fixa Painel Telegram
         await update_discord_panel()  # Cria Painel Discord (Borda Roxa)
         print("[SISTEMA] Painéis Arirang inicializados com sucesso.")
     except Exception as e:
         print(f"[BOOT ERROR] Falha ao iniciar: {e}")
 
-    # 3. Variáveis globais para os contadores
-    global total_tickets, total_buy, total_weverse, total_social
-    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
-
     async with aiohttp.ClientSession() as session:
         print("[MONITOR] Loop de varredura iniciado.")
         while True:
             try:
-                # Se o painel do Telegram sumiu, recria
+                # CORREÇÃO: Usa a global panel_message_id para checar se o painel existe
                 if panel_message_id is None:
                     await send_boot()
 
-                # --- VARREDURA (Chamadas das funções de Check) ---
-                # Cada função aqui atualiza as globais last_check e total_
+                # --- VARREDURA ---
                 await check_ticketmaster(session)
                 await asyncio.sleep(2)
                 
@@ -845,11 +846,10 @@ async def monitor_loop():
 
                 await check_social(session)
 
-                # --- ATUALIZAÇÃO DOS PAINÉIS EM TEMPO REAL ---
-                # Aqui o status_color vai alternar as cores (efeito pulsante)
+                # --- ATUALIZAÇÃO DOS PAINÉIS ---
                 try:
-                    await update_panel()          # Atualiza Layout Telegram
-                    await update_discord_panel()  # Atualiza Layout Discord (Borda Roxa)
+                    await update_panel()          
+                    await update_discord_panel()  
                 except Exception as up_err:
                     print(f"[UPDATE ERROR] Falha ao atualizar painéis: {up_err}")
 
@@ -858,7 +858,8 @@ async def monitor_loop():
 
             except Exception as e:
                 print(f"[MONITOR ERROR] Falha no ciclo: {e}")
-                if "not found" in str(e).lower():
+                # Se o erro for de mensagem deletada no Telegram, reseta o ID para recriar
+                if "not found" in str(e).lower() or "message to edit not found" in str(e).lower():
                     panel_message_id = None
                 await asyncio.sleep(10)
 
@@ -871,29 +872,22 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
     user_cmd = update.message.text.lower()
     if "/teste" in user_cmd:
         await update.message.reply_text("🚀 Iniciando sequência de testes Arirang...")
-        # Chama o teste especificando a plataforma Telegram
         await run_full_test(platform="telegram")
-        # Força atualização para o registro aparecer no painel na hora
         await update_panel()
         await update_discord_panel()
     elif "/ping" in user_cmd:
-        # Usa o uptime do Bloco 8
         await update.message.reply_text(f"🏓 Pong! Wootteo operando há {get_uptime()}")
 
 # No Discord (Slash Command)
 @bot_discord.tree.command(name="teste", description="Executa o teste completo de layout e roteamento")
 async def teste_discord(interaction: discord.Interaction):
-    # Resposta efêmera para quem usou o comando
     await interaction.response.send_message("🚀 Iniciando sequência de testes nos canais do Discord...", ephemeral=True)
-    # Chama o teste especificando a plataforma Discord (Roteamento)
     await run_full_test(platform="discord")
-    # Força atualização para o registro aparecer no painel na hora
     await update_panel()
     await update_discord_panel()
 
 @bot_discord.tree.command(name="ping", description="Verifica a saúde do bot")
 async def ping_discord(interaction: discord.Interaction):
-    # O uptime já puxa do Bloco 8 que ajustamos
     await interaction.response.send_message(f"🏓 Pong! Wootteo operando há {get_uptime()}", ephemeral=True)
 
 # =========================
