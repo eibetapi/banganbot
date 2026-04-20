@@ -143,31 +143,30 @@ def keep_alive():
 # 5 LÓGICA DE COMPARAÇÃO (ANTI-SPAM)
 # =========================
 
-def is_new(url, html): 
-""" 
-Verifica se o conteúdo mudou e evita o spam de inicialização. 
-""" 
-global CONTENT_HASH 
+def is_new(url, html):
+    """
+    Verifica se o conteúdo mudou e evita o spam de inicialização.
+    """
+    global CONTENT_HASH
 
-# Cria um resumo (hash) do conteúdo ignorando espaços extras 
+    # Cria um resumo (hash) do conteúdo ignorando espaços extras
+    content_clean = " ".join(html.split())
+    new_hash = hashlib.md5(content_clean.encode('utf-8')).hexdigest()
 
-content_clean = " ".join(html.split()) 
-new_hash = hashlib.md5(content_clean.encode('utf-8')).hexdigest() 
+    # TRAVA DE SEGURANÇA 1: primeira vez
+    if url not in CONTENT_HASH:
+        CONTENT_HASH[url] = new_hash
+        print(f"[MEMÓRIA] URL aprendida: {url}")
+        return False
 
-# TRAVA DE SEGURANÇA 1: Se o bot acabou de ligar (hash vazio) 
-# Ele apenas armazena o valor atual como 'conhecido' e retorna False 
-if url not in CONTENT_HASH: 
-CONTENT_HASH[url] = new_hash 
-print(f"[MEMÓRIA] URL aprendida: {url}") 
-return False 
+    # TRAVA DE SEGURANÇA 2: mudança real
+    if CONTENT_HASH[url] != new_hash:
+        CONTENT_HASH[url] = new_hash
+        print(f"[ALERTA] Mudança real detectada em: {url}")
+        return True
 
-# TRAVA DE SEGURANÇA 2: Comparação Real 
-if CONTENT_HASH[url] != new_hash: 
-CONTENT_HASH[url] = new_hash 
-print(f"[ALERTA] Mudança real detectada em: {url}") 
-return True 
-
-# Se for igual, ignora silenciosamente return False
+    # Se for igual
+    return False
 
 # =========================
 # 6 LINKS (ÚNICO - NÃO DUPLICAR)
