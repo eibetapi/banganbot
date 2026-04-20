@@ -1121,22 +1121,17 @@ async def test_youtube_live():
 # =========================
 
 # === BOT DISCORD INIT === #
-
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
-
 # =========================
 # MONITOR LOOP (CORE ENGINE)
 # =========================
-
 async def monitor_loop():
-
     await bot_discord.wait_until_ready()
-
     print("[SISTEMA] Monitor ativo...")
 
     async with aiohttp.ClientSession() as session:
@@ -1146,26 +1141,60 @@ async def monitor_loop():
                 await check_buyticket(session)
                 await check_weverse(session)
                 await check_social(session)
-
                 await update_panel()
-
                 await asyncio.sleep(25)
-
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
+# =========================
+# TELEGRAM COMMAND LOGIC
+# =========================
 
-# === TELEGRAM COMMAND: /teste === #
-
-async def telegram_teste_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Executa um teste de envio apenas para o Telegram, 
-    sem disparar nada no Discord.
-    """
-    chat_id = update.effective_chat.id
+# Comando divertido /bts (TELEGRAM)
+async def bts_telegram_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Posta a fanchant linha por linha e o link final em bloco único no Telegram"""
+    membros = [
+        "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI",
+        "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG",
+        "🐰 JEON JUNGKOOK", "💜 BTS"
+    ]
     
-    # Feedback imediato no chat onde o comando foi dado
+    post_final = (
+        "📀 Ouça Arirang no Spotify\n"
+        "🪭 Link: https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=tSdjqkZhTFSHS1GEJR_3Cw"
+    )
+    
+    for nome in membros:
+        await update.message.reply_text(nome)
+        await asyncio.sleep(0.8) # Simula digitação
+    
+    await asyncio.sleep(0.8)
+    await update.message.reply_text(post_final, disable_web_page_preview=False)
+
+# Função Genérica para comandos simples (Resolve o NameError anterior)
+async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cmd = update.message.text.lower()
+    
+    if "ping" in cmd:
+        await update.message.reply_text("🚀 Wootteo em órbita! Sistema operante.")
+    
+    elif "comandos" in cmd:
+        await update.message.reply_text(
+            "👨‍🚀 **Comandos do Wootteo:**\n"
+            "/ping - Status do sistema\n"
+            "/bts - Fanchant interativa\n"
+            "/teste - Testar painel de monitoramento\n"
+            "/comandos - Esta lista",
+            parse_mode='Markdown'
+        )
+    
+    elif "teste" in cmd:
+        await telegram_teste_cmd(update, context)
+
+# Comando específico /teste (TELEGRAM)
+async def telegram_teste_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
     await update.message.reply_text("🚀 Iniciando teste de disparo exclusivo Telegram...")
 
     mensagem_teste = (
@@ -1176,7 +1205,6 @@ async def telegram_teste_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
     try:
-        # Envia para o painel oficial configurado (PANEL_CHAT_ID)
         if PANEL_CHAT_ID:
             await context.bot.send_message(
                 chat_id=PANEL_CHAT_ID,
@@ -1186,67 +1214,16 @@ async def telegram_teste_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text(f"✅ Enviado com sucesso para o canal {PANEL_CHAT_ID}")
         else:
             await update.message.reply_text("❌ Erro: PANEL_CHAT_ID não configurado.")
-            
     except Exception as e:
         await update.message.reply_text(f"❌ Falha no disparo: {e}")
 
-# === ATUALIZAÇÃO DO RUN_TELEGRAM_ASYNC === #
-async def run_telegram_async():
-    global bot_ticket
-    
-    # Configura a aplicação do Telegram
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-    bot_ticket = application.bot
-
-    # REGISTRA O COMANDO /teste EXPLICITAMENTE
-    application.add_handler(CommandHandler("teste", telegram_teste_cmd))
-    
-    # Inicia o bot
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
-    print("[SISTEMA] Telegram Bot (Comandos) ativo.")
-
-# === COMANDO DIVERTIDO: FANCHANT BTS === #
-async def bts_telegram_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Posta a fanchant linha por linha e o link final em bloco único"""
-    
-    # 1. As linhas individuais (membros)
-    membros = [
-        "🐨 KIM NAMJOON",
-        "🐹 KIM SEOKJIN",
-        "🐱 MIN YOONGI",
-        "🐿️ JUNG HOESOK",
-        "🐥 PARK JIMIN",
-        "🐻 KIM TAEHYUNG",
-        "🐰 JEON JUNGKOOK",
-        "💜 BTS"
-    ]
-    
-    # 2. O post único de encerramento
-    post_final = (
-        "📀 Ouça Arirang no Spotify\n"
-        "🪭 Link: https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=tSdjqkZhTFSHS1GEJR_3Cw"
-    )
-    
-    # Envia os membros um por um
-    for nome in membros:
-        await update.message.reply_text(nome)
-        await asyncio.sleep(0.8) # Delay para simular digitação
-    
-    # Envia o encerramento como um post único
-    await asyncio.sleep(0.8)
-    await update.message.reply_text(post_final, disable_web_page_preview=False)
-
 # =========================
-# DISCORD ON READY
+# DISCORD EVENTS & COMMANDS
 # =========================
 
 @bot_discord.event
 async def on_ready():
-
-    print(f"✅ Logado como {bot_discord.user}")
-
+    print(f"✅ Logado no Discord como {bot_discord.user}")
     await bot_discord.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
@@ -1254,111 +1231,89 @@ async def on_ready():
         ),
         status=discord.Status.online
     )
-
     try:
         synced = await bot_discord.tree.sync()
         print(f"🔄 Slash commands sincronizados: {len(synced)}")
-
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
 
-
-# =========================
-# DISCORD COMMANDS (PUBLIC)
-# =========================
-
 @bot_discord.tree.command(name="ping", description="Status do bot")
 async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message("🏓 Pong! Wootteo ativo no Discord.", ephemeral=False)
 
-    await interaction.response.send_message(
-        "🏓 Pong! Bot ativo.",
-        ephemeral=False
-    )
-
-
-@bot_discord.tree.command(name="comandos", description="Lista comandos")
+@bot_discord.tree.command(name="comandos", description="Lista todos os comandos disponíveis")
 async def comandos(interaction: discord.Interaction):
-
     await interaction.response.send_message(
-        "/ping\n/comandos\n/teste",
+        "🚀 **Comandos do Wootteo (Discord):**\n"
+        "`/ping` - Status do bot\n"
+        "`/bts` - Fanchant linha a linha\n"
+        "`/teste` - Simular monitoramento\n"
+        "`/comandos` - Lista de comandos",
         ephemeral=False
     )
-
-
-@bot_discord.tree.command(name="teste", description="Executa testes do sistema")
-async def teste(interaction: discord.Interaction):
-
-    await interaction.response.defer(ephemeral=False)
-
-    try:
-        global TEST_MODE
-        TEST_MODE = True
-
-        await run_full_test_discord()
-        await update_panel()
-
-        TEST_MODE = False
-
-        await interaction.followup.send(
-            "✅ Teste executado com sucesso.",
-            ephemeral=False
-        )
-
-    except Exception as e:
-        TEST_MODE = False
-        await interaction.followup.send(
-            f"❌ Erro no teste: {e}",
-            ephemeral=False
-        )
 
 @bot_discord.tree.command(name="bts", description="Fanchant interativa do BTS")
 async def bts_discord(interaction: discord.Interaction):
-    """Posta a fanchant linha por linha e o link final em bloco único no Discord"""
-    
-    # 1. Lista dos membros
+    """Posta a fanchant linha por linha no Discord usando followup"""
     membros = [
         "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI", 
         "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", 
         "🐰 JEON JUNGKOOK", "💜 BTS"
     ]
-    
-    # 2. O bloco final do Spotify
     post_final = (
         "📀 Ouça Arirang no Spotify\n"
         "🪭 Link: https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=tSdjqkZhTFSHS1GEJR_3Cw"
     )
-
-    # A primeira mensagem PRECISA ser o response.send_message
+    
+    # Responde a primeira para validar a interação
     await interaction.response.send_message(membros[0])
     
-    # As mensagens seguintes dos membros usam followup
+    # Envia o restante com delay
     for nome in membros[1:]:
         await asyncio.sleep(0.8)
         await interaction.followup.send(content=nome)
         
-    # Envia o encerramento do Spotify como bloco único
     await asyncio.sleep(0.8)
     await interaction.followup.send(content=post_final)
 
+@bot_discord.tree.command(name="teste", description="Executa testes do sistema")
+async def teste(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
+    try:
+        global TEST_MODE
+        TEST_MODE = True
+        await run_full_test_discord()
+        await update_panel()
+        TEST_MODE = False
+        await interaction.followup.send("✅ Teste executado com sucesso.", ephemeral=False)
+    except Exception as e:
+        TEST_MODE = False
+        await interaction.followup.send(f"❌ Erro no teste: {e}", ephemeral=False)
+
 # =========================
-# TELEGRAM START (ASYNC)
+# TELEGRAM START (ASYNC UNIFICADO)
 # =========================
 
 async def run_telegram_async():
+    global bot_ticket
     if TELEGRAM_TOKEN:
+        # Importação local para evitar conflitos
         from telegram.ext import ApplicationBuilder, CommandHandler
         
         application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+        bot_ticket = application.bot
 
+        # Registro de Handlers (As funções já estão definidas acima)
         application.add_handler(CommandHandler("ping", handle_commands_telegram))
         application.add_handler(CommandHandler("teste", handle_commands_telegram))
         application.add_handler(CommandHandler("comandos", handle_commands_telegram))
+        application.add_handler(CommandHandler("bts", bts_telegram_cmd))
+        application.add_handler(CommandHandler("BTS", bts_telegram_cmd)) # Case sensitive fix
 
         await application.initialize()
         await application.start()
         await application.updater.start_polling(drop_pending_updates=True)
         print("[SISTEMA] Telegram configurado com sucesso.")
-
 
 # =========================
 # COMMAND REGISTRY SAFE
