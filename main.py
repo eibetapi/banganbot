@@ -1507,69 +1507,45 @@ async def on_ready():
     except Exception as e:
         print(f"[DISCORD ERROR SYNC] {e}")
 
+
 # =========================
-# 21 INICIALIZAÇÃO FINAL (MAIN) - TELEGRAM + DISCORD FIX
+# TELEGRAM START (THREAD FIX)
 # =========================
+if TELEGRAM_TOKEN:
 
-async def main():
-
-    keep_alive()
-
-    # =========================
-    # TELEGRAM START
-    # =========================
-    if TELEGRAM_TOKEN:
-
-        from telegram.ext import (
-            ApplicationBuilder,
-            CommandHandler,
-            MessageHandler,
-            filters
-        )
-
-        application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-        application.add_handler(CommandHandler("ping", handle_commands_telegram))
-        application.add_handler(CommandHandler("teste", handle_commands_telegram))
-        application.add_handler(CommandHandler("comandos", handle_commands_telegram))
-
-        application.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram)
-        )
-
-        print("[SISTEMA] Telegram operativo e ouvindo comandos.")
-
-        from threading import Thread
-
-       def run_telegram():
-    import asyncio
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    application.run_polling(
-        drop_pending_updates=True,
-        close_loop=False
+    from telegram.ext import (
+        ApplicationBuilder,
+        CommandHandler,
+        MessageHandler,
+        filters
     )
 
-        Thread(target=run_telegram, daemon=True).start()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    # =========================
-    # MONITOR LOOP
-    # =========================
-    asyncio.create_task(monitor_loop())
-    print("[SISTEMA] Motor de monitoramento iniciado.")
+    application.add_handler(CommandHandler("ping", handle_commands_telegram))
+    application.add_handler(CommandHandler("teste", handle_commands_telegram))
+    application.add_handler(CommandHandler("comandos", handle_commands_telegram))
 
-    # =========================
-    # DISCORD START (FIX REAL)
-    # =========================
-    token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram)
+    )
 
-    if token:
-        print("[DISCORD] Iniciando bot...")
-        await bot_discord.start(token)
-    else:
-        print("[ERRO] Token Discord não encontrado.")
+    print("[SISTEMA] Telegram operativo e ouvindo comandos.")
+
+    from threading import Thread
+
+    def run_telegram():
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        application.run_polling(
+            drop_pending_updates=True,
+            close_loop=False
+        )
+
+    Thread(target=run_telegram, daemon=True).start()
 
 # =========================
 # 22 DISCORD COMMAND REGISTRY (CORRIGIDO)
