@@ -92,14 +92,16 @@ SEEN_SOCIAL = set()
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.guilds = True
 
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
+
 @bot_discord.event
 async def on_ready():
-    print(f"[DISCORD] Conectado como {bot_discord.user}")
 
-    # Define a presença do bot
+    print(f"✅ Logado no Discord como {bot_discord.user}")
+
     await bot_discord.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
@@ -108,20 +110,11 @@ async def on_ready():
         status=discord.Status.online
     )
 
-    # Sincroniza comandos slash
     try:
         synced = await bot_discord.tree.sync()
         print(f"[DISCORD] Slash commands sincronizados: {len(synced)}")
     except Exception as e:
         print(f"[DISCORD SYNC ERROR] {e}")
-
-    # Inicia o servidor Keep Alive
-    keep_alive()
-
-    # Garante que o monitor só inicie se não houver um rodando
-    if not hasattr(bot_discord, 'monitor_started'):
-        bot_discord.loop.create_task(monitor_loop())
-        bot_discord.monitor_started = True
 
 # =========================
 # 4 WEB SERVER (KEEP ALIVE)
@@ -1333,6 +1326,30 @@ async def on_ready():
         await bot_discord.tree.sync()
     except Exception as e:
         print(f"❌ Erro na sincronização Discord: {e}")
+
+#  === AJUSTE COMANDOS === # 
+
+async def handle_commands_telegram(update, context):
+
+    if not update.message or not update.message.text:
+        return
+
+    user_cmd = update.message.text.lower().strip()
+
+    # /ping
+    if user_cmd.startswith("/ping"):
+        await update.message.reply_text(
+            f"🏓 Pong! Wootteo operando há {get_uptime()}"
+        )
+
+    # /teste
+    elif user_cmd.startswith("/teste"):
+        await update.message.reply_text("⚠️ Teste executado com sucesso!")
+        await run_full_test_telegram()
+
+    # /comandos
+    elif user_cmd.startswith("/comandos"):
+        await update.message.reply_text("/ping, /teste, /comandos")
 
 # =============================================================
 # 21 INICIALIZAÇÃO FINAL (MAIN) - VERSÃO ESTÁVEL
