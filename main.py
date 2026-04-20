@@ -1383,7 +1383,7 @@ async def handle_commands_telegram(update, context):
         await update.message.reply_text("/ping, /teste, /comandos")
 
 # =============================================================
-# 21 INICIALIZAÇÃO FINAL (MAIN) - VERSÃO ESTÁVEL
+# 21 INICIALIZAÇÃO FINAL (MAIN) - TELEGRAM FIX CORRIGIDO
 # =============================================================
 
 async def main():
@@ -1391,31 +1391,45 @@ async def main():
     # 1. Inicia o servidor Keep Alive
     keep_alive()
 
-    # 2. Telegram
+    # 2. TELEGRAM (CORREÇÃO DEFINITIVA DO CONFLITO getUpdates)
     if TELEGRAM_TOKEN:
 
-        from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+        from telegram.ext import (
+            ApplicationBuilder,
+            CommandHandler,
+            MessageHandler,
+            filters
+        )
 
         application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
+        # Handlers
         application.add_handler(CommandHandler("ping", handle_commands_telegram))
         application.add_handler(CommandHandler("teste", handle_commands_telegram))
         application.add_handler(CommandHandler("comandos", handle_commands_telegram))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram))
+        application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram)
+        )
 
         print("[SISTEMA] Telegram operativo e ouvindo comandos.")
 
+        # Inicialização correta (PTB v20+)
         await application.initialize()
         await application.start()
-        await application.bot.initialize()
 
-        asyncio.create_task(application.updater.start_polling(drop_pending_updates=True))
+        # ❌ IMPORTANTE: NÃO usar updater.start_polling (causa o conflito)
+        # ❌ NÃO usar bot.initialize duplicado
 
-    # 3. Monitor (AQUI estava o erro de indentação)
+        # ✅ polling correto (modo moderno seguro)
+        asyncio.create_task(
+            application.run_polling(drop_pending_updates=True)
+        )
+
+    # 3. MONITOR PRINCIPAL
     asyncio.create_task(monitor_loop())
     print("[SISTEMA] Motor de monitoramento Arirang iniciado.")
 
-    # 4. Discord
+    # 4. DISCORD
     try:
         token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
 
