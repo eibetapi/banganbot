@@ -1406,36 +1406,20 @@ async def main():
 
 
 # =========================
-# 22 DISCORD COMMAND REGISTRY (ANTI DUPLICAÇÃO + TESTE FIX)
+# 22 DISCORD COMMAND REGISTRY (CORRIGIDO)
 # =========================
 
-import discord
-from discord import app_commands
-
-# =========================
-# FLAG GLOBAL
-# =========================
 if not hasattr(bot_discord, "COMMANDS_LOADED"):
     bot_discord.COMMANDS_LOADED = False
 
 
-# =========================
-# REGISTRO ÚNICO DE COMANDOS
-# =========================
 async def register_discord_commands():
 
     if bot_discord.COMMANDS_LOADED:
         return
 
-    # evita duplicação de tree já existente
-    if bot_discord.tree.get_command("ping") or bot_discord.tree.get_command("teste"):
-        bot_discord.COMMANDS_LOADED = True
-        return
 
-
-    # =========================
     # /ping
-    # =========================
     @bot_discord.tree.command(name="ping", description="Verifica status do bot")
     async def ping(interaction: discord.Interaction):
         await interaction.response.send_message(
@@ -1444,9 +1428,7 @@ async def register_discord_commands():
         )
 
 
-    # =========================
     # /comandos
-    # =========================
     @bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
     async def comandos(interaction: discord.Interaction):
         await interaction.response.send_message(
@@ -1455,16 +1437,13 @@ async def register_discord_commands():
         )
 
 
-    # =========================
-    # /teste (EXECUTA APENAS BLOCO 16 - SEM DUPLICAR ALERTAS)
-    # =========================
+    # /teste (ÚNICO E CORRETO)
     @bot_discord.tree.command(name="teste", description="Executa todos os alertas de teste")
     async def teste(interaction: discord.Interaction):
 
         await interaction.response.defer(ephemeral=True)
 
         try:
-            # EXECUÇÃO ÚNICA DO FLUXO COMPLETO DE TESTE
             await run_full_test_discord()
 
             await interaction.followup.send(
