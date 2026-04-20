@@ -1397,6 +1397,9 @@ async def main():
 
     keep_alive()
 
+    # =========================
+    # TELEGRAM
+    # =========================
     if TELEGRAM_TOKEN:
 
         from telegram.ext import (
@@ -1425,15 +1428,22 @@ async def main():
 
         Thread(target=run_telegram, daemon=True).start()
 
+    # =========================
+    # MONITOR
+    # =========================
     asyncio.create_task(monitor_loop())
     print("[SISTEMA] Motor de monitoramento iniciado.")
 
+    # =========================
+    # DISCORD (CORREÇÃO CRÍTICA)
+    # =========================
     try:
         token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
 
         if token:
-            loop = asyncio.get_running_loop()
-            loop.create_task(start_discord())
+            # ✔ CORREÇÃO: não usar get_running_loop aqui
+            # isso evita RuntimeError no container
+            asyncio.create_task(start_discord())
         else:
             print("[ERRO] Token Discord não encontrado.")
 
@@ -1448,19 +1458,23 @@ async def main():
 import discord
 from discord import app_commands
 
+# =========================
+# FLAG GLOBAL
+# =========================
 if not hasattr(bot_discord, "COMMANDS_LOADED"):
     bot_discord.COMMANDS_LOADED = False
 
 
+# =========================
+# REGISTRO DE COMANDOS (SÓ 1X)
+# =========================
 async def register_discord_commands():
 
     if bot_discord.COMMANDS_LOADED:
         return
 
-    print("[DISCORD] Registrando comandos uma única vez...")
-
-    existing = bot_discord.tree.get_command("teste")
-    if existing:
+    # evita duplicar comando /teste
+    if bot_discord.tree.get_command("teste"):
         bot_discord.COMMANDS_LOADED = True
         return
 
@@ -1480,7 +1494,7 @@ async def register_discord_commands():
             embed = discord.Embed(
                 title="🧪 TESTE ARIRANG SYSTEM",
                 description="Execução completa de alertas simulados",
-                color=0x8A2BE2
+                color=0x8A2BE2  # roxo
             )
 
             canais = [
@@ -1509,6 +1523,9 @@ async def register_discord_commands():
     print("[DISCORD] Comandos registrados com sucesso.")
 
 
+# =========================
+# ON_READY (SEGURO E SEM DUPLO SYNC)
+# =========================
 @bot_discord.event
 async def on_ready():
 
@@ -1531,6 +1548,9 @@ async def on_ready():
         print(f"[DISCORD ERROR SYNC] {e}")
 
 
+# =========================
+# START DISCORD LIMPO
+# =========================
 async def start_discord():
 
     token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
@@ -1542,3 +1562,10 @@ async def start_discord():
     print("[DISCORD] Iniciando bot...")
 
     await bot_discord.start(token)
+
+
+# =========================
+# FIX FINAL OBRIGATÓRIO
+# =========================
+# NÃO usar create_task aqui fora do main
+# main() já controla tudo
