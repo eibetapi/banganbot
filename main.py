@@ -1066,18 +1066,20 @@ async def test_youtube_live(url="https://www.youtube.com/@BTS/live", platform="b
     await send_alert("youtube_live", msg)
 
 # =============================================================
-# 17 MOTOR DE MONITORAMENTO (CONTROLE DE FLUXO)
+# 17 MOTOR DE MONITORAMENTO + COMANDOS + TESTE (UNIFICADO)
 # =============================================================
+
+# =========================
+# MONITOR PRINCIPAL
+# =========================
 async def monitor_loop():
     """
     Motor principal:
-    Gerencia a pulsação dos contadores e a edição do painel.
+    Controla scraping + painel + ciclos
     """
     await bot_discord.wait_until_ready()
 
     global panel_message_id, discord_panel_msg_id
-    global total_tickets, total_buy, total_weverse, total_social
-    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
 
     print("[SISTEMA] Motor Arirang operando. Aguardando ciclos...")
 
@@ -1085,116 +1087,145 @@ async def monitor_loop():
         while True:
             try:
                 await check_ticketmaster(session)
-
                 await check_buyticket(session)
-
                 await check_weverse(session)
-
                 await check_social(session)
-
                 await update_panel()
 
                 await asyncio.sleep(25)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
-
                 await asyncio.sleep(10)
 
 
-# =============================================================
-# 17.1 COMANDOS DE GATILHO (TELEGRAM & DISCORD)
-# =============================================================
-# --- TELEGRAM ---
+# =========================
+# COMANDOS TELEGRAM
+# =========================
 async def handle_commands_telegram(update, context):
     if not update.message or not update.message.text:
         return
 
-    user_cmd = update.message.text.lower()
+    cmd = update.message.text.lower()
 
-    if "/teste" in user_cmd:
-        await run_full_test_telegram()
-        await update_panel()
-
-    elif "/ping" in user_cmd:
-        await update.message.reply_text(f"🏓 Pong!")
-
-    elif "/comandos" in user_cmd:
+    # -------------------------
+    # /ping
+    # -------------------------
+    if "/ping" in cmd:
         await update.message.reply_text(
-            "/ping, /teste, /comandos",
-            parse_mode="Markdown"
+            f"🏓 Pong! Wootteo operando há {get_uptime()}"
+        )
+
+    # -------------------------
+    # /teste (REAL)
+    # -------------------------
+    elif "/teste" in cmd:
+        try:
+            await run_full_test_telegram()
+            await update_panel()
+        except Exception as e:
+            await update.message.reply_text(f"❌ Erro no teste: {e}")
+
+    # -------------------------
+    # /comandos
+    # -------------------------
+    elif "/comandos" in cmd:
+        await update.message.reply_text(
+            "/ping\n/teste\n/comandos"
         )
 
 
-# --- DISCORD ---
+# =========================
+# COMANDO DISCORD
+# =========================
 @bot_discord.tree.command(
     name="teste",
-    description="Dispara os alertas de teste"
+    description="Dispara alertas reais do sistema"
 )
 async def teste_discord(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
     try:
         await run_full_test_discord()
-
         await update_panel()
-
         await interaction.delete_original_response()
 
-    except:
-        pass
+    except Exception as e:
+        print(f"[ERRO TESTE DISCORD] {e}")
 
 
-# =============================================================
-# 17.2 MOTOR DE TESTE REAL (TELEGRAM)
-# =============================================================
+# =========================
+# TESTE REAL TELEGRAM
+# =========================
 async def run_full_test_telegram():
-    """
-    Executa os alertas reais do Bloco 16
-    """
     try:
-        funcs = globals()
+        print("[TESTE TG] Executando alertas reais...")
 
-        if 'ticket_reposicao' in funcs:
-            await funcs['ticket_reposicao'](
+        if "test_ticket_reposicao" in globals():
+            await test_ticket_reposicao(
                 "TESTE",
                 "https://www.ticketmaster.com.br/",
                 True
             )
 
-        if 'youtube_live' in funcs:
-            await funcs['youtube_live'](
-                "https://www.youtube.com/@BTS/live"
+        if "test_weverse_post" in globals():
+            await test_weverse_post(
+                "https://weverse.io/bts/feed",
+                "bts",
+                "Update",
+                "Teste real",
+                True
             )
 
+        if "test_instagram_post" in globals():
+            await test_instagram_post(
+                "https://instagram.com",
+                "bts",
+                "post",
+                True
+            )
+
+        if "test_tiktok_post" in globals():
+            await test_tiktok_post(
+                "https://tiktok.com",
+                "bts",
+                "video",
+                True
+            )
+
+        print("[TESTE TG] Finalizado com sucesso.")
+
     except Exception as e:
-        print(f"[DEBUG] Erro Teste TG: {e}")
+        print(f"[DEBUG TG] {e}")
 
 
-# =============================================================
-# 17.3 MOTOR DE TESTE REAL (DISCORD)
-# =============================================================
+# =========================
+# TESTE REAL DISCORD
+# =========================
 async def run_full_test_discord():
-    """
-    Executa os alertas reais do Bloco 16 para o Discord
-    """
     try:
-        funcs = globals()
+        print("[TESTE DC] Executando alertas reais...")
 
-        if 'ticket_reposicao' in funcs:
-            await funcs['ticket_reposicao'](
+        if "test_ticket_reposicao" in globals():
+            await test_ticket_reposicao(
                 "TESTE DISCORD",
                 "https://www.ticketmaster.com.br/",
                 True
             )
 
-        if 'youtube_live' in funcs:
-            await funcs['youtube_live'](
-                "https://www.youtube.com/@BTS/live"
+        if "test_weverse_post" in globals():
+            await test_weverse_post(
+                "https://weverse.io/bts/feed",
+                "bts",
+                "Update",
+                "Teste Discord",
+                True
             )
 
+        print("[TESTE DC] Finalizado com sucesso.")
+
     except Exception as e:
-        print(f"[DEBUG] Erro Teste Discord: {e}")
+        print(f"[DEBUG DC] {e}")
 
 # =========================
 # 18 FETCH UNIVERSAL
