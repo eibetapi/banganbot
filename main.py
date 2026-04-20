@@ -18,31 +18,27 @@ import aiohttp
 from bs4 import BeautifulSoup
 from flask import Flask
 
-# Ajuste nos imports do Telegram para evitar NameError
 from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
-# ==========================================
-# 2 CONFIGURAÇÃO DE CREDENCIAIS & TELEGRAM
-# ==========================================
+# =========================
+# 2 CONFIGURAÇÃO TELEGRAM / DISCORD
+# =========================
 
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 PANEL_CHAT_ID = -1003920883053
 
-# Variáveis de Controle de Persistência
 panel_message_id = None
 discord_panel_msg_id = None
 panel_initialized = False
 
-# IDs dos Canais do Discord (DEFINIDOS AQUI)
 DISCORD_PANEL_CHANNEL_ID = 1494667029150695625
 DISCORD_TICKETS_CHANNEL_ID = 1494670074374651985
 DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461
 DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864
 
-# Inicialização do Bot Telegram
 bot_ticket = None
 
 if TELEGRAM_TOKEN:
@@ -52,45 +48,36 @@ if TELEGRAM_TOKEN:
     except Exception as e:
         print(f"[ERRO CONFIG TELEGRAM] {e}")
 
-# ==========================================
-# 3 CONTADORES GLOBAIS E PERSISTÊNCIA
-# ==========================================
+# =========================
+# 3 CONTADORES GLOBAIS
+# =========================
 
-# Contadores de acesso (🎯 Acessos realizados)
 total_tickets = 0
 total_buy = 0
 total_weverse = 0
 total_social = 0
 
-# Timestamps dos últimos rastreios (⏳ Último rastreio há...)
 last_ticket_check = time.time()
 last_buy_check = time.time()
 last_weverse_check = time.time()
 last_social_check = time.time()
 
-# IDs das mensagens dos painéis (ESSENCIAL para evitar novos posts e permitir a edição)
-panel_message_id = None
-# Armazena o ID da mensagem no Telegram
-
-discord_panel_msg_id = None
-# Armazena o ID da mensagem no Discord
-
-# Tempo de início para o cálculo de Uptime
-start_time = time.time()
-
-# Rastreamento de mudanças e duplicatas
 CONTENT_HASH = {}
+
 SEEN_TICKET = set()
 SEEN_BUY = set()
 SEEN_WEVERSE = set()
 SEEN_SOCIAL = set()
 
+start_time = time.time()
+
 # =========================
-# 4 WEB SERVER (KEEP ALIVE)
+# 4 WEB SERVER
 # =========================
+
 app_web = Flask(__name__)
 
-@app_web.route('/')
+@app_web.route("/")
 def home():
     return "Bots Arirang ativos"
 
@@ -103,18 +90,15 @@ def keep_alive():
         Thread(target=run_web, daemon=True).start()
         keep_alive._running = True
 
+# =========================
+# 5 FUNÇÃO ANTI-SPAM (HASH)
+# =========================
 
-# =========================
-# 5 LÓGICA DE COMPARAÇÃO (ANTI-SPAM)
-# =========================
 def is_new(url, html):
-    """
-    Verifica se o conteúdo mudou e evita o spam de inicialização.
-    """
     global CONTENT_HASH
 
     content_clean = " ".join(html.split())
-    new_hash = hashlib.md5(content_clean.encode('utf-8')).hexdigest()
+    new_hash = hashlib.md5(content_clean.encode("utf-8")).hexdigest()
 
     if url not in CONTENT_HASH:
         CONTENT_HASH[url] = new_hash
@@ -123,7 +107,7 @@ def is_new(url, html):
 
     if CONTENT_HASH[url] != new_hash:
         CONTENT_HASH[url] = new_hash
-        print(f"[ALERTA] Mudança real detectada em: {url}")
+        print(f"[ALERTA] Mudança detectada: {url}")
         return True
 
     return False
@@ -177,6 +161,7 @@ X_LINKS = [
 YOUTUBE_LINKS = [
     "https://www.youtube.com/@BTS"
 ]
+
 
 def get_next_show():
     """Calcula dias para 28/10/2026"""
@@ -258,9 +243,10 @@ AGENDA = [
     ("14/03/2027", "Manila", "Filipinas", "20:00")
 ]
 
-# =============================================================
-# 8 CONTROLE (CÁLCULO PRECISO E STATUS PULSANTE)
-# =============================================================
+# =============
+# 8 CONTROLE 
+# =============
+
 boot_lock = asyncio.Lock()
 
 boot_initialized = False
@@ -288,23 +274,12 @@ def minutes_since(ts):
     return int((time.time() - ts) / 60)
 
 def status_color(last_check):
-    """
-    Retorna Status Pulsante:
-    Alterna entre Verde e Amarelo a cada segundo.
-    Retorna Vermelho apenas se o rastreio parar por mais de 30 minutos.
-    """
     agora = time.time()
-
     if (agora - last_check) > 1800:
         return "🔴"
-
     return "🟢" if int(agora) % 2 == 0 else "🟡"
 
 def get_countdown_data():
-    """
-    Varre a AGENDA e retorna o próximo show baseado na data e hora local.
-    O painel pula para a próxima data assim que o horário do show passa.
-    """
     now_dt = datetime.now()
 
     prox_data = "Continua…"
@@ -316,7 +291,6 @@ def get_countdown_data():
         for item in AGENDA:
             try:
                 data_hora_show = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
-
                 if data_hora_show > now_dt:
                     prox_data = item[0]
                     prox_local = f"{item[1]}, {item[2]}"
@@ -329,7 +303,6 @@ def get_countdown_data():
             if "Brasil" in item[2]:
                 try:
                     data_br_dt = datetime.strptime(item[0], "%d/%m/%Y").date()
-
                     if data_br_dt >= now_dt.date():
                         d_br = (data_br_dt - now_dt.date()).days
                         break
@@ -338,10 +311,10 @@ def get_countdown_data():
 
     return prox_data, prox_local, d_prox, d_br
 
+# =========================
+# 9 SESSION 
+# =========================
 
-# =========================
-# 9 SESSION (FIX: CLIENT SESSION ÚNICA)
-# =========================
 http_session = None
 
 async def get_session():
@@ -355,6 +328,7 @@ async def get_session():
 # =========================
 # 10 EMOJIS
 # =========================
+
 MEMBER_EMOJI = {
     "rm": "🐨",
     "jin": "🐹",
@@ -375,28 +349,22 @@ def format_member(member_name):
     name = str(member_name).upper()
     return emoji, name
 
+# =========================
+# 11 TEST MODE + CORE ROUTER + COMANDOS BASE
+# =========================
 
-# =========================
-# TEST MODE (CHECKLIST)
-# =========================
 TEST_MODE = False
 
-
-# =========================
-# DISCORD SEND (ÚNICO E CORRIGIDO)
-# =========================
+# === DISCORD SEND (CORE ÚNICO) === #
 async def send_discord(channel_id, content=None, embed=None):
     channel = bot_discord.get_channel(channel_id)
     if channel:
         await channel.send(content=content, embed=embed)
 
-
-# =========================
-# ALERT ROUTER (SEM TELEGRAM NO TESTE)
-# =========================
+# === ALERT ROUTER (DISCORD + TELEGRAM CONTROLADO) === #
 async def send_alert(alert_type, message):
 
-    # TELEGRAM BLOQUEADO NO TESTE
+    # TELEGRAM BLOQUEADO EM TESTE
     if bot_ticket is not None and not TEST_MODE:
         try:
             await bot_ticket.send_message(
@@ -407,7 +375,6 @@ async def send_alert(alert_type, message):
         except Exception as e:
             print(f"[TELEGRAM ERROR] {e}")
 
-    # DISCORD ROUTING
     try:
         if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
             asyncio.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
@@ -416,8 +383,8 @@ async def send_alert(alert_type, message):
             asyncio.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
 
         elif alert_type in [
-            "instagram_post","instagram_reels","instagram_stories","instagram_live",
-            "tiktok_post","tiktok_live"
+            "instagram_post", "instagram_reels", "instagram_stories", "instagram_live",
+            "tiktok_post", "tiktok_live"
         ]:
             asyncio.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
 
@@ -425,20 +392,15 @@ async def send_alert(alert_type, message):
             asyncio.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
 
     except Exception as e:
-        print(f"[DISCORD ROUTING ERROR] {e}")
+        print(f"[DISCORD ROUTER ERROR] {e}")
 
+# === DISCORD COMMANDS BASE === #
 
-# =========================
-# /ping
-# =========================
 @bot_discord.tree.command(name="ping", description="Verifica status do bot")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("🏓 Pong! Bot ativo.", ephemeral=True)
 
 
-# =========================
-# /comandos
-# =========================
 @bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
 async def comandos(interaction: discord.Interaction):
     await interaction.response.send_message(
@@ -446,10 +408,6 @@ async def comandos(interaction: discord.Interaction):
         ephemeral=True
     )
 
-
-# =========================
-# /teste (SEM TELEGRAM + ISOLADO)
-# =========================
 @bot_discord.tree.command(name="teste", description="Dispara alertas reais do sistema")
 async def teste(interaction: discord.Interaction):
 
@@ -475,31 +433,27 @@ async def teste(interaction: discord.Interaction):
             ephemeral=True
         )
 
-# =============================================================
-# 12 GESTÃO DO PAINEL (FIXO E ÚNICO)
-# =============================================================
+# ======================
+# 12 GESTÃO DO PAINEL
+# ======================
 
 async def update_panel():
     global panel_message_id, discord_panel_msg_id
 
-    # Obtém os dados variáveis (datas e cidades)
+    # dados dinâmicos
     data_show, city, d_prox, d_br = get_countdown_data()
 
-    # Gera o texto formatado com o contador de uptime incluso
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-    # =========================
-    # TELEGRAM (PAINEL FIXO)
-    # =========================
+    # === TELEGRAM (PAINEL FIXO) === #
     if bot_ticket and PANEL_CHAT_ID:
         try:
-            # restaura ID salvo
             if not panel_message_id:
                 panel_message_id = carregar_id_telegram()
 
             edited = False
 
-            # 1 - tenta editar mensagem existente
+            # tenta editar mensagem existente
             if panel_message_id:
                 try:
                     await bot_ticket.edit_message_text(
@@ -509,10 +463,10 @@ async def update_panel():
                         parse_mode=None
                     )
                     edited = True
-                except Exception as e:
+                except:
                     panel_message_id = None
 
-            # 2 - recria caso não exista
+            # recria se não existir
             if not edited:
                 try:
                     await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
@@ -528,14 +482,14 @@ async def update_panel():
                 panel_message_id = msg.message_id
                 salvar_id_telegram(panel_message_id)
 
-                # 3 - PIN FORÇADO COM PROTEÇÃO
+                # pin seguro
                 try:
                     await bot_ticket.pin_chat_message(
                         chat_id=PANEL_CHAT_ID,
                         message_id=panel_message_id,
                         disable_notification=True
                     )
-                except Exception:
+                except:
                     await asyncio.sleep(1)
                     try:
                         await bot_ticket.pin_chat_message(
@@ -547,11 +501,10 @@ async def update_panel():
                         pass
 
         except Exception as e:
-            print(f"[DEBUG] Falha update TG: {e}")
+            print(f"[TELEGRAM PANEL ERROR] {e}")
 
-    # =========================
-    # DISCORD PAINEL
-    # =========================
+    # === DISCORD PAINEL (EDIT OU CREATE) === #
+
     if DISCORD_PANEL_CHANNEL_ID:
         channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
 
@@ -559,12 +512,14 @@ async def update_panel():
             embed = discord.Embed(description=texto, color=0x8A2BE2)
 
             try:
+                # tenta recuperar mensagem antiga
                 if not discord_panel_msg_id:
                     async for message in channel.history(limit=10):
                         if message.author == bot_discord.user:
                             discord_panel_msg_id = message.id
                             break
 
+                # edita se existir
                 if discord_panel_msg_id:
                     msg = await channel.fetch_message(discord_panel_msg_id)
                     await msg.edit(content=None, embed=embed)
@@ -573,7 +528,7 @@ async def update_panel():
                     discord_panel_msg_id = msg.id
 
             except Exception as e:
-                print(f"[DEBUG] Falha update Discord: {e}")
+                print(f"[DISCORD PANEL ERROR] {e}")
 
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
@@ -619,7 +574,6 @@ texto = f"""
 # =========================
 
 LAST_WEVERSE_POST_URL = None
-
 LAST_WEVERSE_LIVE_URL = None
 
 async def weverse_post(url, member_name, title, message_translated, found):
@@ -636,20 +590,17 @@ async def weverse_post(url, member_name, title, message_translated, found):
     emoji = get_member_emoji(member_name)
 
     msg = f"""
-🩷*WEVERSE POST*🩷
-{emoji} {member_name.upper()} publicou uma mensagem:
-
+🩷 WEVERSE POST 🩷
+{emoji} {member_name.upper()} publicou uma mensagem
 📌 {title}
-{message_translated}
-
+📝 {message_translated}
 🔗 {url}
 """
 
     await send_alert("weverse_post", msg)
     await update_panel()
 
-
-async def test_weverse_live(url, member_name, found):
+async def weverse_live(url, member_name, found):
     global LAST_WEVERSE_LIVE_URL, total_weverse, last_weverse_check
 
     if url == LAST_WEVERSE_LIVE_URL:
@@ -663,17 +614,15 @@ async def test_weverse_live(url, member_name, found):
     emoji = get_member_emoji(member_name)
 
     msg = f"""
-📹*WEVERSE LIVE*📹
+📹 WEVERSE LIVE 📹
 {emoji} {member_name.upper()} está ao vivo!
-
 🔗 {url}
 """
 
     await send_alert("weverse_live", msg)
     await update_panel()
 
-
-async def test_weverse_news(url, member_name, message_translated, found):
+async def weverse_news(url, member_name, message_translated, found):
     global LAST_WEVERSE_POST_URL, total_weverse, last_weverse_check
 
     if url == LAST_WEVERSE_POST_URL:
@@ -687,19 +636,16 @@ async def test_weverse_news(url, member_name, message_translated, found):
     emoji = get_member_emoji(member_name)
 
     msg = f"""
-🚨*WEVERSE NEWS*🚨
-{emoji} {member_name.upper()} publicou uma notícia:
-
-📌 {message_translated}
-
+🚨 WEVERSE NEWS 🚨
+{emoji} {member_name.upper()} publicou notícia
+📝 {message_translated}
 🔗 {url}
 """
 
     await send_alert("weverse_news", msg)
     await update_panel()
 
-
-async def test_weverse_media(url, member_name, title, message_translated, found):
+async def weverse_media(url, member_name, title, message_translated, found):
     global LAST_WEVERSE_POST_URL, total_weverse, last_weverse_check
 
     if url == LAST_WEVERSE_POST_URL:
@@ -713,12 +659,10 @@ async def test_weverse_media(url, member_name, title, message_translated, found)
     emoji = get_member_emoji(member_name)
 
     msg = f"""
-📀 WEVERSE MÍDIA📀
-{emoji} {member_name.upper()} publicou uma nova mídia!
-
-⭐️ {title}
-{message_translated}
-
+📀 WEVERSE MEDIA 📀
+{emoji} {member_name.upper()} publicou mídia
+⭐ {title}
+📝 {message_translated}
 🔗 {url}
 """
 
@@ -726,12 +670,12 @@ async def test_weverse_media(url, member_name, title, message_translated, found)
     await update_panel()
 
 # =========================
-# 14 ALERTAS INSTAGRAM 
+# 14 ALERTAS INSTAGRAM (CORRIGIDO)
 # =========================
 
 LAST_INSTA_POST_LINK = None
-
 LAST_INSTA_STORY_LINK = None
+LAST_INSTA_REEL_LINK = None
 
 async def instagram_post(url, member_name, title, found):
     global LAST_INSTA_POST_LINK, total_social, last_social_check
@@ -747,23 +691,20 @@ async def instagram_post(url, member_name, title, found):
     emoji, name = format_member(member_name)
 
     msg = f"""
-🌟*INSTAGRAM POST*🌟
-{emoji} {name} postou uma foto!
-
+🌟 INSTAGRAM POST 🌟
+{emoji} {name} postou uma foto
 🔗 {url}
 """
-
     await send_alert("instagram_post", msg)
     await update_panel()
 
-
 async def instagram_reel(url, member_name, title, found):
-    global LAST_INSTA_POST_LINK, total_social, last_social_check
+    global LAST_INSTA_REEL_LINK, total_social, last_social_check
 
-    if url == LAST_INSTA_POST_LINK:
+    if url == LAST_INSTA_REEL_LINK:
         return
 
-    LAST_INSTA_POST_LINK = url
+    LAST_INSTA_REEL_LINK = url
 
     total_social += 1
     last_social_check = time.time()
@@ -771,15 +712,12 @@ async def instagram_reel(url, member_name, title, found):
     emoji, name = format_member(member_name)
 
     msg = f"""
-🎬*INSTAGRAM REELS*🎬
-{emoji} {name} postou um reels!
-
+🎬 INSTAGRAM REELS 🎬
+{emoji} {name} postou um reels
 🔗 {url}
 """
-
     await send_alert("instagram_reels", msg)
     await update_panel()
-
 
 async def instagram_story(url, member_name, title, found):
     global LAST_INSTA_STORY_LINK, total_social, last_social_check
@@ -795,15 +733,12 @@ async def instagram_story(url, member_name, title, found):
     emoji, name = format_member(member_name)
 
     msg = f"""
-🫧*INSTAGRAM STORIES*🫧
-{emoji} {name} atualizou os stories!
-
+🫧 INSTAGRAM STORIES 🫧
+{emoji} {name} atualizou stories
 🔗 {url}
 """
-
     await send_alert("instagram_stories", msg)
     await update_panel()
-
 
 async def instagram_live(url, member_name, title, found):
     global total_social, last_social_check
@@ -814,31 +749,32 @@ async def instagram_live(url, member_name, title, found):
     emoji, name = format_member(member_name)
 
     msg = f"""
-🎥*INSTAGRAM LIVE*🎥
-{emoji} {name} está ao vivo!
-
+🎥 INSTAGRAM LIVE 🎥
+{emoji} {name} está ao vivo
 🔗 {url}
 """
-
     await send_alert("instagram_live", msg)
     await update_panel()
 
 # =========================
-# 15 ALERTAS TIKTOK E YOUTUBE
+# 15 ALERTAS TIKTOK E YOUTUBE (CORRIGIDO)
 # =========================
 
 LAST_TIKTOK_LINK = None
+LAST_YOUTUBE_LINK = None
+
+# === TIKTOK === #
 
 async def tiktok_post(url, member_name, title, found):
     global LAST_TIKTOK_LINK, total_social, last_social_check
 
-    link_correto = "https://www.tiktok.com/@bts_official_bighit"
+    link_base = "https://www.tiktok.com/@bts_official_bighit"
 
     if "video/" in url:
         video_id = url.split("video/")[1].split("?")[0]
-        final_url = f"{link_correto}/video/{video_id}"
+        final_url = f"{link_base}/video/{video_id}"
     else:
-        final_url = link_correto
+        final_url = link_base
 
     if final_url == LAST_TIKTOK_LINK:
         return
@@ -851,15 +787,12 @@ async def tiktok_post(url, member_name, title, found):
     emoji = get_member_emoji(member_name)
 
     msg = f"""
-🎵*TIKTOK POST*🎵
-{emoji} {member_name.upper()} postou um vídeo!
-
-🔗 *Link:* {final_url}
+🎵 TIKTOK POST 🎵
+{emoji} {member_name.upper()} postou um vídeo
+🔗 {final_url}
 """
-
     await send_alert("tiktok_post", msg)
     await update_panel()
-
 
 async def tiktok_live(url, member_name, title, found):
     global total_social, last_social_check
@@ -870,95 +803,106 @@ async def tiktok_live(url, member_name, title, found):
     emoji = get_member_emoji(member_name)
 
     msg = f"""
-🎥*TIKTOK LIVE*🎥
-{emoji} {member_name.upper()} está ao vivo no TikTok!
-
-🔗 *Link:* https://www.tiktok.com/@bts_official_bighit/live
+🎥 TIKTOK LIVE 🎥
+{emoji} {member_name.upper()} está ao vivo
+🔗 https://www.tiktok.com/@bts_official_bighit/live
 """
-
     await send_alert("tiktok_live", msg)
     await update_panel()
 
+# === YOUTUBE === #
 
-async def youtube_post(url, final_url):
-    global total_youtube, last_youtube_check
+async def youtube_post(url, final_url=None):
+    global total_social, last_social_check
 
-    total_youtube += 1
-    last_youtube_check = time.time()
+    total_social += 1
+    last_social_check = time.time()
+
+    link = final_url or "https://www.youtube.com/@BTS"
 
     msg = f"""
-🎞️*YOUTUBE POST*🎞️
-💜 **BTS** postou um vídeo novo!
-
-🔗 *Link:* {final_url}
+🎞️ YOUTUBE POST 🎞️
+💜 BTS publicou vídeo novo
+🔗 {link}
 """
-
     await send_alert("youtube_post", msg)
     await update_panel()
 
+async def youtube_live(url=None):
+    global total_social, last_social_check
 
-async def youtube_live(url):
-    global total_youtube, last_youtube_check
-
-    total_youtube += 1
-    last_youtube_check = time.time()
+    total_social += 1
+    last_social_check = time.time()
 
     live_url = "https://www.youtube.com/@BTS/live"
 
     msg = f"""
-📹*YOUTUBE LIVE*📹
-🚨 **BTS** está ao vivo agora no YouTube!
-
-🔗 *Link:* {live_url}
+📹 YOUTUBE LIVE 📹
+🚨 BTS está ao vivo agora
+🔗 {live_url}
 """
-
     await send_alert("youtube_live", msg)
     await update_panel()
 
-# =============================================================
-# 16 SISTEMA DE TESTE (ROTEADO PARA AS SALAS CERTAS)
-# =============================================================
+# =========================
+# 16 SISTEMA DE TESTE (ROTEADOR LIMPO - PADRÃO FIXO)
+# =========================
 
 TEST_HEADER = "⚠️ TESTE ⚠️"
 EMBED_COLOR = 0x8A2BE2
 
+# === EMBED BASE === #
 
-# =========================
-# DISCORD ROUTER PRINCIPAL
-# =========================
+def make_embed(title, description):
+
+    final_title = f"{TEST_HEADER} {title}" if TEST_MODE else title
+
+    return discord.Embed(
+        title=final_title,
+        description=description,
+        color=EMBED_COLOR
+    )
+
+# === DISCORD ROUTER === #
+
+async def send_discord(channel_id, embed):
+    channel = bot_discord.get_channel(channel_id)
+    if channel:
+        await channel.send(embed=embed)
+
+# ===  RUN TEST DISCORD === #
+
 async def run_full_test_discord():
-    print("[TESTE DC] Executando...")
+    print("[TESTE DC] iniciando...")
 
     await test_ticket_reposicao(
-        TICKET_LINKS[0],
+        "https://ticket.test",
         "28/10/2026",
         True
     )
 
     await asyncio.sleep(1)
 
-    await test_agenda(
-        {
-            "date": "28/10/2026",
-            "city": "São Paulo",
-            "country": "Brasil"
-        }
-    )
+    await test_agenda({
+        "date": "28/10/2026",
+        "city": "São Paulo",
+        "country": "Brasil"
+    })
 
     await asyncio.sleep(1)
 
     await test_weverse_post(
-        WEVERSE_LINKS[0],
+        "https://weverse.io/test",
         "bts",
-        "Update",
-        "Conteúdo Teste",
+        "Teste",
+        "Conteúdo teste",
         True
     )
 
     await asyncio.sleep(1)
 
     await test_instagram_post(
-        INSTAGRAM_LINKS["bts"],
+        "https://instagram.com/test",
         "bts",
         "post",
         True
@@ -967,7 +911,7 @@ async def run_full_test_discord():
     await asyncio.sleep(1)
 
     await test_tiktok_post(
-        TIKTOK_LINKS["bts"],
+        "https://tiktok.com/test",
         "bts",
         "video",
         True
@@ -981,109 +925,12 @@ async def run_full_test_discord():
 
     await test_youtube_live()
 
-    print("[TESTE DC] Finalizado.")
+    print("[TESTE DC] finalizado")
 
+# === TICKET REPOSIÇÃO (FIX PADRÃO) === #
 
-# =========================
-# FUNÇÃO EMBED PADRÃO
-# =========================
-def make_embed(title, description):
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=EMBED_COLOR
-    )
-    return embed
-
-
-# =========================
-# DISCORD SEND (ROTEAMENTO REAL)
-# =========================
-async def send_discord(channel_id, embed):
-    channel = bot_discord.get_channel(channel_id)
-    if channel:
-        await channel.send(embed=embed)
-
-# =========================
-# COMANDOS DISCORD (FIXOS)
-# =========================
-
-@bot_discord.tree.command(name="ping", description="Verifica status do bot")
-async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        "🏓 Pong! Bot ativo.",
-        ephemeral=True
-    )
-
-
-@bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
-async def comandos(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        "/ping\n/comandos\n/teste",
-        ephemeral=True
-    )
-
-
-@bot_discord.tree.command(name="teste", description="Dispara alertas reais do sistema")
-async def teste(interaction: discord.Interaction):
-
-    await interaction.response.defer(ephemeral=True)
-
-    try:
-        await run_full_test_discord()
-
-        await interaction.followup.send(
-            "✅ Teste executado com sucesso.",
-            ephemeral=True
-        )
-
-    except Exception as e:
-        await interaction.followup.send(
-            f"❌ Erro no teste: {e}",
-            ephemeral=True
-        )
-# =========================
-# COMANDOS DISCORD (FIXOS)
-# =========================
-
-@bot_discord.tree.command(name="ping", description="Verifica status do bot")
-async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        "🏓 Pong! Bot ativo.",
-        ephemeral=True
-    )
-
-
-@bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
-async def comandos(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        "/ping\n/comandos\n/teste",
-        ephemeral=True
-    )
-
-
-@bot_discord.tree.command(name="teste", description="Dispara alertas reais do sistema")
-async def teste(interaction: discord.Interaction):
-
-    await interaction.response.defer(ephemeral=True)
-
-    try:
-        await run_full_test_discord()
-
-        await interaction.followup.send(
-            "✅ Teste executado com sucesso.",
-            ephemeral=True
-        )
-
-    except Exception as e:
-        await interaction.followup.send(
-            f"❌ Erro no teste: {e}",
-            ephemeral=True
-        )
-# =========================
-# 1 - TICKET (TICKETS CHANNEL)
-# =========================
 async def test_ticket_reposicao(url, key, found):
+
     embed = make_embed(
         "🔥 ALERTA DE REPOSIÇÃO 🔥",
         f"""
@@ -1096,129 +943,116 @@ async def test_ticket_reposicao(url, key, found):
     await send_discord(DISCORD_TICKETS_CHANNEL_ID, embed)
     await send_alert("reposicao", "TESTE REPOSIÇÃO")
 
+# === AGENDA === #
 
-# =========================
-# 2 - AGENDA (TICKETS CHANNEL)
-# =========================
 async def test_agenda(data):
+
     embed = make_embed(
-        "💜 AGENDA NOVAS DATAS 💜",
+        "💜 AGENDA NOVA 💜",
         f"""
-📅 Data: 28/10/2026  
-🏙️ Cidade: São Paulo  
-🌎 País: Brasil  
-🔗 Link: https://ibighit.com/en/bts/tour/  
+📅 Data: {data['date']}  
+🏙️ Cidade: {data['city']}  
+🌎 País: {data['country']}  
 """
     )
 
     await send_discord(DISCORD_TICKETS_CHANNEL_ID, embed)
     await send_alert("agenda", "TESTE AGENDA")
 
-
-# =========================
-# 3 - WEVERSE (WEVERSE CHANNEL)
-# =========================
+# ===  WEVERSE POST === #
 async def test_weverse_post(url, member_name, title, message_translated, found):
+
     embed = make_embed(
         "🩷 WEVERSE POST 🩷",
         f"""
 👤 BTS publicou uma mensagem  
-🔗 Link: https://weverse.io/bts/artist  
+📌 Conteúdo teste  
+🔗 https://weverse.io/test  
 """
     )
 
     await send_discord(DISCORD_WEVERSE_CHANNEL_ID, embed)
     await send_alert("weverse_post", "TESTE WEVERSE")
 
+# ===  INSTAGRAM POST === #
 
-# =========================
-# 4 - INSTAGRAM (SOCIAL CHANNEL)
-# =========================
 async def test_instagram_post(url, member_name, title, found):
+
     embed = make_embed(
         "🌟 INSTAGRAM POST 🌟",
         f"""
 👤 BTS postou uma foto  
-🔗 Link: https://www.instagram.com/bts.bighitofficial/  
+🔗 https://instagram.com/test  
 """
     )
 
     await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
     await send_alert("instagram_post", "TESTE INSTAGRAM")
 
+# ===  TIKTOK POST === #
 
-# =========================
-# 5 - TIKTOK (SOCIAL CHANNEL)
-# =========================
 async def test_tiktok_post(url, member_name, title, found):
+
     embed = make_embed(
         "🎵 TIKTOK POST 🎵",
         f"""
-👤 {member_name.upper()} postou um vídeo  
-🔗 Link: https://www.tiktok.com/@bts_official_bighit  
+👤 BTS postou um vídeo  
+🔗 https://tiktok.com/test  
 """
     )
 
     await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
     await send_alert("tiktok_post", "TESTE TIKTOK")
 
+# ===  YOUTUBE POST === #
 
-# =========================
-# 6 - YOUTUBE POST (SOCIAL CHANNEL)
-# =========================
-async def test_youtube_post(url="https://www.youtube.com/@BTS"):
+async def test_youtube_post():
+
     embed = make_embed(
         "🎞️ YOUTUBE POST 🎞️",
         f"""
 💜 BTS postou um vídeo novo  
-🔗 Link: https://www.youtube.com/@BTS  
+🔗 https://www.youtube.com/@BTS  
 """
     )
 
     await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
     await send_alert("youtube_post", "TESTE YOUTUBE POST")
 
+# ===  YOUTUBE LIVE === #
 
-# =========================
-# 7 - YOUTUBE LIVE (SOCIAL CHANNEL)
-# =========================
-async def test_youtube_live(url="https://www.youtube.com/@BTS/live"):
+async def test_youtube_live():
+
     embed = make_embed(
         "📹 YOUTUBE LIVE 📹",
         f"""
-🚨 BTS está ao vivo agora no YouTube  
-🔗 Link: https://www.youtube.com/@BTS/streams  
+🚨 BTS está ao vivo agora  
+🔗 https://www.youtube.com/@BTS/live  
 """
     )
 
     await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
     await send_alert("youtube_live", "TESTE YOUTUBE LIVE")
 
-# =============================================================
-# 17 MOTOR DE MONITORAMENTO + COMANDOS + TESTE (UNIFICADO)
-# =============================================================
+=========================
+17 MOTOR + COMANDOS + TESTE (UNIFICADO FINAL)
+=========================
 
-# =========================
-# BOT DISCORD (FIX CRÍTICO)
-# =========================
+# ===  BOT DISCORD INIT === #
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
+# === MONITOR LOOP (CORE ENGINE) === # 
 
-# =========================
-# MONITOR PRINCIPAL
-# =========================
 async def monitor_loop():
-    """
-    Motor principal:
-    Controla scraping + painel + ciclos
-    """
+
     await bot_discord.wait_until_ready()
 
-    print("[SISTEMA] Motor Arirang operando. Aguardando ciclos...")
+    print("[SISTEMA] Monitor ativo...")
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -1228,7 +1062,6 @@ async def monitor_loop():
                 await check_weverse(session)
                 await check_social(session)
 
-                # painel atualizado UMA vez por ciclo
                 await update_panel()
 
                 await asyncio.sleep(25)
@@ -1237,11 +1070,10 @@ async def monitor_loop():
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
+# === TELEGRAM COMMANDS === #
 
-# =========================
-# COMANDOS TELEGRAM
-# =========================
 async def handle_commands_telegram(update, context):
+
     if not update.message or not update.message.text:
         return
 
@@ -1249,36 +1081,59 @@ async def handle_commands_telegram(update, context):
 
     if "/ping" in cmd:
         await update.message.reply_text(
-            f"🏓 Pong! Wootteo operando há {get_uptime()}"
+            f"🏓 Pong! Uptime: {get_uptime()}"
         )
 
     elif "/teste" in cmd:
-        try:
-            await run_full_test_telegram()
-            await update_panel()
-        except Exception as e:
-            await update.message.reply_text(f"❌ Erro no teste: {e}")
+
+        global TEST_MODE
+        TEST_MODE = True
+
+        await run_full_test_telegram()
+        await update_panel()
+
+        TEST_MODE = False
 
     elif "/comandos" in cmd:
         await update.message.reply_text(
             "/ping\n/teste\n/comandos"
         )
 
+# === DISCORD /ping === #
 
-# =========================
-# DISCORD SLASH COMMAND (/teste)
-# =========================
-@bot_discord.tree.command(
-    name="teste",
-    description="Dispara alertas reais do sistema"
-)
-async def teste_discord(interaction: discord.Interaction):
+@bot_discord.tree.command(name="ping", description="Status do bot")
+async def ping(interaction: discord.Interaction):
+
+    await interaction.response.send_message(
+        "🏓 Pong! Bot ativo.",
+        ephemeral=True
+    )
+
+# ===  DISCORD /comandos === #
+
+@bot_discord.tree.command(name="comandos", description="Lista comandos")
+async def comandos(interaction: discord.Interaction):
+
+    await interaction.response.send_message(
+        "/ping\n/comandos\n/teste",
+        ephemeral=True
+    )
+
+# === DISCORD /teste === #
+
+@bot_discord.tree.command(name="teste", description="Executa testes do sistema")
+async def teste(interaction: discord.Interaction):
 
     await interaction.response.defer(ephemeral=True)
 
     try:
+        global TEST_MODE
+        TEST_MODE = True
+
         await run_full_test_discord()
         await update_panel()
+
+        TEST_MODE = False
 
         await interaction.followup.send(
             "✅ Teste executado com sucesso.",
@@ -1286,251 +1141,21 @@ async def teste_discord(interaction: discord.Interaction):
         )
 
     except Exception as e:
+        TEST_MODE = False
         await interaction.followup.send(
             f"❌ Erro no teste: {e}",
             ephemeral=True
         )
 
+# === TELEGRAM START === #
 
-# =========================
-# TESTE TELEGRAM (REAL)
-# =========================
-async def run_full_test_telegram():
-    try:
-        print("[TESTE TG] Executando...")
-
-        await test_ticket_reposicao(
-            "TESTE",
-            "https://www.ticketmaster.com.br/",
-            True
-        )
-
-        await test_weverse_post(
-            "https://weverse.io/bts/feed",
-            "bts",
-            "Update",
-            "Teste real",
-            True
-        )
-
-        await test_instagram_post(
-            "https://instagram.com",
-            "bts",
-            "post",
-            True
-        )
-
-        await test_tiktok_post(
-            "https://tiktok.com",
-            "bts",
-            "video",
-            True
-        )
-
-        print("[TESTE TG] Finalizado.")
-
-    except Exception as e:
-        print(f"[DEBUG TG] {e}")
-
-
-# =========================
-# TESTE DISCORD (REAL)
-# =========================
-async def run_full_test_discord():
-    try:
-        print("[TESTE DC] Executando...")
-
-        await test_ticket_reposicao(
-            "TESTE DISCORD",
-            "https://www.ticketmaster.com.br/",
-            True
-        )
-
-        await test_weverse_post(
-            "https://weverse.io/bts/feed",
-            "bts",
-            "Update",
-            "Teste Discord",
-            True
-        )
-
-        print("[TESTE DC] Finalizado.")
-
-    except Exception as e:
-        print(f"[DEBUG DC] {e}")
-
-# =========================
-# 18 FETCH UNIVERSAL
-# =========================
-async def fetch(session, url):
-    if session is None:
-        return None
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-
-    try:
-        async with session.get(url, headers=headers, timeout=20) as response:
-            if response.status != 200:
-                return None
-
-            return await response.text()
-
-    except:
-        return None
-
-# =========================
-# 19 FUNÇÕES DE CHECK (RASTREIO E CONTADORES)
-# =========================
-
-async def check_ticketmaster(session):
-    global last_ticket_check, total_tickets
-    if 'TICKET_LINKS' not in globals() or not TICKET_LINKS:
-        return
-    last_ticket_check = time.time()
-    total_tickets += 1
-    for url in TICKET_LINKS:
-        try:
-            html = await fetch(session, url)
-            if html and is_new(url, html):
-                found = "esgotado" not in html.lower()
-                await ticket_reposicao(url, url, found)
-        except Exception as e:
-            print(f"[ERR TICKET] {e}")
-
-async def check_buyticket(session):
-    global last_buy_check, total_buy
-    if 'BUY_LINKS' not in globals() or not BUY_LINKS:
-        return
-    last_buy_check = time.time()
-    total_buy += 1
-    for url in BUY_LINKS:
-        try:
-            html = await fetch(session, url)
-            if html and is_new(url, html):
-                pass
-        except Exception as e:
-            print(f"[ERR BUY] {e}")
-
-async def check_weverse(session):
-    global last_weverse_check, total_weverse
-    if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS:
-        return
-    last_weverse_check = time.time()
-    total_weverse += 1
-    for url in WEVERSE_LINKS:
-        try:
-            html = await fetch(session, url)
-            if html and is_new(url, html):
-                pass
-        except Exception as e:
-            print(f"[ERR WEVERSE] {e}")
-
-async def check_social(session):
-    global last_social_check, total_social
-    last_social_check = time.time()
-    total_social += 1
-    if 'SOCIAL_LINKS' in globals() and SOCIAL_LINKS:
-        for url in SOCIAL_LINKS:
-            try:
-                html = await fetch(session, url)
-                if html and is_new(url, html):
-                    pass
-            except Exception as e:
-                print(f"[ERR SOCIAL] {e}")
-    await check_youtube(session)
-
-async def check_youtube(session):
-    global last_social_check, total_social
-    youtube_url = "https://www.youtube.com/@BTS"
-    try:
-        html = await fetch(session, f"{youtube_url}/videos")
-        if html:
-            is_live = '{"text":"AO VIVO"}' in html or '"style":"LIVE"' in html or "watch?v=" in html and "live" in html.lower()
-            if is_live:
-                if is_new(youtube_url + "/live", "LIVE"):
-                    await youtube_live(youtube_url)
-            elif is_new(youtube_url, html):
-                await youtube_post(youtube_url, youtube_url)
-    except Exception as e:
-        print(f"[ERR YOUTUBE] {e}")
-
-# =======================
-# 19.1 AUXILIAR DE ALERTA SOCIAL
-# =======================
-
-async def enviar_alerta_social(mensagem):
-    if bot_ticket and PANEL_CHAT_ID:
-        try:
-            await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode=None)
-        except:
-            pass
-    channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
-    if channel:
-        try:
-            await channel.send(content=mensagem)
-        except:
-            pass
-
-# =========================
-# 20 DISCORD ON_READY + SYNC (FIX DEFINITIVO)
-# =========================
-
-@bot_discord.event
-async def on_ready():
-    print(f"✅ Logado no Discord como {bot_discord.user}")
-
-    # presença do bot
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="Em tournê - Arirang 🪭"
-        ),
-        status=discord.Status.online
-    )
-
-    try:
-        # 🔥 GARANTE QUE OS COMANDOS EXISTEM ANTES DO SYNC
-        if not getattr(bot_discord, "COMMANDS_LOADED", False):
-            await register_discord_commands()
-
-        # 🔥 SYNC FORÇADO GLOBAL
-        synced = await bot_discord.tree.sync()
-
-        print(f"🔄 Slash commands sincronizados: {len(synced)} comandos")
-
-        # debug útil
-        for cmd in synced:
-            print(f" - /{cmd.name}")
-
-    except Exception as e:
-        print(f"[DISCORD ERROR SYNC] {e}")
-
-
-# =========================
-# TELEGRAM START (THREAD FIX)
-# =========================
 if TELEGRAM_TOKEN:
-
-    from telegram.ext import (
-        ApplicationBuilder,
-        CommandHandler,
-        MessageHandler,
-        filters
-    )
 
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     application.add_handler(CommandHandler("ping", handle_commands_telegram))
     application.add_handler(CommandHandler("teste", handle_commands_telegram))
     application.add_handler(CommandHandler("comandos", handle_commands_telegram))
-
-    application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram)
-    )
-
-    print("[SISTEMA] Telegram operativo e ouvindo comandos.")
 
     from threading import Thread
 
@@ -1547,9 +1172,52 @@ if TELEGRAM_TOKEN:
 
     Thread(target=run_telegram, daemon=True).start()
 
-# =========================
-# 22 DISCORD COMMAND REGISTRY (CORRIGIDO)
-# =========================
+# === DISCORD ON READY === #
+
+@bot_discord.event
+async def on_ready():
+
+    print(f"✅ Logado como {bot_discord.user}")
+
+    await bot_discord.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.listening,
+            name="Arirang Tour 🪭"
+        ),
+        status=discord.Status.online
+    )
+
+    try:
+        if not getattr(bot_discord, "COMMANDS_LOADED", False):
+            await register_discord_commands()
+
+        synced = await bot_discord.tree.sync()
+
+        print(f"🔄 Slash commands sincronizados: {len(synced)}")
+
+    except Exception as e:
+        print(f"[SYNC ERROR] {e}")
+
+# ===  RUN TELEGRAM THREAD === #
+
+if TELEGRAM_TOKEN:
+
+    from threading import Thread
+
+    def run_telegram():
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        application.run_polling(
+            drop_pending_updates=True,
+            close_loop=False
+        )
+
+    Thread(target=run_telegram, daemon=True).start()
+
+# === COMMAND REGISTRY === #
 
 if not hasattr(bot_discord, "COMMANDS_LOADED"):
     bot_discord.COMMANDS_LOADED = False
@@ -1560,30 +1228,19 @@ async def register_discord_commands():
     if bot_discord.COMMANDS_LOADED:
         return
 
-    # =========================
-    # /ping
-    # =========================
-    @bot_discord.tree.command(name="ping", description="Verifica status do bot")
+    @bot_discord.tree.command(name="ping", description="Status do bot")
     async def ping(interaction: discord.Interaction):
         await interaction.response.send_message(
             "🏓 Pong! Bot ativo.",
             ephemeral=True
         )
 
-    # =========================
-    # /comandos
-    # =========================
-    @bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
+    @bot_discord.tree.command(name="comandos", description="Lista comandos")
     async def comandos(interaction: discord.Interaction):
         await interaction.response.send_message(
             "/ping\n/comandos\n/teste",
             ephemeral=True
         )
-
-    # =========================
-    # /teste (CORRIGIDO - SEM COMPLETED / TASK RACE)
-    # =========================
-
 
     async def teste(interaction: discord.Interaction):
 
@@ -1604,16 +1261,990 @@ async def register_discord_commands():
             )
 
     bot_discord.COMMANDS_LOADED = True
-    print("[DISCORD] Comandos registrados com sucesso.")
 
-# =========================
-# START DO BOT (ENTRYPOINT)
-# =========================
+    print("[DISCORD] comandos registrados")
 
-if __name__ == "__main__":
-    import asyncio
+# ===  FETCH UNIVERSAL === #
+
+async def fetch(session, url):
+
+    if session is None:
+        return None
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
 
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("[SISTEMA] Encerrado manualmente.")
+        async with session.get(url, headers=headers, timeout=20) as response:
+
+            if response.status != 200:
+                return None
+
+            return await response.text()
+
+    except Exception as e:
+        print(f"[FETCH ERROR] {e}")
+        return None
+
+# === CHECK TICKETMASTER === #
+
+async def check_ticketmaster(session):
+
+    global last_ticket_check, total_tickets
+
+    if 'TICKET_LINKS' not in globals() or not TICKET_LINKS:
+        return
+
+    last_ticket_check = time.time()
+    total_tickets += 1
+
+    for url in TICKET_LINKS:
+
+        try:
+            html = await fetch(session, url)
+
+            if html and is_new(url, html):
+
+                found = "esgotado" not in html.lower()
+
+                await ticket_reposicao(url, url, found)
+
+        except Exception as e:
+            print(f"[ERR TICKET] {e}")
+
+# ===  CHECK BUYTICKET === #
+
+async def check_buyticket(session):
+
+    global last_buy_check, total_buy
+
+    if 'BUY_LINKS' not in globals() or not BUY_LINKS:
+        return
+
+    last_buy_check = time.time()
+    total_buy += 1
+
+    for url in BUY_LINKS:
+
+        try:
+            html = await fetch(session, url)
+
+            if html and is_new(url, html):
+                pass
+
+        except Exception as e:
+            print(f"[ERR BUY] {e}")
+
+# ===  CHECK WEVERSE === #
+
+async def check_weverse(session):
+
+    global last_weverse_check, total_weverse
+
+    if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS:
+        return
+
+    last_weverse_check = time.time()
+    total_weverse += 1
+
+    for url in WEVERSE_LINKS:
+
+        try:
+            html = await fetch(session, url)
+
+            if html and is_new(url, html):
+                pass
+
+        except Exception as e:
+            print(f"[ERR WEVERSE] {e}")
+
+# === CHECK SOCIAL === #
+
+async def check_social(session):
+
+    global last_social_check, total_social
+
+    last_social_check = time.time()
+    total_social += 1
+
+    if 'SOCIAL_LINKS' in globals() and SOCIAL_LINKS:
+
+        for url in SOCIAL_LINKS:
+
+            try:
+                html = await fetch(session, url)
+
+                if html and is_new(url, html):
+                    pass
+
+            except Exception as e:
+                print(f"[ERR SOCIAL] {e}")
+
+    await check_youtube(session)
+
+
+# ===  CHECK YOUTUBE === #
+
+async def check_youtube(session):
+
+    global last_social_check, total_social
+
+    youtube_url = "https://www.youtube.com/@BTS"
+
+    try:
+        html = await fetch(session, f"{youtube_url}/videos")
+
+        if html:
+
+            is_live = (
+                '{"text":"AO VIVO"}' in html or
+                '"style":"LIVE"' in html or
+                ("watch?v=" in html and "live" in html.lower())
+            )
+
+            if is_live:
+
+                if is_new(youtube_url + "/live", "LIVE"):
+                    await youtube_live(youtube_url)
+
+            elif is_new(youtube_url, html):
+                await youtube_post(youtube_url, youtube_url)
+
+    except Exception as e:
+        print(f"[ERR YOUTUBE] {e}")
+
+
+# ===  ALERTA SOCIAL UNIFICADO === #
+
+async def enviar_alerta_social(mensagem):
+
+    # TELEGRAM
+    if bot_ticket and PANEL_CHAT_ID:
+        try:
+            await bot_ticket.send_message(
+                chat_id=PANEL_CHAT_ID,
+                text=mensagem,
+                parse_mode=None
+            )
+        except:
+            pass
+
+    # DISCORD
+    channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
+
+    if channel:
+        try:
+            await channel.send(content=mensagem)
+        except:
+            pass
+
+# =========================
+# 19 CHECK SYSTEM + AUXILIARES
+# =========================
+
+# === TICKETMASTER CHECK === #
+
+async def check_ticketmaster(session):
+
+    global last_ticket_check, total_tickets
+
+    if 'TICKET_LINKS' not in globals() or not TICKET_LINKS:
+        return
+
+    last_ticket_check = time.time()
+    total_tickets += 1
+
+    for url in TICKET_LINKS:
+
+        try:
+            html = await fetch(session, url)
+
+            if html and is_new(url, html):
+
+                found = "esgotado" not in html.lower()
+
+                await ticket_reposicao(url, url, found)
+
+        except Exception as e:
+            print(f"[ERR TICKET] {e}")
+
+
+# ===  BUYTICKET CHECK === #
+
+async def check_buyticket(session):
+
+    global last_buy_check, total_buy
+
+    if 'BUY_LINKS' not in globals() or not BUY_LINKS:
+        return
+
+    last_buy_check = time.time()
+    total_buy += 1
+
+    for url in BUY_LINKS:
+
+        try:
+            html = await fetch(session, url)
+
+            if html and is_new(url, html):
+                pass
+
+        except Exception as e:
+            print(f"[ERR BUY] {e}")
+
+
+# === WEVERSE CHECK === #
+
+async def check_weverse(session):
+
+    global last_weverse_check, total_weverse
+
+    if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS:
+        return
+
+    last_weverse_check = time.time()
+    total_weverse += 1
+
+    for url in WEVERSE_LINKS:
+
+        try:
+            html = await fetch(session, url)
+
+            if html and is_new(url, html):
+                pass
+
+        except Exception as e:
+            print(f"[ERR WEVERSE] {e}")
+
+
+# ===  SOCIAL CHECK ==== # 
+
+async def check_social(session):
+
+    global last_social_check, total_social
+
+    last_social_check = time.time()
+    total_social += 1
+
+    if 'SOCIAL_LINKS' in globals() and SOCIAL_LINKS:
+
+        for url in SOCIAL_LINKS:
+
+            try:
+                html = await fetch(session, url)
+
+                if html and is_new(url, html):
+                    pass
+
+            except Exception as e:
+                print(f"[ERR SOCIAL] {e}")
+
+    await check_youtube(session)
+
+
+# === YOUTUBE CHECK === #
+
+async def check_youtube(session):
+
+    global last_social_check, total_social
+
+    youtube_url = "https://www.youtube.com/@BTS"
+
+    try:
+        html = await fetch(session, f"{youtube_url}/videos")
+
+        if html:
+
+            is_live = (
+                '{"text":"AO VIVO"}' in html or
+                '"style":"LIVE"' in html or
+                ("watch?v=" in html and "live" in html.lower())
+            )
+
+            if is_live:
+
+                if is_new(youtube_url + "/live", "LIVE"):
+                    await youtube_live(youtube_url)
+
+            elif is_new(youtube_url, html):
+                await youtube_post(youtube_url, youtube_url)
+
+    except Exception as e:
+        print(f"[ERR YOUTUBE] {e}")
+
+
+# ===  ALERTA SOCIAL UNIFICADO === #
+
+async def enviar_alerta_social(mensagem):
+
+    # TELEGRAM
+    if bot_ticket and PANEL_CHAT_ID:
+        try:
+            await bot_ticket.send_message(
+                chat_id=PANEL_CHAT_ID,
+                text=mensagem,
+                parse_mode=None
+            )
+        except Exception as e:
+            print(f"[TG ERROR] {e}")
+
+    # DISCORD
+    channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
+
+    if channel:
+        try:
+            await channel.send(content=mensagem)
+        except Exception as e:
+            print(f"[DC ERROR] {e}")
+
+
+# === CONTROLE DE TEMPO  === #
+
+def minutes_since(ts):
+    return int((time.time() - ts) / 60)
+
+
+def status_color(last_check):
+    agora = time.time()
+
+    # vermelho se travado
+    if (agora - last_check) > 1800:
+        return "🔴"
+
+    # pulsante
+    return "🟢" if int(agora) % 2 == 0 else "🟡"
+
+
+# === UPTIME === #
+
+def get_uptime():
+    s = int(time.time() - start_time)
+    return f"{s//3600}h {(s%3600)//60}m {s%60}s"
+
+
+# ===  CONTADORES SAFE UPDATE === #
+
+def safe_increment(counter_name):
+
+    global total_tickets, total_buy, total_weverse, total_social
+
+    if counter_name == "ticket":
+        total_tickets += 1
+
+    elif counter_name == "buy":
+        total_buy += 1
+
+    elif counter_name == "weverse":
+        total_weverse += 1
+
+    elif counter_name == "social":
+        total_social += 1
+
+# =========================
+# 20 DISCORD ON_READY + SYNC (FIX DEFINITIVO)
+# =========================
+
+# ===  STATUS COUNTDOWN DATA === #
+
+def get_countdown_data():
+
+    now_dt = datetime.now()
+
+    prox_data = "Continua…"
+    prox_local = "---"
+    d_prox = 0
+    d_br = 0
+
+    # próximo show global
+    if 'AGENDA' in globals() and AGENDA:
+
+        for item in AGENDA:
+
+            try:
+                data_hora = datetime.strptime(
+                    f"{item[0]} {item[3]}",
+                    "%d/%m/%Y %H:%M"
+                )
+
+                if data_hora > now_dt:
+
+                    prox_data = item[0]
+                    prox_local = f"{item[1]}, {item[2]}"
+                    d_prox = (data_hora.date() - now_dt.date()).days
+                    break
+
+            except:
+                continue
+
+        # próximo BR
+        for item in AGENDA:
+
+            if "Brasil" in item[2]:
+
+                try:
+                    data_br = datetime.strptime(item[0], "%d/%m/%Y").date()
+
+                    if data_br >= now_dt.date():
+                        d_br = (data_br - now_dt.date()).days
+                        break
+
+                except:
+                    continue
+
+    return prox_data, prox_local, d_prox, d_br
+
+
+# ===  PAINEL RENDER (TELEGRAM + DISCORD) === #
+
+def gerar_texto_painel(data_show, city, d_prox, d_br):
+
+    return f"""
+🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
+
+✈️ PRÓXIMAS DATAS
+
+📅 Data: {data_show}
+📍 Local: {city}
+🔔 Faltam {d_prox} dias
+🩷 Brasil em {d_br} dias
+
+•°•👾 ATUALIZAÇÕES •°•°🛸
+
+🟣 Weverse {status_color(last_weverse_check)}
+🎯 {total_weverse}
+⏳ {minutes_since(last_weverse_check)} min
+
+⚪ Social {status_color(last_social_check)}
+🎯 {total_social}
+⏳ {minutes_since(last_social_check)} min
+
+🟠 Ticketmaster {status_color(last_ticket_check)}
+🎯 {total_tickets}
+⏳ {minutes_since(last_ticket_check)} min
+
+🔵 Buyticket {status_color(last_buy_check)}
+🎯 {total_buy}
+⏳ {minutes_since(last_buy_check)} min
+
+⏱ Uptime: {get_uptime()}
+"""
+
+# ===  PAINEL UPDATE (CORE FIX) === #
+async def update_panel():
+
+    global panel_message_id, discord_panel_msg_id
+
+    data_show, city, d_prox, d_br = get_countdown_data()
+
+    texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+
+    # ===  TELEGRAM PAINEL FIXO === #
+
+    if bot_ticket and PANEL_CHAT_ID:
+
+        try:
+
+            if not panel_message_id:
+                panel_message_id = carregar_id_telegram()
+
+            edited = False
+
+            # tenta editar
+            if panel_message_id:
+
+                try:
+                    await bot_ticket.edit_message_text(
+                        chat_id=PANEL_CHAT_ID,
+                        message_id=panel_message_id,
+                        text=texto
+                    )
+                    edited = True
+
+                except:
+                    panel_message_id = None
+
+            # recria se falhar
+            if not edited:
+
+                msg = await bot_ticket.send_message(
+                    chat_id=PANEL_CHAT_ID,
+                    text=texto
+                )
+
+                panel_message_id = msg.message_id
+                salvar_id_telegram(panel_message_id)
+
+                try:
+                    await bot_ticket.pin_chat_message(
+                        chat_id=PANEL_CHAT_ID,
+                        message_id=panel_message_id
+                    )
+                except:
+                    pass
+
+        except Exception as e:
+            print(f"[TG PANEL ERROR] {e}")
+
+
+    # ===  DISCORD PAINEL FIXO === #
+
+    if DISCORD_PANEL_CHANNEL_ID:
+
+        channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+
+        if channel:
+
+            embed = discord.Embed(
+                description=texto,
+                color=0x8A2BE2
+            )
+
+            try:
+
+                if not discord_panel_msg_id:
+
+                    async for msg in channel.history(limit=10):
+                        if msg.author == bot_discord.user:
+                            discord_panel_msg_id = msg.id
+                            break
+
+                if discord_panel_msg_id:
+
+                    msg = await channel.fetch_message(discord_panel_msg_id)
+                    await msg.edit(embed=embed)
+
+                else:
+
+                    msg = await channel.send(embed=embed)
+                    discord_panel_msg_id = msg.id
+
+            except Exception as e:
+                print(f"[DC PANEL ERROR] {e}")
+
+
+# ===  PAINEL STATUS HELPER (TEST HEADER FIX) === #
+
+def apply_test_header(text):
+
+    if TEST_MODE:
+        return f"⚠️ TESTE ⚠️\n\n{text}"
+
+    return text
+
+# ===  SAFE PANEL TRIGGER === #
+
+async def safe_update_panel():
+
+    try:
+        await update_panel()
+
+    except Exception as e:
+        print(f"[SAFE PANEL ERROR] {e}")
+
+=========================
+21 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
+=========================
+
+# === GLOBAL CACHE (ANTI-DUPLICAÇÃO REAL) === #
+
+GLOBAL_CACHE = {}
+GLOBAL_LOCK = asyncio.Lock()
+
+# === SMART CACHE CHECK (EVITA RE-ALERT REPETIDO) === #
+def is_new_global(key, content):
+
+    content_clean = " ".join(content.split())
+    new_hash = hashlib.md5(content_clean.encode("utf-8")).hexdigest()
+
+    if key not in GLOBAL_CACHE:
+        GLOBAL_CACHE[key] = new_hash
+        return True
+
+    if GLOBAL_CACHE[key] != new_hash:
+        GLOBAL_CACHE[key] = new_hash
+        return True
+
+    return False
+
+# ===  SAFE WRAPPER (ANTI-CRASH GLOBAL) === #
+
+async def safe_run(coro, label="TASK"):
+
+    try:
+        return await coro
+
+    except Exception as e:
+        print(f"[SAFE ERROR {label}] {e}")
+        return None
+
+# ===  WATCHDOG LOOP (RESTART AUTOMÁTICO DO MONITOR) === #
+
+async def watchdog_monitor():
+
+    await bot_discord.wait_until_ready()
+
+    print("[WATCHDOG] iniciado")
+
+    while True:
+
+        try:
+
+            task = asyncio.create_task(monitor_loop())
+
+            await asyncio.wait_for(task, timeout=300)
+
+        except asyncio.TimeoutError:
+
+            print("[WATCHDOG] monitor travado -> reiniciando")
+
+        except Exception as e:
+
+            print(f"[WATCHDOG ERROR] {e}")
+
+        await asyncio.sleep(5)
+
+# ===  SAFE FETCH WRAPPER (ANTI-SPAM REQUESTS) === #
+
+async def safe_fetch(session, url):
+
+    try:
+
+        html = await fetch(session, url)
+
+        if not html:
+            return None
+
+        return html
+
+    except Exception as e:
+        print(f"[FETCH SAFE ERROR] {e}")
+        return None
+
+
+# ===  LOCKED UPDATE PANEL (EVITA CONCORRÊNCIA) === #
+
+async def locked_update_panel():
+
+    async with GLOBAL_LOCK:
+
+        await safe_run(update_panel(), "PANEL")
+
+
+# ===  EVENT LOOP GUARD (ANTI FREEZE) === #
+
+def run_with_guard(loop_func):
+
+    async def wrapper():
+
+        while True:
+
+            try:
+                await loop_func()
+
+            except Exception as e:
+                print(f"[LOOP GUARD ERROR] {e}")
+
+            await asyncio.sleep(1)
+
+    return wrapper
+
+
+# ===  CLEAN START MONITOR (FINAL ENGINE) === #
+
+async def start_engine():
+
+    print("[ENGINE] iniciando sistema completo")
+
+    await asyncio.gather(
+
+        monitor_loop(),
+        watchdog_monitor()
+
+    )
+
+
+# ===  GLOBAL SAFE DISPATCH ALERT === #
+
+async def dispatch_alert(alert_type, message, key=None):
+
+    # evita duplicação global
+    if key:
+
+        if not is_new_global(key, message):
+            return
+
+    await send_alert(alert_type, message)
+    await locked_update_panel()
+
+
+# === FINAL PROTECTION LAYER === #
+
+async def protected_task(name, coro):
+
+    try:
+
+        return await coro
+
+    except Exception as e:
+
+        print(f"[PROTECTED {name}] {e}")
+
+        return None
+
+
+# === SYSTEM HEALTH CHECK === #
+
+def system_health():
+
+    return {
+        "tickets": total_tickets,
+        "buy": total_buy,
+        "weverse": total_weverse,
+        "social": total_social,
+        "uptime": get_uptime(),
+        "panel_ok": panel_message_id is not None
+    }
+
+
+# ===  AUTO RECOVERY PANEL FIX === #
+
+async def auto_repair_panel():
+
+    global panel_message_id
+
+    try:
+
+        if not panel_message_id:
+
+            print("[AUTO FIX] recriando painel telegram")
+
+            await update_panel()
+
+    except Exception as e:
+
+        print(f"[AUTO REPAIR ERROR] {e}")
+
+
+# ===  CLEAN TASK RUNNER === #
+
+async def run_task_safe(task_func, *args):
+
+    try:
+
+        return await task_func(*args)
+
+    except Exception as e:
+
+        print(f"[TASK ERROR] {e}")
+        return None
+
+=========================
+22 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
+=========================
+
+# === PRIORITY LEVELS === #
+
+PRIORITY = {
+    "ticket": 3,      # alta
+    "reposicao": 3,
+    "agenda": 2,
+    "weverse_post": 2,
+    "weverse_live": 3,
+    "instagram_post": 1,
+    "instagram_reels": 1,
+    "tiktok_post": 1,
+    "youtube_live": 3,
+    "youtube_post": 2,
+    "social": 1
+}
+
+
+# === SMART CONTENT DIFF (NÃO SÓ HASH) === #
+
+def extract_core_signatures(html):
+
+    """
+    Extrai "assinaturas reais" do conteúdo para detectar mudanças relevantes
+    (evita falso positivo de HTML que muda layout sem mudar conteúdo real)
+    """
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    text = soup.get_text(" ", strip=True)
+
+    links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+
+    images = [img.get("src") for img in soup.find_all("img") if img.get("src")]
+
+    signature = {
+        "text": text[:2000],  # limita peso
+        "links": sorted(set(links))[:50],
+        "images": sorted(set(images))[:20]
+    }
+
+    return signature
+
+
+# === SMART DIFF CHECK (EVITA SPAM REAL) === #
+
+def is_real_change(key, html):
+
+    signature = extract_core_signatures(html)
+
+    new_hash = hashlib.md5(str(signature).encode("utf-8")).hexdigest()
+
+    if key not in GLOBAL_CACHE:
+        GLOBAL_CACHE[key] = new_hash
+        return False
+
+    if GLOBAL_CACHE[key] != new_hash:
+        GLOBAL_CACHE[key] = new_hash
+        return True
+
+    return False
+
+
+# ===  PRIORITY ALERT ROUTER === #
+
+async def priority_send(alert_type, message, key=None):
+
+    level = PRIORITY.get(alert_type, 1)
+
+    # evita spam duplicado
+    if key:
+        if not is_real_change(key, message):
+            return
+
+    # HIGH PRIORITY -> imediata
+    if level == 3:
+
+        await send_alert(alert_type, message)
+        await locked_update_panel()
+        return
+
+    # MEDIUM -> leve delay
+    if level == 2:
+
+        await asyncio.sleep(1)
+
+        await send_alert(alert_type, message)
+        await locked_update_panel()
+        return
+
+    # LOW -> batch (evita flood)
+    if level == 1:
+
+        await asyncio.sleep(2)
+
+        await send_alert(alert_type, message)
+        return
+
+
+# === INTELLIGENT ALERT WRAPPER === #
+
+async def smart_alert(alert_type, url, message):
+
+    key = f"{alert_type}:{url}"
+
+    await priority_send(alert_type, message, key=key)
+
+
+# === REQUEST THROTTLER (ANTI FLOOD) === #
+
+LAST_REQUEST_TIME = {}
+
+
+async def throttle(key, delay=2):
+
+    now = time.time()
+
+    last = LAST_REQUEST_TIME.get(key, 0)
+
+    if now - last < delay:
+        await asyncio.sleep(delay - (now - last))
+
+    LAST_REQUEST_TIME[key] = time.time()
+
+
+# === SAFE MONITOR WRAPPER (ANTI CRASH TOTAL) === #
+
+async def safe_monitor_cycle(session):
+
+    try:
+
+        await throttle("ticket", 1)
+        await check_ticketmaster(session)
+
+        await throttle("buy", 1)
+        await check_buyticket(session)
+
+        await throttle("weverse", 1)
+        await check_weverse(session)
+
+        await throttle("social", 1)
+        await check_social(session)
+
+        await locked_update_panel()
+
+    except Exception as e:
+
+        print(f"[MONITOR SAFE ERROR] {e}")
+
+
+# ===  ENHANCED MONITOR LOOP (FINAL STABLE VERSION) === #
+
+async def monitor_loop():
+
+    await bot_discord.wait_until_ready()
+
+    print("[MONITOR] HARDENED MODE ON")
+
+    async with aiohttp.ClientSession() as session:
+
+        while True:
+
+            await safe_monitor_cycle(session)
+
+            await asyncio.sleep(20)
+
+
+# === GLOBAL HEALTH WATCHER === #
+
+async def health_watcher():
+
+    await bot_discord.wait_until_ready()
+
+    while True:
+
+        health = system_health()
+
+        # se algo travar muito tempo, tenta reparar painel
+        if not health["panel_ok"]:
+
+            print("[HEALTH] painel quebrado -> repair")
+
+            await auto_repair_panel()
+
+        await asyncio.sleep(60)
+
+
+# === ENGINE FINAL OVERRIDE (STARTUP LEVEL MAX) === #
+async def start_engine():
+
+    print("[ENGINE] FINAL MODE STARTED")
+
+    await asyncio.gather(
+
+        monitor_loop(),
+        watchdog_monitor(),
+        health_watcher()
+
+    )
+
+
+# === GLOBAL ALERT ENTRYPOINT (USAR ISSO SEMPRE) === #
+
+async def trigger_alert(alert_type, url, message):
+
+    await smart_alert(alert_type, url, message)
