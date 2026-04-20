@@ -28,6 +28,12 @@ from telegram.ext import ContextTypes
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
+# Instância do bot Discord (Movida para cá para ser definida antes dos comandos)
+intents = discord.Intents.default()
+intents.message_content = True
+intents.guilds = True
+bot_discord = commands.Bot(command_prefix="!", intents=intents)
+
 PANEL_CHAT_ID = -1003920883053
 
 panel_message_id = None
