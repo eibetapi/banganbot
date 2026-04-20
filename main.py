@@ -1339,14 +1339,15 @@ async def on_ready():
 # =============================================================
 
 async def main():
+
     # 1. Inicia o servidor Keep Alive (Flask/Web)
     keep_alive()
 
     # 2. Configurações do Telegram
     if TELEGRAM_TOKEN:
+
         from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
-        # Construção da Application
         application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
         # Registro de Handlers
@@ -1355,33 +1356,38 @@ async def main():
         application.add_handler(CommandHandler("comandos", handle_commands_telegram))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram))
 
-        # Inicialização correta
-        await application.initialize()
-        await application.start()
-
-        # 🔥 CORREÇÃO AQUI (ativar polling)
-        await application.updater.start_polling(drop_pending_updates=True)
-
         print("[SISTEMA] Telegram operativo e ouvindo comandos.")
 
-    # 3. Inicia o Motor de Monitoramento (Loop)
+        # ✅ CORREÇÃO DO CONFLICT (único polling correto)
+        asyncio.create_task(application.run_polling(drop_pending_updates=True))
+
+    # 3. Inicia o Motor de Monitoramento
     asyncio.create_task(monitor_loop())
     print("[SISTEMA] Motor de monitoramento Arirang iniciado.")
 
     # 4. Inicia o Discord
     try:
         token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
+
         if token:
             print("[DISCORD] Tentando login...")
             await bot_discord.start(token)
         else:
             print("[ERRO] Token do Discord não encontrado.")
+
     except Exception as e:
         print(f"[FATAL] Erro ao conectar ao Discord: {e}")
 
 
+# =============================================================
+# EXECUÇÃO
+# =============================================================
+
 if __name__ == "__main__":
+
     try:
-        asyncio.run(main())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+
     except (KeyboardInterrupt, SystemExit):
         print("\n[DESLIGANDO] Motores Arirang parados.")
