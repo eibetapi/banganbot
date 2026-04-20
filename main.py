@@ -2134,4 +2134,4 @@ async def start_engine():
 
 async def trigger_alert(alert_type, url, message):
 
-    await smart_alert(alert_type, url, message)
+    await smart_alert(alert_type, url, message) 
