@@ -1,146 +1,121 @@
-# =========================
-# 0 BOT WOOTTEO
-# =========================
+# ========================= 
+# 0 BOT WOOTTEO 
+# ========================= 
 
-import asyncio
-import time
-import hashlib
-import os
-import re
-from datetime import datetime
-from threading import Thread
-
-import discord
-from discord.ext import commands
-from discord import app_commands
-import aiohttp
-from bs4 import BeautifulSoup
-from flask import Flask
-
-# Ajuste nos imports do Telegram para evitar NameError
-from telegram import Bot, Update
+import asyncio 
+import time 
+import hashlib 
+import os import re from datetime 
+import datetime from threading 
+import Thread 
+import discord from discord.ext 
+import commands from discord 
+import app_commands import aiohttp from bs4 
+import BeautifulSoup from flask import Flask 
+# Ajuste nos imports do Telegram para evitar NameError 
+from telegram import Bot, Update 
 from telegram.ext import ContextTypes
 
-# ==========================================
-# 1 CONFIGURAÇÃO DE CREDENCIAIS & TELEGRAM
-# ==========================================
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+# ========================================== 
+# 1 CONFIGURAÇÃO DE CREDENCIAIS & TELEGRAM 
+# ========================================== 
 
-PANEL_CHAT_ID = -1003920883053
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN') 
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN') 
+PANEL_CHAT_ID = -1003920883053 
 
-# Variáveis de Controle de Persistência
-panel_message_id = None      
-discord_panel_msg_id = None  
-panel_initialized = False
+# Variáveis de Controle de Persistência 
+panel_message_id = None 
+discord_panel_msg_id = None 
+panel_initialized = False 
 
-# IDs dos Canais do Discord (DEFINIDOS AQUI)
-DISCORD_PANEL_CHANNEL_ID = 1494667029150695625
-DISCORD_TICKETS_CHANNEL_ID = 1494670074374651985
-DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461
-DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864
+# IDs dos Canais do Discord (DEFINIDOS AQUI) 
+DISCORD_PANEL_CHANNEL_ID = 1494667029150695625 
+DISCORD_TICKETS_CHANNEL_ID = 1494670074374651985 
+DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461 
+DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864 
 
-# Inicialização do Bot Telegram
-bot_ticket = None
-if TELEGRAM_TOKEN:
-    try:
-        bot_ticket = Bot(token=TELEGRAM_TOKEN)
-        print("[SISTEMA] Telegram configurado com sucesso.")
-    except Exception as e:
-        print(f"[ERRO CONFIG TELEGRAM] {e}")
+# Inicialização do Bot Telegram 
+bot_ticket = None 
+if TELEGRAM_TOKEN: 
+try: 
+bot_ticket = Bot(token=TELEGRAM_TOKEN) 
+print("[SISTEMA] Telegram configurado com sucesso.") 
+except Exception as e: 
+print(f"[ERRO CONFIG TELEGRAM] {e}") 
 
 # ==========================================
 # 2 CONTADORES GLOBAIS E PERSISTÊNCIA
 # ==========================================
-# Contadores de acesso (🎯 Acessos realizados)
-total_tickets = 0
-total_buy = 0
-total_weverse = 0
-total_social = 0
 
-# Timestamps dos últimos rastreios (⏳ Último rastreio há...)
-last_ticket_check = time.time()
-last_buy_check = time.time()
-last_weverse_check = time.time()
-last_social_check = time.time()
+# Contadores de acesso (🎯 Acessos realizados) 
 
-# IDs das mensagens dos painéis (ESSENCIAL para evitar novos posts e permitir a edição)
-panel_message_id = None      # Armazena o ID da mensagem no Telegram
-discord_panel_msg_id = None # Armazena o ID da mensagem no Discord
+total_tickets = 0 
+total_buy = 0 total_weverse = 0 
+total_social = 0 
 
-# Tempo de início para o cálculo de Uptime
-start_time = time.time()
+# Timestamps dos últimos rastreios (⏳ Último rastreio há...) 
+last_ticket_check = time.time() 
+last_buy_check = time.time() 
+last_weverse_check = time.time() 
+last_social_check = time.time() 
 
-# Rastreamento de mudanças e duplicatas
-CONTENT_HASH = {}
-SEEN_TICKET = set()
-SEEN_BUY = set()
-SEEN_WEVERSE = set()
+# IDs das mensagens dos painéis (ESSENCIAL para evitar novos posts e permitir a edição) 
+panel_message_id = None # Armazena o ID da mensagem no Telegram 
+discord_panel_msg_id = None # Armazena o ID da mensagem no Discord 
+
+# Tempo de início para o cálculo de Uptime 
+start_time = time.time() 
+
+# Rastreamento de mudanças e duplicatas 
+CONTENT_HASH = {} 
+SEEN_TICKET = set() 
+SEEN_BUY = set() 
+SEEN_WEVERSE = set() 
 SEEN_SOCIAL = set()
 
 # =========================
-# 3 DISCORD SETUP (CORRIGIDO)
+# 3 DISCORD SETUP 
 # =========================
 
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
+intents = discord.Intents.default() 
+intents.message_content = True 
+intents.members = True 
 
-bot_discord = commands.Bot(command_prefix="!", intents=intents)
+bot_discord = commands.Bot(command_prefix="!", intents=intents) 
 
+@bot_discord.event 
+async def on_ready(): 
+print(f"[DISCORD] Conectado como 
+{bot_discord.user}") 
 
-# =========================
-# 3.1 ON_READY (ÚNICO E LIMPO)
-# =========================
-@bot_discord.event
-async def on_ready():
-    print(f"[DISCORD] Conectado como {bot_discord.user}")
+# Define a presença do bot 
+await bot_discord.change_presence( 
+activity=discord.Activity( 
+type=discord.ActivityType.listening, 
+name="Em tournê - ouvindo: Arirang 🪭" 
+), 
+status=discord.Status.online 
+) 
 
-    # status do bot
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="Em tournê - ouvindo: Arirang 🪭"
-        ),
-        status=discord.Status.online
-    )
+# Sincroniza comandos slash 
+try: 
+synced = await bot_discord.tree.sync() 
+print(f"[DISCORD] Slash commands sincronizados: 
+{len(synced)}") 
+except Exception as e: 
+print(f"[DISCORD SYNC ERROR] {e}") 
 
-    # sincroniza slash commands
-    try:
-        synced = await bot_discord.tree.sync()
-        print(f"[DISCORD] Slash commands sincronizados: {len(synced)}")
-    except Exception as e:
-        print(f"[DISCORD SYNC ERROR] {e}")
+# Inicia o servidor Keep Alive 
+keep_alive() 
 
-    # inicia keep alive
-    keep_alive()
+# Garante que o monitor só inicie se não houver um rodando 
+if not hasattr(bot_discord, 'monitor_started'): bot_discord.loop.create_task(monitor_loop()) 
+bot_discord.monitor_started = True 
 
-    # garante monitor único
-    if not hasattr(bot_discord, "monitor_started"):
-        bot_discord.loop.create_task(monitor_loop())
-        bot_discord.monitor_started = True
 
 # =========================
-# 3.2 SLASH COMMAND GUARD (ANTI DUPLICAÇÃO)
-# =========================
-
-REGISTERED_COMMANDS = set()
-
-def safe_slash(name):
-    """
-    Evita CommandAlreadyRegistered duplicado no Discord
-    """
-    def decorator(func):
-        if name in REGISTERED_COMMANDS:
-            print(f"[SLASH BLOCKED] {name} já registrado, ignorando duplicata.")
-            return func
-
-        REGISTERED_COMMANDS.add(name)
-        return bot_discord.tree.command(name=name, description=func.__doc__ or "Sem descrição")(func)
-
-    return decorator
-# =========================
-# 4 WEB SERVER (KEEP ALIVE)
+# 4 WEB SERVER
 # =========================
 
 app_web = Flask(__name__)
@@ -162,31 +137,31 @@ def keep_alive():
 # 5 LÓGICA DE COMPARAÇÃO (ANTI-SPAM)
 # =========================
 
-def is_new(url, html):
-    """
-    Verifica se o conteúdo mudou e evita o spam de inicialização.
-    """
-    global CONTENT_HASH
-    
-    # Cria um resumo (hash) do conteúdo ignorando espaços extras
-    content_clean = " ".join(html.split())
-    new_hash = hashlib.md5(content_clean.encode('utf-8')).hexdigest()
-    
-    # TRAVA DE SEGURANÇA 1: Se o bot acabou de ligar (hash vazio)
-    # Ele apenas armazena o valor atual como 'conhecido' e retorna False
-    if url not in CONTENT_HASH:
-        CONTENT_HASH[url] = new_hash
-        print(f"[MEMÓRIA] URL aprendida: {url}")
-        return False
-        
-    # TRAVA DE SEGURANÇA 2: Comparação Real
-    if CONTENT_HASH[url] != new_hash:
-        CONTENT_HASH[url] = new_hash
-        print(f"[ALERTA] Mudança real detectada em: {url}")
-        return True
-        
-    # Se for igual, ignora silenciosamente
-    return False
+def is_new(url, html): 
+""" 
+Verifica se o conteúdo mudou e evita o spam de inicialização. 
+""" 
+global CONTENT_HASH 
+
+# Cria um resumo (hash) do conteúdo ignorando espaços extras 
+
+content_clean = " ".join(html.split()) 
+new_hash = hashlib.md5(content_clean.encode('utf-8')).hexdigest() 
+
+# TRAVA DE SEGURANÇA 1: Se o bot acabou de ligar (hash vazio) 
+# Ele apenas armazena o valor atual como 'conhecido' e retorna False 
+if url not in CONTENT_HASH: 
+CONTENT_HASH[url] = new_hash 
+print(f"[MEMÓRIA] URL aprendida: {url}") 
+return False 
+
+# TRAVA DE SEGURANÇA 2: Comparação Real 
+if CONTENT_HASH[url] != new_hash: 
+CONTENT_HASH[url] = new_hash 
+print(f"[ALERTA] Mudança real detectada em: {url}") 
+return True 
+
+# Se for igual, ignora silenciosamente return False
 
 # =========================
 # 6 LINKS (ÚNICO - NÃO DUPLICAR)
@@ -319,8 +294,9 @@ AGENDA = [
 ]
 
 # =============================================================
-# 8 CONTROLE (CÁLCULO PRECISO E STATUS PULSANTE)
+# 8 CONTROLE  
 # =============================================================
+
 boot_lock = asyncio.Lock()
 boot_initialized = False
 
@@ -348,7 +324,7 @@ def minutes_since(ts):
 
 def status_color(last_check):
     """
-    Retorna Status Pulsante: Alterna entre Verde e Azul a cada segundo.
+    Retorna Status Pulsante: Alterna entre Verde e Amarelo a cada segundo.
     Retorna Vermelho apenas se o rastreio parar por mais de 30 minutos.
     """
     agora = time.time()
@@ -357,7 +333,7 @@ def status_color(last_check):
     
     # Alterna entre Verde e Azul usando o resto da divisão dos segundos atuais
     # Isso cria o efeito visual de que o bot está "vivo" e trabalhando
-    return "🟢" if int(agora) % 2 == 0 else "🔵"
+    return "🟢" if int(agora) % 2 == 0 else "🟡"
 
 def get_countdown_data():
     """
@@ -413,6 +389,7 @@ async def get_session():
 # =========================
 # 10 EMOJIS
 # =========================
+
 MEMBER_EMOJI = {
     "rm": "🐨", "jin": "🐹", "suga": "🐱", "jhope": "🐿️",
     "jimin": "🐥", "v": "🐻", "jungkook": "🐰", "bts": "💜", "wootteo": "🛸"
@@ -430,101 +407,113 @@ def format_member(member_name):
 # 11 ROTEAMENTO E LINKS (CORRIGIDO)
 # =========================
 
-async def send_alert(alert_type, message):
-    if bot_ticket is not None:
-        try:
-            await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=message, parse_mode="Markdown")
-        except Exception as e:
-            print(f"[TELEGRAM ERROR] {e}")
+async def send_alert(alert_type, message): 
+if bot_ticket is not None: 
+try: 
+await 
+bot_ticket.send_message(chat_id=PANEL_CHAT_ID, 
+text=message, parse_mode="Markdown") 
+except Exception as e: 
+print(f"[TELEGRAM ERROR] {e}") 
 
-    try:
-        loop = asyncio.get_running_loop()
-        if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
-            loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
-        elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
-            loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
-        elif alert_type in ["instagram_post", "instagram_reels", "instagram_stories", "instagram_live", "tiktok_post", "tiktok_live"]:
-            loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
-    except Exception as e:
-        print(f"[DISCORD ROUTING ERROR] {e}")
+try: 
+loop = asyncio.get_running_loop() 
+if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]: 
 
-# --- LINKS DE MONITORAMENTO ---
-# (Mantidos conforme sua estrutura original)
+loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message)) 
+elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]: 
 
-TICKET_LINKS = ["https://www.ticketmaster.com.br/event/bts-sp"]
-BUY_LINKS = ["https://www.buyticket.com.br/bts"]
-WEVERSE_LINKS = ["https://weverse.io/bts/feed"]
+loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message)) 
+elif alert_type in ["instagram_post", "instagram_reels", "instagram_stories", "instagram_live", "tiktok_post", "tiktok_live"]: 
 
-INSTAGRAM_LINKS = {"bts": "https://www.instagram.com/bts.bighitofficial/"}
-TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"}
+loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message)) 
+except Exception as e: 
+print(f"[DISCORD ROUTING ERROR] {e}") 
 
-# NOTA: A variável AGENDA não é redeclarada aqui para não apagar os dados do Bloco 7.
-# O motor de busca no Bloco 8 lerá automaticamente a lista completa.
+# --- LINKS DE MONITORAMENTO --- # 
+(Mantidos conforme sua estrutura original) 
+TICKET_LINKS = ["https://www.ticketmaster.com.br/event/bts-sp"] 
+BUY_LINKS = ["https://www.buyticket.com.br/bts"] 
+WEVERSE_LINKS = ["https://weverse.io/bts/feed"] 
+INSTAGRAM_LINKS = {"bts": "https://www.instagram.com/bts.bighitofficial/"} TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"} 
+YOUTUBE_LINKS = {"bts": "https://www.youtube.com/@BTS/"} 
+
+# NOTA: A variável AGENDA não é redeclarada aqui para não apagar os dados do Bloco 7. # O motor de busca no Bloco 8 lerá automaticamente a lista completa.
 
 # =============================================================
 # 12 GESTÃO DO PAINEL (FIXO E ÚNICO)
 # =============================================================
 
-async def update_panel():
-    global panel_message_id, discord_panel_msg_id
-    
-    data_show, city, d_prox, d_br = get_countdown_data()
-    # Puxa o texto formatado da função abaixo
-    texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+async def update_panel(): 
+global panel_message_id, discord_panel_msg_id 
 
-    # --- TELEGRAM: BUSCA O MAIS RECENTE NO CANAL SE NÃO TIVER ID ---
-    if bot_ticket and PANEL_CHAT_ID:
-        try:
-            if not panel_message_id:
-                panel_message_id = carregar_id_telegram()
+data_show, city, d_prox, d_br = 
+get_countdown_data() 
 
-            if panel_message_id:
-                try:
-                    await bot_ticket.edit_message_text(
-                        chat_id=PANEL_CHAT_ID,
-                        message_id=panel_message_id,
-                        text=texto,
-                        parse_mode="Markdown"
-                    )
-                except Exception as e:
-                    if "message to edit not found" in str(e).lower():
-                        panel_message_id = None 
+# Puxa o texto formatado da função abaixo 
+texto = gerar_texto_painel(data_show, city, d_prox, d_br) 
 
-            if not panel_message_id:
-                try: await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-                except: pass
-                
-                msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown")
-                panel_message_id = msg.message_id
-                salvar_id_telegram(panel_message_id)
-                try: await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
-                except: pass
-        except Exception as e:
-            print(f"[DEBUG] Falha update TG: {e}")
+# --- TELEGRAM: BUSCA O MAIS RECENTE NO CANAL SE NÃO TIVER ID --- # 
 
-    # --- DISCORD ---
-    if DISCORD_PANEL_CHANNEL_ID:
-        channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
-        if channel:
-            embed = discord.Embed(description=texto, color=0x8A2BE2)
-            try:
-                if not discord_panel_msg_id:
-                    async for message in channel.history(limit=10):
-                        if message.author == bot_discord.user:
-                            discord_panel_msg_id = message.id
-                            break
-                if discord_panel_msg_id:
-                    msg = await channel.fetch_message(discord_panel_msg_id)
-                    await msg.edit(content=None, embed=embed)
-                else:
-                    msg = await channel.send(embed=embed)
-                    discord_panel_msg_id = msg.id
-            except: pass
+if bot_ticket and PANEL_CHAT_ID: 
+try: 
+if 
+not panel_message_id: 
+panel_message_id = carregar_id_telegram() 
 
-def gerar_texto_painel(data_show, city, d_prox, d_br):
-    global total_weverse, total_social, total_tickets, total_buy
-    global last_weverse_check, last_social_check, last_ticket_check, last_buy_check
-    
+if panel_message_id: 
+try: 
+await 
+bot_ticket.edit_message_text( 
+chat_id=PANEL_CHAT_ID, message_id=panel_message_id, 
+text=texto, 
+parse_mode="Markdown" 
+) 
+except Exception as e: 
+if "message to edit not found" in str(e).lower(): 
+panel_message_id = None 
+
+if not panel_message_id: 
+try: await 
+bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID) 
+except: pass 
+msg = await 
+bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto, parse_mode="Markdown") 
+panel_message_id = msg.message_id 
+salvar_id_telegram(panel_message_id) 
+try: await 
+bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id) 
+except: pass 
+except Exception as e: 
+print(f"[DEBUG] Falha update TG: {e}") 
+
+# --- DISCORD --- #
+
+if DISCORD_PANEL_CHANNEL_ID: 
+channel = 
+bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) 
+if channel: 
+embed = discord.Embed(description=texto, color=0x8A2BE2) 
+try: 
+if not discord_panel_msg_id: 
+async for message in 
+channel.history(limit=10): 
+
+if message.author == bot_discord.user: 
+discord_panel_msg_id = message.id 
+break 
+
+if discord_panel_msg_id: 
+msg = await 
+channel.fetch_message(discord_panel_msg_id) 
+await msg.edit(content=None, embed=embed) 
+else: 
+msg = await channel.send(embed=embed) 
+discord_panel_msg_id = msg.id 
+except: pass 
+
+def gerar_texto_painel(data_show, city, d_prox, d_br): global total_weverse, total_social, total_tickets, total_buy global last_weverse_check, last_social_check, last_ticket_check, last_buy_check    
+
     return f"""🪭 ⊙⊝⊜ **ARIRANG TOUR** ⊙⊝⊜ 🪭
 
 
@@ -559,7 +548,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
   ⏳ Último rastreio há: **{minutes_since(last_buy_check)} min**"""
 
 # =========================
-# 13 ALERTAS WEVERSE (CORRIGIDO)
+# 13 ALERTAS WEVERSE 
 # =========================
 
 LAST_WEVERSE_POST_URL = None
@@ -860,71 +849,156 @@ async def test_youtube_live(url="https://www.youtube.com/@BTS/live", platform="b
     
     await send_alert("youtube_live", msg)
 
-# =========================
-# 17 COMANDO /TESTE (DISCORD) - ÚNICO
-# =========================
+# ===================
+# 17 MOTOR + COMANDOS + TESTE 
+# ===================
 
-@bot_discord.tree.command(
-    name="teste",
-    description="Dispara os alertas de teste"
-)
+async def monitor_loop():
+    await bot_discord.wait_until_ready()
+
+    global panel_message_id, discord_panel_msg_id
+    global total_tickets, total_buy, total_weverse, total_social
+    global last_ticket_check, last_buy_check, last_weverse_check, last_social_check
+
+    print("[SISTEMA] Motor Arirang operando. Aguardando ciclos...")
+
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                await check_ticketmaster(session)
+                await check_buyticket(session)
+                await check_weverse(session)
+                await check_social(session)
+
+                await update_panel()
+
+                await asyncio.sleep(25)
+
+            except Exception as e:
+                print(f"[MONITOR ERROR] {e}")
+                await asyncio.sleep(10)
+
+
+# === COMANDOS TELEGRAM === #
+
+async def handle_commands_telegram(update, context):
+    if not update.message or not update.message.text:
+        return
+
+    user_cmd = update.message.text.lower()
+
+    if "/teste" in user_cmd:
+        await run_full_test_telegram()
+        await update_panel()
+
+    elif "/ping" in user_cmd:
+        await update.message.reply_text("🏓 Pong!")
+
+    elif "/comandos" in user_cmd:
+        await update.message.reply_text("/ping, /teste, /comandos")
+
+
+# === COMANDO DISCORD === #
+
+@bot_discord.tree.command(name="teste", description="Dispara testes do sistema")
 async def teste_discord(interaction: discord.Interaction):
-    global bot_ticket
-    original_bot_ticket = bot_ticket
-
     await interaction.response.defer(ephemeral=True)
 
     try:
-        # bloqueia Telegram durante teste
-        bot_ticket = None
-
-        # executa teste completo (única versão)
         await run_full_test_discord()
-
-        # atualiza painel após teste
         await update_panel()
-
         await interaction.delete_original_response()
-
     except Exception as e:
-        print(f"[TESTE ERROR] {e}")
-
-    finally:
-        bot_ticket = original_bot_ticket
+        print(f"[DEBUG DISCORD TESTE] {e}")
 
 
-# =========================
-# MOTOR DE TESTE (DISCORD) — ÚNICO
-# =========================
+# === TESTE TELEGRAM === #
 
-async def run_full_test_discord():
-    """Executa os alertas reais do sistema para Discord"""
+async def run_full_test_telegram():
     try:
-        # 1. Ticket test
         await test_ticket_reposicao(
-            "https://www.ticketmaster.com.br/",
-            "TESTE DISCORD",
+            TICKET_LINKS[0],
+            "28/10/2026",
             True,
-            platform="both"
+            "telegram"
         )
 
-        # 2. Weverse test
+        await test_agenda(
+            {"date": "28/10/2026", "city": "São Paulo", "country": "Brasil"},
+            "telegram"
+        )
+
         await test_weverse_post(
             WEVERSE_LINKS[0],
             "bts",
             "Update",
-            "Conteúdo Teste",
+            "Teste",
             True,
-            platform="both"
+            "telegram"
         )
 
-        # 3. YouTube test
-        await test_youtube_live(
-            "https://www.youtube.com/@BTS/live"
+        await test_instagram_post(
+            INSTAGRAM_LINKS["bts"],
+            "bts",
+            "post",
+            True,
+            "telegram"
         )
+
+        await test_tiktok_post(
+            TIKTOK_LINKS["bts"],
+            "bts",
+            "video",
+            True,
+            "telegram"
+        )
+
+        await test_youtube_live()
 
     except Exception as e:
-        print(f"[DEBUG] Erro Teste Discord: {e}")
+        print(f"[DEBUG TG TEST] {e}")
+
+
+# === TESTE DISCORD === #
+
+async def run_full_test_discord():
+    try:
+        await test_ticket_reposicao(
+            TICKET_LINKS[0],
+            "28/10/2026",
+            True,
+            "discord"
+        )
+
+        await test_weverse_post(
+            WEVERSE_LINKS[0],
+            "bts",
+            "Update",
+            "Teste",
+            True,
+            "discord"
+        )
+
+        await test_instagram_post(
+            INSTAGRAM_LINKS["bts"],
+            "bts",
+            "post",
+            True,
+            "discord"
+        )
+
+        await test_tiktok_post(
+            TIKTOK_LINKS["bts"],
+            "bts",
+            "video",
+            True,
+            "discord"
+        )
+
+        await test_youtube_live()
+
+    except Exception as e:
+        print(f"[DEBUG DC TEST] {e}")
 
 # =========================
 # 18 FETCH UNIVERSAL
@@ -932,16 +1006,17 @@ async def run_full_test_discord():
 
 async def fetch(session, url):
     if session is None: return None
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) 
+AppleWebKit/537.36'}
     try:
         async with session.get(url, headers=headers, timeout=20) as response:
             if response.status != 200: return None
             return await response.text()
     except: return None
 
-# =============================================================
+# ==============================
 # 19 FUNÇÕES DE CHECK (RASTREIO E CONTADORES)
-# =============================================================
+# ==============================
 
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
@@ -996,7 +1071,8 @@ async def check_youtube(session):
     try:
         html = await fetch(session, f"{youtube_url}/videos")
         if html:
-            is_live = '{"text":"AO VIVO"}' in html or '"style":"LIVE"' in html or "watch?v=" in html and "live" in html.lower()
+            is_live = '{"text":"AO VIVO"}' in html or '
+"style":"LIVE"' in html or "watch?v=" in html and "live" in html.lower()
             if is_live:
                 if is_new(youtube_url + "/live", "LIVE"): await youtube_live(youtube_url)
             elif is_new(youtube_url, html): await youtube_post(youtube_url, youtube_url)
@@ -1008,116 +1084,85 @@ async def check_youtube(session):
 
 async def enviar_alerta_social(mensagem):
     if bot_ticket and PANEL_CHAT_ID:
-        try: await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode="Markdown")
+        try: await bot_ticket.send_message(
+chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode="Markdown")
         except: pass
     channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
     if channel:
         try: await channel.send(content=mensagem)
         except: pass
 
-# =========================
-# 20 MONITOR LOOP (ESTÁVEL + ANTI DUPLICAÇÃO)
-# =========================
+# ========================= 
+# 20 DISCORD: EVENTO ON_READY 
+# ========================= 
 
-monitor_lock = asyncio.Lock()
-monitor_running = False
+@bot_discord.event 
+async def on_ready(): 
+print(f"✅ Logado no Discord como {bot_discord.user}") 
+status_formatado = "🪭 Em tournê! Ouvindo: Arirang" 
+await bot_discord.change_presence( 
 
-async def monitor_loop():
-    global monitor_running
+activity=discord.Activity(type=discord.ActivityType.listening, 
+name=status_formatado), 
+status=discord.Status.online 
+) 
 
-    # impede múltiplos loops rodando ao mesmo tempo
-    if monitor_running:
-        print("[MONITOR] Loop já ativo, ignorando duplicação.")
-        return
+try: 
+await bot_discord.tree.sync() 
+except Exception as e: 
+print(f"❌ Erro na sincronização Discord: {e}") 
 
-    monitor_running = True
-    print("[MONITOR] Loop iniciado com sucesso.")
+# ===============================
+# 21 INICIALIZAÇÃO FINAL (MAIN) - VERSÃO ESTÁVEL 
+# ===============================
 
-    session = None
+async def main(): 
 
-    while True:
-        try:
-            async with monitor_lock:
+# 1. Inicia o servidor Keep Alive 
+(Flask/Web) keep_alive() 
 
-                # cria sessão única reutilizável
-                if session is None or session.closed:
-                    session = await get_session()
+# 2. Configurações do Telegram  
+if TELEGRAM_TOKEN: f
+rom telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters 
 
-                # =========================
-                # RASTREIOS PRINCIPAIS
-                # =========================
-                await check_ticketmaster(session)
-                await check_buyticket(session)
-                await check_weverse(session)
-                await check_social(session)
+# Construção da Application 
+application = ApplicationBuilder().token(TELEGRAM_TOKEN).build() 
 
-        except Exception as e:
-            print(f"[MONITOR ERROR] {e}")
+# Registro de Handlers
+application.add_handler(CommandHandler("ping", handle_commands_telegram)) 
+application.add_handler(CommandHandler("teste", handle_commands_telegram)) 
+application.add_handler(CommandHandler("comandos", handle_commands_telegram)) 
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram)) 
 
-        # intervalo seguro (evita flood + CPU alta)
-        await asyncio.sleep(15)
+# Inicialização correta para evitar Conflict await application.initialize() await application.start() 
 
-# =============================================================
-# 21 INICIALIZAÇÃO FINAL (MAIN) - VERSÃO ESTÁVEL (CORRIGIDA)
-# =============================================================
+# O drop_pending_updates=True limpa mensagens antigas que causariam crash no boot 
+await
+application.updater.start_polling(drop_pending_updates=True) 
+print("[SISTEMA] Telegram operativo e ouvindo comandos.") 
 
-async def main():
+# 3. Inicia o Motor de Monitoramento (Loop do Bloco 17) 
+asyncio.create_task(monitor_loop()) 
+print("[SISTEMA] Motor de monitoramento Arirang iniciado.") 
 
-    # =========================
-    # 21.1 KEEP ALIVE (FLASK)
-    # =========================
-    keep_alive()
+# 4. Inicia o Discord (Mantendo o loop vivo) 
+try: 
+token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN 
+if token: 
+print("[DISCORD] Tentando login...") 
 
-    # =========================
-    # 21.2 CONFIGURAÇÃO TELEGRAM
-    # =========================
-    if TELEGRAM_TOKEN:
-        from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+# Usamos o start() em vez de run() dentro do main 
+async 
+await bot_discord.start(token) 
+else: 
+print("[ERRO] Token do Discord não encontrado.") 
+except Exception as e: print(f"[FATAL] Erro ao conectar ao Discord: {e}") 
 
-        application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+if __name__ == "__main__": 
 
-        application.add_handler(CommandHandler("ping", handle_commands_telegram))
-        application.add_handler(CommandHandler("teste", handle_commands_telegram))
-        application.add_handler(CommandHandler("comandos", handle_commands_telegram))
-        application.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram)
-        )
-
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling(drop_pending_updates=True)
-
-        print("[SISTEMA] Telegram operativo e ouvindo comandos.")
-
-    # =========================
-    # 21.3 MONITORAMENTO BOT LOOP
-    # =========================
-    asyncio.create_task(monitor_loop())
-    print("[SISTEMA] Motor de monitoramento Arirang iniciado.")
-
-    # =========================
-    # 21.4 DISCORD STARTUP
-    # =========================
-    try:
-        token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
-
-        if token:
-            print("[DISCORD] Tentando login...")
-            await bot_discord.start(token)
-        else:
-            print("[ERRO] Token do Discord não encontrado.")
-
-    except Exception as e:
-        print(f"[FATAL] Erro ao conectar ao Discord: {e}")
-
-
-# =========================
-# MAIN ENTRYPOINT
-# =========================
-
-if __name__ == "__main__":
-    try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-    except (KeyboardInterrupt, SystemExit):
-        print("\n[DESLIGANDO] Motores Arirang parados.")
+# Padrão recomendado para rodar múltiplos bots assíncronos 
+try: 
+loop = asyncio.get_event_loop() 
+loop.run_until_complete(main()) 
+except (KeyboardInterrupt, SystemExit): 
+print("\n[DESLIGANDO] Motores Arirang parados.")
