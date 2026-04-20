@@ -1,5 +1,5 @@
 # =========================
-# 0 BOT WOOTTEO
+# 1 BOT WOOTTEO
 # =========================
 
 import asyncio
@@ -25,7 +25,7 @@ from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
 # ==========================================
-# 1 CONFIGURAÇÃO DE CREDENCIAIS & TELEGRAM
+# 2 CONFIGURAÇÃO DE CREDENCIAIS & TELEGRAM
 # ==========================================
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -55,7 +55,7 @@ if TELEGRAM_TOKEN:
         print(f"[ERRO CONFIG TELEGRAM] {e}")
 
 # ==========================================
-# 2 CONTADORES GLOBAIS E PERSISTÊNCIA
+# 3 CONTADORES GLOBAIS E PERSISTÊNCIA
 # ==========================================
 
 # Contadores de acesso (🎯 Acessos realizados)
@@ -87,43 +87,6 @@ SEEN_BUY = set()
 SEEN_WEVERSE = set()
 SEEN_SOCIAL = set()
 
-# =========================
-# 3 DISCORD SETUP (CLEAN FIX)
-# =========================
-
-import discord
-from discord.ext import commands
-from discord import app_commands
-
-intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True
-intents.members = True
-
-bot_discord = commands.Bot(command_prefix="!", intents=intents)
-
-# Controle interno anti-duplicação de comandos
-if not hasattr(bot_discord, "COMMANDS_LOADED"):
-    bot_discord.COMMANDS_LOADED = False
-
-
-# =========================
-# EVENTO ON_READY BASE (SEM SYNC AQUI)
-# =========================
-@bot_discord.event
-async def on_ready():
-    print(f"✅ Logado no Discord como {bot_discord.user}")
-
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="Em tournê - Arirang 🪭"
-        ),
-        status=discord.Status.online
-    )
-
-    # NÃO faz sync aqui pra evitar duplicação
-    # sync será controlado no bloco 22 (novo)
 # =========================
 # 4 WEB SERVER (KEEP ALIVE)
 # =========================
