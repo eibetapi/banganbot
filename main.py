@@ -1,19 +1,25 @@
-# ========================= 
+# =========================
 # 0 BOT WOOTTEO 
-# ========================= 
+# =========================
 
-import asyncio 
-import time 
-import hashlib 
-import os import re from datetime 
-import datetime from threading 
-import Thread 
-import discord from discord.ext 
-import commands from discord 
-import app_commands import aiohttp from bs4 
-import BeautifulSoup from flask import Flask 
-# Ajuste nos imports do Telegram para evitar NameError 
-from telegram import Bot, Update 
+import asyncio
+import time
+import hashlib
+import os
+import re
+from datetime import datetime
+from threading import Thread
+
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+import aiohttp
+from bs4 import BeautifulSoup
+from flask import Flask
+
+# Ajuste nos imports do Telegram
+from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
 # ========================================== 
