@@ -1254,6 +1254,24 @@ if not hasattr(bot_discord, "COMMANDS_LOADED"):
 # 18 CHECK SYSTEM + AUXILIARES
 # =========================
 
+# === FUNÇÃO FETCH (CORREÇÃO DO ERRO 'fetch' is not defined) === #
+
+async def fetch(session, url):
+    try:
+        async with session.get(url, timeout=15) as response:
+            if response.status == 200:
+                return await response.text()
+            return None
+    except Exception as e:
+        print(f"[FETCH ERROR] {url}: {e}")
+        return None
+
+# === FUNÇÃO AUXILIAR (CORREÇÃO DO ERRO 'carregar_id_telegram') === #
+
+def carregar_id_telegram():
+    # Retorna o ID do painel configurado
+    return PANEL_CHAT_ID
+
 # === TICKETMASTER CHECK === #
 
 async def check_ticketmaster(session):
