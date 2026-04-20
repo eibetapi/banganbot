@@ -1461,3 +1461,15 @@ async def register_discord_commands():
 
     bot_discord.COMMANDS_LOADED = True
     print("[DISCORD] Comandos registrados com sucesso.")
+
+# =========================
+# START DO BOT (ENTRYPOINT)
+# =========================
+
+if __name__ == "__main__":
+    import asyncio
+
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("[SISTEMA] Encerrado manualmente.")
