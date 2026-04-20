@@ -588,7 +588,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
   🔔 Faltam **{d_prox}** dias.
   🩷 Faltam **{d_br}** dias para o BTS no Brasil!
 
-•°•👾.  * .🌙  **ATUALIZAÇÕES**  .💫 *  . *  •°•°🛸
+•°•👾.  * .🌙  **ATUALIZAÇÕES** .💫 * . * •°•°🛸
 
   🟣 **Weverse** {status_color(last_weverse_check)}
   🎯 Acessos realizados: **{total_weverse}**
@@ -605,9 +605,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
   🔵 **Buyticket** {status_color(last_buy_check)}
   🎯 Acessos realizados: **{total_buy}**
   ⏳ Último rastreio há: **{minutes_since(last_buy_check)} min**
-"""
 
-texto = f"""
 •°•👾 Wootteo em rota há: **{get_uptime()}** ☄️🌍💫
 •°•°🛸
 """
@@ -800,11 +798,36 @@ async def instagram_live(url, member_name, title, found):
     await update_panel()
 
 # =========================
-# 15 ALERTAS TIKTOK E YOUTUBE (CORRIGIDO)
+# 15 ALERTAS X, TIKTOK E YOUTUBE (CORRIGIDO)
 # =========================
 
+LAST_X_LINK = None
 LAST_TIKTOK_LINK = None
 LAST_YOUTUBE_LINK = None
+
+# === X (TWITTER) === #
+
+async def x_post(url, member_name, message_translated, found):
+    global LAST_X_LINK, total_social, last_social_check
+
+    if url == LAST_X_LINK:
+        return
+
+    LAST_X_LINK = url
+
+    total_social += 1
+    last_social_check = time.time()
+
+    emoji = get_member_emoji(member_name)
+
+    msg = f"""
+🐦 X POST 🐦
+💜 BTS publicou um post!
+📝 {message_translated}
+🔗 {url}
+"""
+    await send_alert("x_post", msg)
+    await update_panel()
 
 # === TIKTOK === #
 
@@ -888,194 +911,211 @@ async def youtube_live(url=None):
     await update_panel()
 
 # =========================
-# 16 SISTEMA DE TESTE (ROTEADOR LIMPO - PADRÃO FIXO)
+# 16 SISTEMA DE TESTE (ESTRUTURA DE MENSAGENS FIXA)
 # =========================
 
-TEST_HEADER = "⚠️ TESTE ⚠️"
-EMBED_COLOR = 0x8A2BE2
-
-# === EMBED BASE === #
-
-def make_embed(title, description):
-
-    final_title = f"{TEST_HEADER} {title}" if TEST_MODE else title
-
-    return discord.Embed(
-        title=final_title,
-        description=description,
-        color=EMBED_COLOR
-    )
-
-# === DISCORD ROUTER === #
-
-async def send_discord(channel_id, embed):
-    channel = bot_discord.get_channel(channel_id)
-    if channel:
-        await channel.send(embed=embed)
-
-# ===  RUN TEST DISCORD === #
+# === RUN TEST DISCORD === #
 
 async def run_full_test_discord():
-    print("[TESTE DC] iniciando...")
+    print("[TESTE DC] iniciando bateria completa...")
+    
+    global TEST_MODE
+    TEST_MODE = True
 
-    await test_ticket_reposicao(
-        "https://ticket.test",
-        "28/10/2026",
-        True
-    )
-
+    # --- TICKETMASTER & BUYTICKET ---
+    await test_ticket_reposicao()
+    await test_ticket_agenda()
+    await test_buyticket_revenda()
     await asyncio.sleep(1)
 
-    await test_agenda({
-        "date": "28/10/2026",
-        "city": "São Paulo",
-        "country": "Brasil"
-    })
-
+    # --- WEVERSE ---
+    await test_weverse_post()
+    await test_weverse_live()
+    await test_weverse_news()
+    await test_weverse_media()
     await asyncio.sleep(1)
 
-    await test_weverse_post(
-        "https://weverse.io/test",
-        "bts",
-        "Teste",
-        "Conteúdo teste",
-        True
-    )
-
+    # --- X (TWITTER) ---
+    await test_x_post()
     await asyncio.sleep(1)
 
-    await test_instagram_post(
-        "https://instagram.com/test",
-        "bts",
-        "post",
-        True
-    )
-
+    # --- INSTAGRAM ---
+    await test_instagram_post()
+    await test_instagram_reel()
+    await test_instagram_story()
+    await test_instagram_live()
     await asyncio.sleep(1)
 
-    await test_tiktok_post(
-        "https://tiktok.com/test",
-        "bts",
-        "video",
-        True
-    )
-
-    await asyncio.sleep(1)
-
+    # --- TIKTOK & YOUTUBE ---
+    await test_tiktok_post()
+    await test_tiktok_live()
     await test_youtube_post()
-
-    await asyncio.sleep(1)
-
     await test_youtube_live()
 
+    TEST_MODE = False
     print("[TESTE DC] finalizado")
 
-# === TICKET REPOSIÇÃO (FIX PADRÃO) === #
+# === TICKETMASTER & BUYTICKET TEST === #
 
-async def test_ticket_reposicao(url, key, found):
-
-    embed = make_embed(
-        "🔥 ALERTA DE REPOSIÇÃO 🔥",
-        f"""
-📅 Data: 28/10/2026  
-🔗 Link: https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10  
-✅ Status: Liberado  
+async def test_ticket_reposicao():
+    msg = f"""
+⚠️ TESTE ⚠️
+🔥 ALERTA DE REPOSIÇÃO 🔥
+📅 Data: 28/10/2026
+🔗 Link: https://www.ticketmaster.com.br/event/venda-geral-bts
+✅ Status: Liberado
 """
-    )
+    await send_alert("reposicao", msg)
 
-    await send_discord(DISCORD_TICKETS_CHANNEL_ID, embed)
-    await send_alert("reposicao", "TESTE REPOSIÇÃO")
-
-# === AGENDA === #
-
-async def test_agenda(data):
-
-    embed = make_embed(
-        "💜 AGENDA NOVA 💜",
-        f"""
-📅 Data: {data['date']}  
-🏙️ Cidade: {data['city']}  
-🌎 País: {data['country']}  
+async def test_ticket_agenda():
+    msg = f"""
+⚠️ TESTE ⚠️
+💜 AGENDA NOVA 💜
+📅 Data: 29/10/2026
+🏙️ Cidade: São Paulo
+🌎 País: Brasil
 """
-    )
+    await send_alert("agenda", msg)
 
-    await send_discord(DISCORD_TICKETS_CHANNEL_ID, embed)
-    await send_alert("agenda", "TESTE AGENDA")
-
-# ===  WEVERSE POST === #
-async def test_weverse_post(url, member_name, title, message_translated, found):
-
-    embed = make_embed(
-        "🩷 WEVERSE POST 🩷",
-        f"""
-👤 BTS publicou uma mensagem  
-📌 Conteúdo teste  
-🔗 https://weverse.io/test  
+async def test_buyticket_revenda():
+    msg = f"""
+⚠️ TESTE ⚠️
+🎫 REVENDA BUYTICKET 🎫
+👤 BTS World Tour Arirang
+📌 Novos ingressos disponíveis para revenda
+🔗 https://www.buyticket.com.br/bts
 """
-    )
+    await send_alert("buyticket_revenda", msg)
 
-    await send_discord(DISCORD_WEVERSE_CHANNEL_ID, embed)
-    await send_alert("weverse_post", "TESTE WEVERSE")
+# === WEVERSE TEST === #
 
-# ===  INSTAGRAM POST === #
-
-async def test_instagram_post(url, member_name, title, found):
-
-    embed = make_embed(
-        "🌟 INSTAGRAM POST 🌟",
-        f"""
-👤 BTS postou uma foto  
-🔗 https://instagram.com/test  
+async def test_weverse_post():
+    msg = f"""
+⚠️ TESTE ⚠️
+🩷 WEVERSE POST 🩷
+💜 BTS publicou uma mensagem
+📌 Título Teste
+📝 Conteúdo da mensagem traduzida aqui
+🔗 https://weverse.io/bts/artist
 """
-    )
+    await send_alert("weverse_post", msg)
 
-    await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
-    await send_alert("instagram_post", "TESTE INSTAGRAM")
-
-# ===  TIKTOK POST === #
-
-async def test_tiktok_post(url, member_name, title, found):
-
-    embed = make_embed(
-        "🎵 TIKTOK POST 🎵",
-        f"""
-👤 BTS postou um vídeo  
-🔗 https://tiktok.com/test  
+async def test_weverse_live():
+    msg = f"""
+⚠️ TESTE ⚠️
+📹 WEVERSE LIVE 📹
+💜 BTS está ao vivo!
+🔗 https://weverse.io/bts/live
 """
-    )
+    await send_alert("weverse_live", msg)
 
-    await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
-    await send_alert("tiktok_post", "TESTE TIKTOK")
+async def test_weverse_news():
+    msg = f"""
+⚠️ TESTE ⚠️
+🚨 WEVERSE NEWS 🚨
+💜 BTS publicou notícia
+📝 Detalhes da notícia oficial
+🔗 https://weverse.io/bts/official
+"""
+    await send_alert("weverse_news", msg)
 
-# ===  YOUTUBE POST === #
+async def test_weverse_media():
+    msg = f"""
+⚠️ TESTE ⚠️
+📀 WEVERSE MEDIA 📀
+💜 BTS publicou mídia
+⭐ Título da Mídia
+📝 Descrição da mídia traduzida
+🔗 https://weverse.io/bts/media
+"""
+    await send_alert("weverse_media", msg)
+
+# === X TEST (TWITTER) === #
+
+async def test_x_post():
+    msg = f"""
+⚠️ TESTE ⚠️
+🐦 X POST 🐦
+💜 BTS publicou um novo post no X
+🔗 https://x.com/BTS_twt
+"""
+    await send_alert("x_post", msg)
+
+# === INSTAGRAM TEST === #
+
+async def test_instagram_post():
+    msg = f"""
+⚠️ TESTE ⚠️
+🌟 INSTAGRAM POST 🌟
+💜 BTS postou uma foto
+🔗 https://www.instagram.com/bts.bighitofficial
+"""
+    await send_alert("instagram_post", msg)
+
+async def test_instagram_reel():
+    msg = f"""
+⚠️ TESTE ⚠️
+🎬 INSTAGRAM REELS 🎬
+💜 BTS postou um reels
+🔗 https://www.instagram.com/bts.bighitofficial/reels
+"""
+    await send_alert("instagram_reels", msg)
+
+async def test_instagram_story():
+    msg = f"""
+⚠️ TESTE ⚠️
+🫧 INSTAGRAM STORIES 🫧
+💜 BTS atualizou stories
+🔗 https://www.instagram.com/bts.bighitofficial
+"""
+    await send_alert("instagram_stories", msg)
+
+async def test_instagram_live():
+    msg = f"""
+⚠️ TESTE ⚠️
+🎥 INSTAGRAM LIVE 🎥
+💜 BTS está ao vivo
+🔗 https://www.instagram.com/bts.bighitofficial/live
+"""
+    await send_alert("instagram_live", msg)
+
+# === TIKTOK & YOUTUBE TEST === #
+
+async def test_tiktok_post():
+    msg = f"""
+⚠️ TESTE ⚠️
+🎵 TIKTOK POST 🎵
+💜 BTS postou um vídeo
+🔗 https://www.tiktok.com/@bts_official_bighit
+"""
+    await send_alert("tiktok_post", msg)
+
+async def test_tiktok_live():
+    msg = f"""
+⚠️ TESTE ⚠️
+🎥 TIKTOK LIVE 🎥
+💜 BTS está ao vivo
+🔗 https://www.tiktok.com/@bts_official_bighit/live
+"""
+    await send_alert("tiktok_live", msg)
 
 async def test_youtube_post():
-
-    embed = make_embed(
-        "🎞️ YOUTUBE POST 🎞️",
-        f"""
-💜 BTS postou um vídeo novo  
-🔗 https://www.youtube.com/@BTS  
+    msg = f"""
+⚠️ TESTE ⚠️
+🎞️ YOUTUBE POST 🎞️
+💜 BTS publicou vídeo novo
+🔗 https://www.youtube.com/@BTS
 """
-    )
-
-    await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
-    await send_alert("youtube_post", "TESTE YOUTUBE POST")
-
-# ===  YOUTUBE LIVE === #
+    await send_alert("youtube_post", msg)
 
 async def test_youtube_live():
-
-    embed = make_embed(
-        "📹 YOUTUBE LIVE 📹",
-        f"""
-🚨 BTS está ao vivo agora  
-🔗 https://www.youtube.com/@BTS/live  
+    msg = f"""
+⚠️ TESTE ⚠️
+📹 YOUTUBE LIVE 📹
+🚨 BTS está ao vivo agora
+🔗 https://www.youtube.com/@BTS/live
 """
-    )
-
-    await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
-    await send_alert("youtube_live", "TESTE YOUTUBE LIVE")
+    await send_alert("youtube_live", msg)
 
 # =========================
 # 17 MOTOR + COMANDOS + TESTE (UNIFICADO FINAL)
@@ -1161,7 +1201,7 @@ async def on_ready():
     await bot_discord.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
-            name="🪭Em tournê! Ouvindo: Arirang"
+            name="Arirang Tour 🪭"
         ),
         status=discord.Status.online
     )
@@ -1175,7 +1215,7 @@ async def on_ready():
 
 
 # =========================
-# DISCORD COMMANDS
+# DISCORD COMMANDS (PUBLIC)
 # =========================
 
 @bot_discord.tree.command(name="ping", description="Status do bot")
@@ -1183,7 +1223,7 @@ async def ping(interaction: discord.Interaction):
 
     await interaction.response.send_message(
         "🏓 Pong! Bot ativo.",
-        ephemeral=True
+        ephemeral=False
     )
 
 
@@ -1192,14 +1232,14 @@ async def comandos(interaction: discord.Interaction):
 
     await interaction.response.send_message(
         "/ping\n/comandos\n/teste",
-        ephemeral=True
+        ephemeral=False
     )
 
 
 @bot_discord.tree.command(name="teste", description="Executa testes do sistema")
 async def teste(interaction: discord.Interaction):
 
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer(ephemeral=False)
 
     try:
         global TEST_MODE
@@ -1212,19 +1252,19 @@ async def teste(interaction: discord.Interaction):
 
         await interaction.followup.send(
             "✅ Teste executado com sucesso.",
-            ephemeral=True
+            ephemeral=False
         )
 
     except Exception as e:
         TEST_MODE = False
         await interaction.followup.send(
             f"❌ Erro no teste: {e}",
-            ephemeral=True
+            ephemeral=False
         )
 
 
 # =========================
-# TELEGRAM START (CORRIGIDO PARA ASYNC)
+# TELEGRAM START (ASYNC)
 # =========================
 
 async def run_telegram_async():
