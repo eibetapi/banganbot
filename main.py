@@ -1071,9 +1071,9 @@ async def test_youtube_live():
     await send_discord(DISCORD_SOCIAL_CHANNEL_ID, embed)
     await send_alert("youtube_live", "TESTE YOUTUBE LIVE")
 
-=========================
-17 MOTOR + COMANDOS + TESTE (UNIFICADO FINAL)
-=========================
+# =========================
+# 17 MOTOR + COMANDOS + TESTE (UNIFICADO FINAL)
+# =========================
 
 # ===  BOT DISCORD INIT === #
 
@@ -1879,9 +1879,9 @@ async def safe_update_panel():
     except Exception as e:
         print(f"[SAFE PANEL ERROR] {e}")
 
-=========================
-21 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
-=========================
+# =========================
+# 21 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
+# =========================
 
 # === GLOBAL CACHE (ANTI-DUPLICAÇÃO REAL) === #
 
@@ -2076,9 +2076,9 @@ async def run_task_safe(task_func, *args):
         print(f"[TASK ERROR] {e}")
         return None
 
-=========================
-22 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
-=========================
+# =========================
+# 22 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
+# =========================
 
 # === PRIORITY LEVELS === #
 
