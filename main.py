@@ -1368,11 +1368,10 @@ if not hasattr(bot_discord, "COMMANDS_LOADED"):
     bot_discord.COMMANDS_LOADED = True
 
 # =========================
-# 18 CHECK SYSTEM + AUXILIARES
+# 18 CHECK SYSTEM + AUXILIARES (COMPLETO)
 # =========================
 
 # === FUNÇÃO FETCH (CORREÇÃO DO ERRO 'fetch' is not defined) === #
-
 async def fetch(session, url):
     try:
         async with session.get(url, timeout=15) as response:
@@ -1383,23 +1382,20 @@ async def fetch(session, url):
         print(f"[FETCH ERROR] {url}: {e}")
         return None
 
-# === FUNÇÃO AUXILIAR (CORREÇÃO DO ERRO 'carregar_id_telegram') === #
-
+# === FUNÇÃO AUXILIAR (BUSCA DE PAINEL ANTERIOR) === #
 async def carregar_id_telegram():
     """
     Tenta localizar o ID do painel nas últimas mensagens do canal 
-    para evitar duplicatas após resets.
+    para evitar duplicatas após resets (Regras A e B).
     """
     global panel_message_id
     
-    # Se já está na memória, apenas retorna
     if panel_message_id:
         return panel_message_id
 
-    # Tenta buscar no histórico do Telegram
     if bot_ticket and PANEL_CHAT_ID:
         try:
-            # Varre as últimas 20 mensagens do canal
+            print("[SISTEMA] Varrendo canal em busca de painel anterior...")
             async for message in bot_ticket.get_chat_history(chat_id=PANEL_CHAT_ID, limit=20):
                 if message.text and "ARIRANG TOUR" in message.text:
                     print(f"[SISTEMA] Painel anterior recuperado: {message.message_id}")
@@ -1410,16 +1406,13 @@ async def carregar_id_telegram():
             
     return None
 
-# === TICKETMASTER CHECK === #
-
+# === MONITORAMENTO: TICKETMASTER CHECK === #
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
-
     if 'TICKET_LINKS' not in globals() or not TICKET_LINKS:
         return
 
     last_ticket_check = time.time()
-
     for url in TICKET_LINKS:
         try:
             html = await fetch(session, url)
@@ -1430,54 +1423,41 @@ async def check_ticketmaster(session):
         except Exception as e:
             print(f"[ERR TICKET] {e}")
 
-
-# === BUYTICKET CHECK === #
-
+# === MONITORAMENTO: BUYTICKET CHECK === #
 async def check_buyticket(session):
     global last_buy_check, total_buy
-
     if 'BUY_LINKS' not in globals() or not BUY_LINKS:
         return
 
     last_buy_check = time.time()
-
     for url in BUY_LINKS:
         try:
             html = await fetch(session, url)
             if html and is_new(url, html):
                 total_buy += 1
-                # Lógica de processamento buy aqui
                 pass
         except Exception as e:
             print(f"[ERR BUY] {e}")
 
-
-# === WEVERSE CHECK === #
-
+# === MONITORAMENTO: WEVERSE CHECK === #
 async def check_weverse(session):
     global last_weverse_check, total_weverse
-
     if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS:
         return
 
     last_weverse_check = time.time()
-
     for url in WEVERSE_LINKS:
         try:
             html = await fetch(session, url)
             if html and is_new(url, html):
                 total_weverse += 1
-                # Lógica de processamento weverse aqui
                 pass
         except Exception as e:
             print(f"[ERR WEVERSE] {e}")
 
-
-# === SOCIAL CHECK ==== # 
-
+# === MONITORAMENTO: SOCIAL & YOUTUBE CHECK === #
 async def check_social(session):
     global last_social_check, total_social
-
     last_social_check = time.time()
 
     if 'SOCIAL_LINKS' in globals() and SOCIAL_LINKS:
@@ -1486,19 +1466,13 @@ async def check_social(session):
                 html = await fetch(session, url)
                 if html and is_new(url, html):
                     total_social += 1
-                    pass
             except Exception as e:
                 print(f"[ERR SOCIAL] {e}")
 
     await check_youtube(session)
 
-
-# === YOUTUBE CHECK === #
-
 async def check_youtube(session):
-    # Nota: usa as mesmas globais do social para simplicidade no painel
     youtube_url = "https://www.youtube.com/@BTS"
-
     try:
         html = await fetch(session, f"{youtube_url}/videos")
         if html:
@@ -1507,23 +1481,18 @@ async def check_youtube(session):
                 '"style":"LIVE"' in html or 
                 ("watch?v=" in html and "live" in html.lower())
             )
-
             if is_live:
                 if is_new(youtube_url + "/live", "LIVE"):
                     await youtube_live(youtube_url)
             elif is_new(youtube_url, html):
                 await youtube_post(youtube_url, youtube_url)
-                
     except Exception as e:
         print(f"[ERR YOUTUBE] {e}")
 
-
-# === CONTROLE DE TEMPO === #
-
+# === AUXILIARES DE TEMPO E INTERFACE === #
 def minutes_since(ts):
     if ts == 0: return "---"
     return int((time.time() - ts) / 60)
-
 
 def status_color(last_check):
     if last_check == 0: return "⚪"
@@ -1532,15 +1501,9 @@ def status_color(last_check):
         return "🔴"
     return "🟢" if int(agora) % 2 == 0 else "🟡"
 
-
-# === UPTIME === #
-
 def get_uptime():
     s = int(time.time() - start_time)
     return f"{s//3600}h {(s%3600)//60}m {s%60}s"
-
-
-# === CONTADORES SAFE UPDATE === #
 
 def safe_increment(counter_name):
     global total_tickets, total_buy, total_weverse, total_social
@@ -1548,6 +1511,45 @@ def safe_increment(counter_name):
     elif counter_name == "buy": total_buy += 1
     elif counter_name == "weverse": total_weverse += 1
     elif counter_name == "social": total_social += 1
+
+# === MOTOR DE EXECUÇÃO FINAL (RAILWAY STABLE) === #
+async def main():
+    print("🛸 [SISTEMA] WOOTTEO EM PREPARAÇÃO PARA DECOLAGEM...")
+    
+    # 1. WebServer para evitar desligamento do Railway
+    try:
+        keep_alive()
+        print("✅ [FLASK] Web Server ativo.")
+    except Exception as e:
+        print(f"❌ [FLASK] Erro: {e}")
+
+    # 2. Inicia Telegram (Comandos e Funções)
+    await run_telegram_async()
+    print("✅ [TELEGRAM] Wootteo conectado.")
+
+    # 3. Dispara as Tarefas de Fundo (Monitoramento)
+    asyncio.create_task(monitor_loop())
+    asyncio.create_task(watchdog_monitor())
+    asyncio.create_task(health_watcher())
+    print("✅ [MONITOR] Ciclos Arirang ativados.")
+
+    # 4. Inicia Discord (Mantém o processo principal vivo)
+    try:
+        print("✅ [DISCORD] Wootteo tentando login...")
+        async with bot_discord:
+            await bot_discord.start(DISCORD_TOKEN)
+    except Exception as e:
+        print(f"❌ [DISCORD ERROR] {e}")
+        # Se o Discord cair, mantém o script rodando pelo Telegram
+        while True:
+            await asyncio.sleep(3600)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("\n🛑 [SISTEMA] Wootteo encerrado.")
+
 
 # =========================
 # 19 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
@@ -1991,7 +1993,6 @@ def is_real_change(key, html):
 
     return False
 
-
 # ===  PRIORITY ALERT ROUTER === #
 
 async def priority_send(alert_type, message, key=None):
@@ -2095,7 +2096,6 @@ async def monitor_loop():
 
             await asyncio.sleep(20)
 
-
 # === GLOBAL HEALTH WATCHER === #
 
 async def health_watcher():
@@ -2115,7 +2115,6 @@ async def health_watcher():
 
         await asyncio.sleep(60)
 
-
 # === ENGINE FINAL OVERRIDE (STARTUP LEVEL MAX) === #
 async def start_engine():
 
@@ -2129,9 +2128,8 @@ async def start_engine():
 
     )
 
-
 # === GLOBAL ALERT ENTRYPOINT (USAR ISSO SEMPRE) === #
 
 async def trigger_alert(alert_type, url, message):
 
-    await smart_alert(alert_type, url, message) 
+    await smart_alert(alert_type, url, message)
