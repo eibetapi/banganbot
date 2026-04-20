@@ -1075,7 +1075,7 @@ async def test_youtube_live():
 # 17 MOTOR + COMANDOS + TESTE (UNIFICADO FINAL)
 # =========================
 
-# ===  BOT DISCORD INIT === #
+# === BOT DISCORD INIT === #
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -1083,7 +1083,10 @@ intents.guilds = True
 
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
-# === MONITOR LOOP (CORE ENGINE) === # 
+
+# =========================
+# MONITOR LOOP (CORE ENGINE)
+# =========================
 
 async def monitor_loop():
 
@@ -1107,7 +1110,10 @@ async def monitor_loop():
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
-# === TELEGRAM COMMANDS === #
+
+# =========================
+# TELEGRAM COMMANDS
+# =========================
 
 async def handle_commands_telegram(update, context):
 
@@ -1136,7 +1142,35 @@ async def handle_commands_telegram(update, context):
             "/ping\n/teste\n/comandos"
         )
 
-# === DISCORD /ping === #
+
+# =========================
+# DISCORD ON READY
+# =========================
+
+@bot_discord.event
+async def on_ready():
+
+    print(f"✅ Logado como {bot_discord.user}")
+
+    await bot_discord.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.listening,
+            name="Arirang Tour 🪭"
+        ),
+        status=discord.Status.online
+    )
+
+    try:
+        synced = await bot_discord.tree.sync()
+        print(f"🔄 Slash commands sincronizados: {len(synced)}")
+
+    except Exception as e:
+        print(f"[SYNC ERROR] {e}")
+
+
+# =========================
+# DISCORD COMMANDS
+# =========================
 
 @bot_discord.tree.command(name="ping", description="Status do bot")
 async def ping(interaction: discord.Interaction):
@@ -1146,7 +1180,6 @@ async def ping(interaction: discord.Interaction):
         ephemeral=True
     )
 
-# ===  DISCORD /comandos === #
 
 @bot_discord.tree.command(name="comandos", description="Lista comandos")
 async def comandos(interaction: discord.Interaction):
@@ -1156,7 +1189,6 @@ async def comandos(interaction: discord.Interaction):
         ephemeral=True
     )
 
-# === DISCORD /teste === #
 
 @bot_discord.tree.command(name="teste", description="Executa testes do sistema")
 async def teste(interaction: discord.Interaction):
@@ -1184,9 +1216,16 @@ async def teste(interaction: discord.Interaction):
             ephemeral=True
         )
 
-# === TELEGRAM START === #
+
+# =========================
+# TELEGRAM START
+# =========================
 
 if TELEGRAM_TOKEN:
+
+    from telegram import Bot
+    from telegram.ext import ApplicationBuilder, CommandHandler
+    from threading import Thread
 
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
@@ -1194,14 +1233,7 @@ if TELEGRAM_TOKEN:
     application.add_handler(CommandHandler("teste", handle_commands_telegram))
     application.add_handler(CommandHandler("comandos", handle_commands_telegram))
 
-    from threading import Thread
-
     def run_telegram():
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
         application.run_polling(
             drop_pending_updates=True,
             close_loop=False
@@ -1209,275 +1241,16 @@ if TELEGRAM_TOKEN:
 
     Thread(target=run_telegram, daemon=True).start()
 
-# === DISCORD ON READY === #
-
-@bot_discord.event
-async def on_ready():
-
-    print(f"✅ Logado como {bot_discord.user}")
-
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="Arirang Tour 🪭"
-        ),
-        status=discord.Status.online
-    )
-
-    try:
-        if not getattr(bot_discord, "COMMANDS_LOADED", False):
-            await register_discord_commands()
-
-        synced = await bot_discord.tree.sync()
-
-        print(f"🔄 Slash commands sincronizados: {len(synced)}")
-
-    except Exception as e:
-        print(f"[SYNC ERROR] {e}")
-
-# ===  RUN TELEGRAM THREAD === #
-
-if TELEGRAM_TOKEN:
-
-    from threading import Thread
-
-    def run_telegram():
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        application.run_polling(
-            drop_pending_updates=True,
-            close_loop=False
-        )
-
-    Thread(target=run_telegram, daemon=True).start()
-
-# === COMMAND REGISTRY === #
-
-if not hasattr(bot_discord, "COMMANDS_LOADED"):
-    bot_discord.COMMANDS_LOADED = False
-
-
-async def register_discord_commands():
-
-    if bot_discord.COMMANDS_LOADED:
-        return
-
-    @bot_discord.tree.command(name="ping", description="Status do bot")
-    async def ping(interaction: discord.Interaction):
-        await interaction.response.send_message(
-            "🏓 Pong! Bot ativo.",
-            ephemeral=True
-        )
-
-    @bot_discord.tree.command(name="comandos", description="Lista comandos")
-    async def comandos(interaction: discord.Interaction):
-        await interaction.response.send_message(
-            "/ping\n/comandos\n/teste",
-            ephemeral=True
-        )
-
-    async def teste(interaction: discord.Interaction):
-
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            await run_full_test_discord()
-
-            await interaction.followup.send(
-                "✅ Teste executado com sucesso.",
-                ephemeral=True
-            )
-
-        except Exception as e:
-            await interaction.followup.send(
-                f"❌ Erro no teste: {e}",
-                ephemeral=True
-            )
-
-    bot_discord.COMMANDS_LOADED = True
-
-    print("[DISCORD] comandos registrados")
-
-# ===  FETCH UNIVERSAL === #
-
-async def fetch(session, url):
-
-    if session is None:
-        return None
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-
-    try:
-        async with session.get(url, headers=headers, timeout=20) as response:
-
-            if response.status != 200:
-                return None
-
-            return await response.text()
-
-    except Exception as e:
-        print(f"[FETCH ERROR] {e}")
-        return None
-
-# === CHECK TICKETMASTER === #
-
-async def check_ticketmaster(session):
-
-    global last_ticket_check, total_tickets
-
-    if 'TICKET_LINKS' not in globals() or not TICKET_LINKS:
-        return
-
-    last_ticket_check = time.time()
-    total_tickets += 1
-
-    for url in TICKET_LINKS:
-
-        try:
-            html = await fetch(session, url)
-
-            if html and is_new(url, html):
-
-                found = "esgotado" not in html.lower()
-
-                await ticket_reposicao(url, url, found)
-
-        except Exception as e:
-            print(f"[ERR TICKET] {e}")
-
-# ===  CHECK BUYTICKET === #
-
-async def check_buyticket(session):
-
-    global last_buy_check, total_buy
-
-    if 'BUY_LINKS' not in globals() or not BUY_LINKS:
-        return
-
-    last_buy_check = time.time()
-    total_buy += 1
-
-    for url in BUY_LINKS:
-
-        try:
-            html = await fetch(session, url)
-
-            if html and is_new(url, html):
-                pass
-
-        except Exception as e:
-            print(f"[ERR BUY] {e}")
-
-# ===  CHECK WEVERSE === #
-
-async def check_weverse(session):
-
-    global last_weverse_check, total_weverse
-
-    if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS:
-        return
-
-    last_weverse_check = time.time()
-    total_weverse += 1
-
-    for url in WEVERSE_LINKS:
-
-        try:
-            html = await fetch(session, url)
-
-            if html and is_new(url, html):
-                pass
-
-        except Exception as e:
-            print(f"[ERR WEVERSE] {e}")
-
-# === CHECK SOCIAL === #
-
-async def check_social(session):
-
-    global last_social_check, total_social
-
-    last_social_check = time.time()
-    total_social += 1
-
-    if 'SOCIAL_LINKS' in globals() and SOCIAL_LINKS:
-
-        for url in SOCIAL_LINKS:
-
-            try:
-                html = await fetch(session, url)
-
-                if html and is_new(url, html):
-                    pass
-
-            except Exception as e:
-                print(f"[ERR SOCIAL] {e}")
-
-    await check_youtube(session)
-
-
-# ===  CHECK YOUTUBE === #
-
-async def check_youtube(session):
-
-    global last_social_check, total_social
-
-    youtube_url = "https://www.youtube.com/@BTS"
-
-    try:
-        html = await fetch(session, f"{youtube_url}/videos")
-
-        if html:
-
-            is_live = (
-                '{"text":"AO VIVO"}' in html or
-                '"style":"LIVE"' in html or
-                ("watch?v=" in html and "live" in html.lower())
-            )
-
-            if is_live:
-
-                if is_new(youtube_url + "/live", "LIVE"):
-                    await youtube_live(youtube_url)
-
-            elif is_new(youtube_url, html):
-                await youtube_post(youtube_url, youtube_url)
-
-    except Exception as e:
-        print(f"[ERR YOUTUBE] {e}")
-
-
-# ===  ALERTA SOCIAL UNIFICADO === #
-
-async def enviar_alerta_social(mensagem):
-
-    # TELEGRAM
-    if bot_ticket and PANEL_CHAT_ID:
-        try:
-            await bot_ticket.send_message(
-                chat_id=PANEL_CHAT_ID,
-                text=mensagem,
-                parse_mode=None
-            )
-        except:
-            pass
-
-    # DISCORD
-    channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
-
-    if channel:
-        try:
-            await channel.send(content=mensagem)
-        except:
-            pass
 
 # =========================
-# 19 CHECK SYSTEM + AUXILIARES
+# COMMAND REGISTRY SAFE
+# =========================
+
+if not hasattr(bot_discord, "COMMANDS_LOADED"):
+    bot_discord.COMMANDS_LOADED = True
+
+# =========================
+# 18 CHECK SYSTEM + AUXILIARES
 # =========================
 
 # === TICKETMASTER CHECK === #
@@ -1679,7 +1452,7 @@ def safe_increment(counter_name):
         total_social += 1
 
 # =========================
-# 20 DISCORD ON_READY + SYNC (FIX DEFINITIVO)
+# 19 DISCORD ON_READY + SYNC (FIX DEFINITIVO)
 # =========================
 
 # ===  STATUS COUNTDOWN DATA === #
@@ -1880,7 +1653,7 @@ async def safe_update_panel():
         print(f"[SAFE PANEL ERROR] {e}")
 
 # =========================
-# 21 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
+# 20 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
 # =========================
 
 # === GLOBAL CACHE (ANTI-DUPLICAÇÃO REAL) === #
@@ -2077,7 +1850,7 @@ async def run_task_safe(task_func, *args):
         return None
 
 # =========================
-# 22 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
+# 21 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
 # =========================
 
 # === PRIORITY LEVELS === #
