@@ -1455,3 +1455,44 @@ if __name__ == "__main__":
 
     except (KeyboardInterrupt, SystemExit):
         print("\n[DESLIGANDO] Motores Arirang parados.")
+# =============================================================
+# 22 DISCORD FIX DEFINITIVO (COMANDOS + START ESTÁVEL)
+# =============================================================
+
+async def start_discord():
+    """
+    Inicializa o Discord de forma segura sem travar event loop
+    e garantindo sync dos slash commands.
+    """
+    try:
+        token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
+
+        if not token:
+            print("[ERRO] Token do Discord não encontrado.")
+            return
+
+        print("[DISCORD] Tentando login...")
+
+        # 🔥 IMPORTANTE: sync ANTES de iniciar conexão
+        try:
+            synced = await bot_discord.tree.sync()
+            print(f"[DISCORD] Slash commands sincronizados: {len(synced)}")
+        except Exception as e:
+            print(f"[DISCORD SYNC ERROR] {e}")
+
+        # Inicia bot (bloqueante, por isso roda em task separada)
+        await bot_discord.start(token)
+
+    except Exception as e:
+        print(f"[FATAL DISCORD] {e}")
+
+
+# =============================================================
+# MAIN - TRECHO CORRIGIDO DO DISCORD
+# =============================================================
+
+# ❌ REMOVER do main():
+# await bot_discord.start(token)
+
+# ✅ SUBSTITUIR POR ISSO:
+asyncio.create_task(start_discord())
