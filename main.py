@@ -385,7 +385,7 @@ async def send_alert(alert_type, message):
             await bot_ticket.send_message(
                 chat_id=PANEL_CHAT_ID,
                 text=message,
-                parse_mode="Markdown"
+                parse_mode=None
             )
         except Exception as e:
             print(f"[TELEGRAM ERROR] {e}")
@@ -482,7 +482,7 @@ async def update_panel():
                         chat_id=PANEL_CHAT_ID,
                         message_id=panel_message_id,
                         text=texto,
-                        parse_mode="Markdown"
+                        parse_mode=None
                     )
                     edited = True
                 except Exception as e:
@@ -498,7 +498,7 @@ async def update_panel():
                 msg = await bot_ticket.send_message(
                     chat_id=PANEL_CHAT_ID,
                     text=texto,
-                    parse_mode="Markdown"
+                    parse_mode=None
                 )
 
                 panel_message_id = msg.message_id
@@ -1310,7 +1310,7 @@ async def check_youtube(session):
 async def enviar_alerta_social(mensagem):
     if bot_ticket and PANEL_CHAT_ID:
         try:
-            await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode="Markdown")
+            await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode=None)
         except:
             pass
     channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
@@ -1382,8 +1382,16 @@ async def main():
 
         from threading import Thread
 
-        def run_telegram():
-            application.run_polling(drop_pending_updates=True)
+       def run_telegram():
+    import asyncio
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    application.run_polling(
+        drop_pending_updates=True,
+        close_loop=False
+    )
 
         Thread(target=run_telegram, daemon=True).start()
 
@@ -1440,7 +1448,8 @@ async def register_discord_commands():
     # =========================
     # /teste (CORRIGIDO - SEM COMPLETED / TASK RACE)
     # =========================
-    @bot_discord.tree.command(name="teste", description="Executa todos os alertas de teste")
+
+
     async def teste(interaction: discord.Interaction):
 
         await interaction.response.defer(ephemeral=True)
