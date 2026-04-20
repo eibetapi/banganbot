@@ -11,8 +11,10 @@ from datetime import datetime
 from threading import Thread
 
 import discord
-from discord.ext import commands
-from discord import app_commands
+from discord.ext 
+import commands
+from discord 
+import app_commands
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -387,18 +389,6 @@ async def get_session():
     if http_session is None or http_session.closed:
         http_session = aiohttp.ClientSession()
 
-    return http_session
-
-# =========================
-# 9 SESSION (FIX: CLIENT SESSION ÚNICA)
-# =========================
-
-http_session = None
-
-async def get_session():
-    global http_session
-    if http_session is None or http_session.closed:
-        http_session = aiohttp.ClientSession()
     return http_session
 
 # =========================
