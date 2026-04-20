@@ -1340,17 +1340,16 @@ async def on_ready():
 
 async def main():
 
-    # 1. Inicia o servidor Keep Alive (Flask/Web)
+    # 1. Inicia o servidor Keep Alive
     keep_alive()
 
-    # 2. Configurações do Telegram
+    # 2. Telegram
     if TELEGRAM_TOKEN:
 
         from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
         application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-        # Registro de Handlers
         application.add_handler(CommandHandler("ping", handle_commands_telegram))
         application.add_handler(CommandHandler("teste", handle_commands_telegram))
         application.add_handler(CommandHandler("comandos", handle_commands_telegram))
@@ -1358,18 +1357,17 @@ async def main():
 
         print("[SISTEMA] Telegram operativo e ouvindo comandos.")
 
-        # ✅ CORREÇÃO DO CONFLICT (único polling correto)
         await application.initialize()
-await application.start()
-await application.bot.initialize()
+        await application.start()
+        await application.bot.initialize()
 
-asyncio.create_task(application.updater.start_polling(drop_pending_updates=True))
+        asyncio.create_task(application.updater.start_polling(drop_pending_updates=True))
 
-    # 3. Inicia o Motor de Monitoramento
+    # 3. Monitor (AQUI estava o erro de indentação)
     asyncio.create_task(monitor_loop())
     print("[SISTEMA] Motor de monitoramento Arirang iniciado.")
 
-    # 4. Inicia o Discord
+    # 4. Discord
     try:
         token = os.getenv('DISCORD_TOKEN') or DISCORD_TOKEN
 
