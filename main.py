@@ -1338,12 +1338,12 @@ async def main():
         application.add_handler(CommandHandler("comandos", handle_commands_telegram))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_commands_telegram))
 
-        # Inicialização correta para evitar Conflict
+        # Inicialização correta
         await application.initialize()
         await application.start()
 
-        # Limpa mensagens antigas que causariam conflito no boot
-        await application.bot.delete_webhook(drop_pending_updates=True)
+        # 🔥 CORREÇÃO AQUI (ativar polling)
+        await application.updater.start_polling(drop_pending_updates=True)
 
         print("[SISTEMA] Telegram operativo e ouvindo comandos.")
 
