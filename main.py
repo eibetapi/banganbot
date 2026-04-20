@@ -358,8 +358,19 @@ TEST_MODE = False
 # === DISCORD SEND (CORE ÚNICO) === #
 async def send_discord(channel_id, content=None, embed=None):
     channel = bot_discord.get_channel(channel_id)
-    if channel:
-        await channel.send(content=content, embed=embed)
+
+    if not channel:
+        return
+
+    # 🔥 FORÇA EMBED PADRÃO COM BORDA ROXA
+    if embed is None and content is not None:
+        embed = discord.Embed(
+            description=content,
+            color=0x8A2BE2  # borda roxa padrão
+        )
+
+    await channel.send(embed=embed)
+
 
 # === ALERT ROUTER (DISCORD + TELEGRAM CONTROLADO) === #
 async def send_alert(alert_type, message):
@@ -376,29 +387,42 @@ async def send_alert(alert_type, message):
             print(f"[TELEGRAM ERROR] {e}")
 
     try:
+
         if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
-            asyncio.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
+            asyncio.create_task(
+                send_discord(DISCORD_TICKETS_CHANNEL_ID, content=message)
+            )
 
         elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
-            asyncio.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
+            asyncio.create_task(
+                send_discord(DISCORD_WEVERSE_CHANNEL_ID, content=message)
+            )
 
         elif alert_type in [
             "instagram_post", "instagram_reels", "instagram_stories", "instagram_live",
             "tiktok_post", "tiktok_live"
         ]:
-            asyncio.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
+            asyncio.create_task(
+                send_discord(DISCORD_SOCIAL_CHANNEL_ID, content=message)
+            )
 
         elif alert_type in ["youtube_post", "youtube_live"]:
-            asyncio.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
+            asyncio.create_task(
+                send_discord(DISCORD_SOCIAL_CHANNEL_ID, content=message)
+            )
 
     except Exception as e:
         print(f"[DISCORD ROUTER ERROR] {e}")
+
 
 # === DISCORD COMMANDS BASE === #
 
 @bot_discord.tree.command(name="ping", description="Verifica status do bot")
 async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message("🏓 Pong! Bot ativo.", ephemeral=True)
+    await interaction.response.send_message(
+        "🏓 Pong! Bot ativo.",
+        ephemeral=True
+    )
 
 
 @bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
@@ -407,6 +431,7 @@ async def comandos(interaction: discord.Interaction):
         "/ping\n/comandos\n/teste",
         ephemeral=True
     )
+
 
 @bot_discord.tree.command(name="teste", description="Dispara alertas reais do sistema")
 async def teste(interaction: discord.Interaction):
@@ -442,10 +467,11 @@ async def update_panel():
 
     # dados dinâmicos
     data_show, city, d_prox, d_br = get_countdown_data()
-
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-    # === TELEGRAM (PAINEL FIXO) === #
+    # =========================
+    # TELEGRAM (PAINEL FIXO)
+    # =========================
     if bot_ticket and PANEL_CHAT_ID:
         try:
             if not panel_message_id:
@@ -503,33 +529,44 @@ async def update_panel():
         except Exception as e:
             print(f"[TELEGRAM PANEL ERROR] {e}")
 
-    # === DISCORD PAINEL (EDIT OU CREATE) === #
-
+    # =========================
+    # DISCORD PAINEL (EMBED ROXO FIXO)
+    # =========================
     if DISCORD_PANEL_CHANNEL_ID:
+
         channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
 
         if channel:
-            embed = discord.Embed(description=texto, color=0x8A2BE2)
+
+            embed = discord.Embed(
+                description=texto,
+                color=0x8A2BE2  # 🔥 borda roxa padrão obrigatória
+            )
 
             try:
+
                 # tenta recuperar mensagem antiga
                 if not discord_panel_msg_id:
-                    async for message in channel.history(limit=10):
-                        if message.author == bot_discord.user:
-                            discord_panel_msg_id = message.id
+
+                    async for msg in channel.history(limit=10):
+                        if msg.author == bot_discord.user:
+                            discord_panel_msg_id = msg.id
                             break
 
                 # edita se existir
                 if discord_panel_msg_id:
+
                     msg = await channel.fetch_message(discord_panel_msg_id)
-                    await msg.edit(content=None, embed=embed)
+                    await msg.edit(embed=embed)
+
+                # cria se não existir
                 else:
+
                     msg = await channel.send(embed=embed)
                     discord_panel_msg_id = msg.id
 
             except Exception as e:
-                print(f"[DISCORD PANEL ERROR] {e}")
-
+                print(f"[DC PANEL ERROR] {e}")
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
     global total_weverse, total_social, total_tickets, total_buy
