@@ -513,12 +513,18 @@ async def update_panel():
     # Gera o texto formatado com o contador de uptime incluso
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-    # --- ATUALIZAÇÃO TELEGRAM ---
+    # =========================
+    # TELEGRAM (PAINEL FIXO)
+    # =========================
     if bot_ticket and PANEL_CHAT_ID:
         try:
+            # restaura ID salvo
             if not panel_message_id:
                 panel_message_id = carregar_id_telegram()
 
+            edited = False
+
+            # 1 - tenta editar mensagem existente
             if panel_message_id:
                 try:
                     await bot_ticket.edit_message_text(
@@ -527,11 +533,12 @@ async def update_panel():
                         text=texto,
                         parse_mode="Markdown"
                     )
+                    edited = True
                 except Exception as e:
-                    if "message to edit not found" in str(e).lower():
-                        panel_message_id = None
+                    panel_message_id = None
 
-            if not panel_message_id:
+            # 2 - recria caso não exista
+            if not edited:
                 try:
                     await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
                 except:
@@ -542,25 +549,38 @@ async def update_panel():
                     text=texto,
                     parse_mode="Markdown"
                 )
+
                 panel_message_id = msg.message_id
                 salvar_id_telegram(panel_message_id)
 
+                # 3 - PIN FORÇADO COM PROTEÇÃO
                 try:
                     await bot_ticket.pin_chat_message(
                         chat_id=PANEL_CHAT_ID,
-                        message_id=panel_message_id
+                        message_id=panel_message_id,
+                        disable_notification=True
                     )
-                except:
-                    pass
+                except Exception:
+                    await asyncio.sleep(1)
+                    try:
+                        await bot_ticket.pin_chat_message(
+                            chat_id=PANEL_CHAT_ID,
+                            message_id=panel_message_id,
+                            disable_notification=True
+                        )
+                    except:
+                        pass
 
         except Exception as e:
             print(f"[DEBUG] Falha update TG: {e}")
 
-    # --- ATUALIZAÇÃO DISCORD ---
+    # =========================
+    # DISCORD PAINEL
+    # =========================
     if DISCORD_PANEL_CHANNEL_ID:
         channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+
         if channel:
-            # No Discord, enviamos como Embed para ficar visualmente melhor
             embed = discord.Embed(description=texto, color=0x8A2BE2)
 
             try:
@@ -576,6 +596,7 @@ async def update_panel():
                 else:
                     msg = await channel.send(embed=embed)
                     discord_panel_msg_id = msg.id
+
             except Exception as e:
                 print(f"[DEBUG] Falha update Discord: {e}")
 
@@ -594,24 +615,19 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
   🔔 Faltam **{d_prox}** dias.
   🩷 Faltam **{d_br}** dias para o BTS no Brasil!
 
-
 •°•👾.  * .🌙  **ATUALIZAÇÕES**  .💫 *  . *  •°•°🛸
-
 
   🟣 **Weverse** {status_color(last_weverse_check)}
   🎯 Acessos realizados: **{total_weverse}**
   ⏳ Último rastreio há: **{minutes_since(last_weverse_check)} min**
 
-
   ⚪ **Redes sociais** {status_color(last_social_check)}
   🎯 Acessos realizados: **{total_social}**
   ⏳ Último rastreio há: **{minutes_since(last_social_check)} min**
 
-
   🟠 **Ticketmaster** {status_color(last_ticket_check)}
   🎯 Acessos realizados: **{total_tickets}**
   ⏳ Último rastreio há: **{minutes_since(last_ticket_check)} min**
-
 
   🔵 **Buyticket** {status_color(last_buy_check)}
   🎯 Acessos realizados: **{total_buy}**
