@@ -409,41 +409,49 @@ def format_member(member_name):
     return emoji, name
 
 # =========================
-# 11 ROTEAMENTO E LINKS (CORRIGIDO)
+# 11 ROTEAMENTO E ALERTAS (COMPLETO)
 # =========================
 
-async def send_alert(alert_type, message): 
-if bot_ticket is not None: 
-try: 
-await 
-bot_ticket.send_message(chat_id=PANEL_CHAT_ID, 
-text=message, parse_mode="Markdown") 
-except Exception as e: 
-print(f"[TELEGRAM ERROR] {e}") 
+async def send_discord(channel_id, message):
+    try:
+        channel = bot_discord.get_channel(channel_id)
+        if channel:
+            await channel.send(message)
+    except Exception as e:
+        print(f"[DISCORD SEND ERROR] {e}")
 
-try: 
-loop = asyncio.get_running_loop() 
-if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]: 
 
-loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message)) 
-elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]: 
+async def send_alert(alert_type, message):
+    # ================= TELEGRAM =================
+    if bot_ticket is not None:
+        try:
+            await bot_ticket.send_message(
+                chat_id=PANEL_CHAT_ID,
+                text=message,
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"[TELEGRAM ERROR] {e}")
 
-loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message)) 
-elif alert_type in ["instagram_post", "instagram_reels", "instagram_stories", "instagram_live", "tiktok_post", "tiktok_live"]: 
+    # ================= DISCORD =================
+    try:
+        loop = asyncio.get_running_loop()
 
-loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message)) 
-except Exception as e: 
-print(f"[DISCORD ROUTING ERROR] {e}") 
+        if alert_type in ["ticket", "reposicao", "nova_data", "revenda", "agenda"]:
+            loop.create_task(send_discord(DISCORD_TICKETS_CHANNEL_ID, message))
 
-# --- LINKS DE MONITORAMENTO --- # 
-(Mantidos conforme sua estrutura original) 
-TICKET_LINKS = ["https://www.ticketmaster.com.br/event/bts-sp"] 
-BUY_LINKS = ["https://www.buyticket.com.br/bts"] 
-WEVERSE_LINKS = ["https://weverse.io/bts/feed"] 
-INSTAGRAM_LINKS = {"bts": "https://www.instagram.com/bts.bighitofficial/"} TIKTOK_LINKS = {"bts": "https://www.tiktok.com/@bts_official_bighit"} 
-YOUTUBE_LINKS = {"bts": "https://www.youtube.com/@BTS/"} 
+        elif alert_type in ["weverse_post", "weverse_live", "weverse_news", "weverse_media"]:
+            loop.create_task(send_discord(DISCORD_WEVERSE_CHANNEL_ID, message))
 
-# NOTA: A variável AGENDA não é redeclarada aqui para não apagar os dados do Bloco 7. # O motor de busca no Bloco 8 lerá automaticamente a lista completa.
+        elif alert_type in [
+            "instagram_post", "instagram_reels", "instagram_stories",
+            "instagram_live", "tiktok_post", "tiktok_live",
+            "youtube_post", "youtube_live"
+        ]:
+            loop.create_task(send_discord(DISCORD_SOCIAL_CHANNEL_ID, message))
+
+    except Exception as e:
+        print(f"[DISCORD ROUTING ERROR] {e}")
 
 # =============================================================
 # 12 GESTÃO DO PAINEL (FIXO E ÚNICO)
