@@ -999,18 +999,26 @@ async def run_full_test_discord():
         print(f"[DEBUG DC TEST] {e}")
 
 # =========================
-# 18 FETCH UNIVERSAL
+# 18 FETCH UNIVERSAL (CORRIGIDO)
 # =========================
 
 async def fetch(session, url):
-    if session is None: return None
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) 
-AppleWebKit/537.36'}
+    if session is None:
+        return None
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+
     try:
         async with session.get(url, headers=headers, timeout=20) as response:
-            if response.status != 200: return None
+            if response.status != 200:
+                return None
             return await response.text()
-    except: return None
+    except Exception as e:
+        print(f"[FETCH ERROR] {e}")
+        return None
+
 
 # ==============================
 # 19 FUNÇÕES DE CHECK (RASTREIO E CONTADORES)
@@ -1018,77 +1026,109 @@ AppleWebKit/537.36'}
 
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
-    if 'TICKET_LINKS' not in globals() or not TICKET_LINKS: return
+
+    if 'TICKET_LINKS' not in globals() or not TICKET_LINKS:
+        return
+
     last_ticket_check = time.time()
-    total_tickets += 1 
+    total_tickets += 1
+
     for url in TICKET_LINKS:
         try:
             html = await fetch(session, url)
+
             if html and is_new(url, html):
                 found = "esgotado" not in html.lower()
                 await ticket_reposicao(url, url, found)
-        except Exception as e: print(f"[ERR TICKET] {e}")
+
+        except Exception as e:
+            print(f"[ERR TICKET] {e}")
+
 
 async def check_buyticket(session):
     global last_buy_check, total_buy
-    if 'BUY_LINKS' not in globals() or not BUY_LINKS: return
+
+    if 'BUY_LINKS' not in globals() or not BUY_LINKS:
+        return
+
     last_buy_check = time.time()
     total_buy += 1
+
     for url in BUY_LINKS:
         try:
             html = await fetch(session, url)
-            if html and is_new(url, html): pass
-        except Exception as e: print(f"[ERR BUY] {e}")
+
+            if html and is_new(url, html):
+                pass
+
+        except Exception as e:
+            print(f"[ERR BUY] {e}")
+
 
 async def check_weverse(session):
     global last_weverse_check, total_weverse
-    if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS: return
+
+    if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS:
+        return
+
     last_weverse_check = time.time()
     total_weverse += 1
+
     for url in WEVERSE_LINKS:
         try:
             html = await fetch(session, url)
-            if html and is_new(url, html): pass
-        except Exception as e: print(f"[ERR WEVERSE] {e}")
+
+            if html and is_new(url, html):
+                pass
+
+        except Exception as e:
+            print(f"[ERR WEVERSE] {e}")
+
 
 async def check_social(session):
     global last_social_check, total_social
+
     last_social_check = time.time()
-    total_social += 1 
+    total_social += 1
+
     if 'SOCIAL_LINKS' in globals() and SOCIAL_LINKS:
         for url in SOCIAL_LINKS:
             try:
                 html = await fetch(session, url)
-                if html and is_new(url, html): pass
-            except Exception as e: print(f"[ERR SOCIAL] {e}")
+
+                if html and is_new(url, html):
+                    pass
+
+            except Exception as e:
+                print(f"[ERR SOCIAL] {e}")
+
     await check_youtube(session)
+
 
 async def check_youtube(session):
     global last_social_check, total_social
+
     youtube_url = "https://www.youtube.com/@BTS"
+
     try:
         html = await fetch(session, f"{youtube_url}/videos")
+
         if html:
-            is_live = '{"text":"AO VIVO"}' in html or '
-"style":"LIVE"' in html or "watch?v=" in html and "live" in html.lower()
+            is_live = (
+                '{"text":"AO VIVO"}' in html or
+                '"style":"LIVE"' in html or
+                ("watch?v=" in html and "live" in html.lower())
+            )
+
             if is_live:
-                if is_new(youtube_url + "/live", "LIVE"): await youtube_live(youtube_url)
-            elif is_new(youtube_url, html): await youtube_post(youtube_url, youtube_url)
-    except Exception as e: print(f"[ERR YOUTUBE] {e}")
+                if is_new(youtube_url + "/live", "LIVE"):
+                    await youtube_live(youtube_url)
+            else:
+                if is_new(youtube_url, html):
+                    await youtube_post(youtube_url, youtube_url)
 
-# =============================================================
-# 19.1 AUXILIAR DE ALERTA SOCIAL
-# =============================================================
-
-async def enviar_alerta_social(mensagem):
-    if bot_ticket and PANEL_CHAT_ID:
-        try: await bot_ticket.send_message(
-chat_id=PANEL_CHAT_ID, text=mensagem, parse_mode="Markdown")
-        except: pass
-    channel = bot_discord.get_channel(DISCORD_SOCIAL_CHANNEL_ID)
-    if channel:
-        try: await channel.send(content=mensagem)
-        except: pass
+    except Exception as e:
+        print(f"[ERR YOUTUBE] {e}")
 
 # ========================= 
 # 20 DISCORD: EVENTO ON_READY 
