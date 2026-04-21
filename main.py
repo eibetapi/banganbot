@@ -1276,6 +1276,13 @@ async def on_ready():
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
 
+bot_discord.event async def on_ready(): 
+print(f"✅ Logado: {bot_discord.user}") 
+try: 
+await bot_discord.tree.sync() except Exception as e: 
+print(f"[SYNC ERROR] {e}") 
+await bot_discord.change_presence( activity=discord.Activity( type=discord.ActivityType.listening, name="🪭 Em turnê | Arirang" ) )
+
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
 # =========================
@@ -1347,25 +1354,36 @@ def get_countdown_data():
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
 
-    return f"""🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
+    return f"""🪭 ⊙⊝⊜ **ARIRANG TOUR** ⊙⊝⊜ 🪭
 
-✈️ PRÓXIMAS DATAS
 
-🎫 Data: {data_show}
-📍 Local: {city}
-🔔 Faltam {d_prox} dias
-🇧🇷 Brasil em {d_br} dias
+**✈️ PRÓXIMAS DATAS**
 
-🌙 ATUALIZAÇÕES
+  🎫 Data: **{data_show}**
+  📍 Local: **{city}**
+  🔔 Faltam **{d_prox}** dias.
+  🩷 Faltam **{d_br}** dias para o BTS no Brasil!
 
-🟣 Weverse
-⚪ Social
-🟠 Ticketmaster
-🔵 Buyticket
+•°•🌙.•°**ATUALIZAÇÕES** .💫 * . * •°•°🛸
 
-⏱ Uptime: {get_uptime()}
+  🟣 **Weverse** {status_color(last_weverse_check)}
+  🎯 Acessos realizados: **{total_weverse}**
+  ⏳ Último rastreio há: **{minutes_since(last_weverse_check)} min**
+
+  ⚪ **Redes sociais** {status_color(last_social_check)}
+  🎯 Acessos realizados: **{total_social}**
+  ⏳ Último rastreio há: **{minutes_since(last_social_check)} min**
+
+  🟠 **Ticketmaster** {status_color(last_ticket_check)}
+  🎯 Acessos realizados: **{total_tickets}**
+  ⏳ Último rastreio há: **{minutes_since(last_ticket_check)} min**
+
+  🔵 **Buyticket** {status_color(last_buy_check)}
+  🎯 Acessos realizados: **{total_buy}**
+  ⏳ Último rastreio há: **{minutes_since(last_buy_check)} min**
+
+•°•👾 Wootteo em rota há: **{get_uptime()}** ☄️🌍💫
 """
-
 
 # =========================
 # PAINEL UPDATE (TELEGRAM + DISCORD)
