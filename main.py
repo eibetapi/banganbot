@@ -1141,49 +1141,74 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
 
     resposta = None
 
+    # ===== PING =====
     if cmd == "ping":
         resposta = f"🏓 Pong! {get_uptime()}"
 
-elif cmd == "bts":
-    resposta = "\n".join([
-        "🐨 KIM NAMJOON",
-        "🐹 KIM SEOKJIN",
-        "🐱 MIN YOONGI",
-        "🐿️ JUNG HOSEOK",
-        "🐥 PARK JIMIN",
-        "🐻 KIM TAEHYUNG",
-        "🐰 JEON JUNGKOOK",
-        "💜 BTS"
-    ])
+    # ===== BTS =====
+    elif cmd == "bts":
 
-    # vai enviar em "fanchart" (um por um no Discord/Telegram)
-    if origem == "discord" and interaction:
+        membros = [
+            "🐨 KIM NAMJOON",
+            "🐹 KIM SEOKJIN",
+            "🐱 MIN YOONGI",
+            "🐿️ JUNG HOSEOK",
+            "🐥 PARK JIMIN",
+            "🐻 KIM TAEHYUNG",
+            "🐰 JEON JUNGKOOK",
+            "💜 BTS"
+        ]
 
-        await interaction.response.send_message(membros[0])
+        resposta = "\n".join(membros)
 
-        for m in membros[1:]:
+        # vai enviar em "fanchart" (um por um no Discord/Telegram)
+        if origem == "discord" and interaction:
+
+            await interaction.response.send_message(membros[0])
+
+            for m in membros[1:]:
+                await asyncio.sleep(1.2)
+                await interaction.channel.send(m)
+
             await asyncio.sleep(1.2)
-            await interaction.channel.send(m)
+            await interaction.channel.send(
+                "🪭Ouça Arirang no Spotify🪭\n"
+                "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
+            )
 
-        await asyncio.sleep(1.2)
-        await interaction.channel.send(
-            "🪭Ouça Arirang no Spotify🪭\n"
-            "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
-        )
+            resposta = None  # já enviado direto
 
-        resposta = None  # já enviado direto
+        elif origem == "telegram":
 
-    elif origem == "telegram":
+            msg = "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭\n" + \
+                  "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
 
-        msg = "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭\n" + \
-              "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
+            await telegram_send(chat_id, msg)
 
-        await telegram_send(chat_id, msg)
+            resposta = None
 
-        resposta = None
+    # ===== COMANDOS =====
+    elif cmd == "comandos":
+        resposta = "/ping\n/comandos\n/teste\n/bts"
 
+    # ===== TESTE =====
     elif cmd == "teste":
         resposta = "⚠️ Iniciando teste completo..."
+
+    # =========================
+    # ENVIO PADRÃO (DISCORD/TELEGRAM)
+    # =========================
+
+    if resposta:
+
+        if origem == "discord":
+            if interaction.response.is_done():
+                await interaction.followup.send(resposta)
+            else:
+                await interaction.response.send_message(resposta)
+
+        elif origem == "telegram":
+            await telegram_send(chat_id, resposta)
 
     # =========================
     # ENVIO DA RESPOSTA
