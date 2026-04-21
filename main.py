@@ -1117,23 +1117,24 @@ async def test_youtube_live():
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 MOTOR + COMANDOS + TESTE (ESTABILIDADE TOTAL - FIX FINAL)
+# 17 MOTOR + COMANDOS + TESTE (FIX FINAL ESTÁVEL)
 # =========================
 
-# === BOT DISCORD INIT === #
-intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True
-
-bot_discord = commands.Bot(command_prefix="!", intents=intents)
+# ⚠️ NÃO recriar bot_discord aqui (já existe no topo)
 
 # === TELEGRAM LOGIC === #
 async def bts_telegram_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    membros = ["🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
+    membros = [
+        "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI",
+        "🐿️ JUNG HOSEOK", "🐥 PARK JIMIN",
+        "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"
+    ]
+
     for nome in membros:
         if update.message:
             await update.message.reply_text(nome)
         await asyncio.sleep(0.8)
+
 
 async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -1157,10 +1158,12 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
                 text="⚠️ TESTE TELEGRAM OK"
             )
 
+
 # === DISCORD EVENTS === #
 @bot_discord.event
 async def on_ready():
     print(f"✅ Logado: {bot_discord.user}")
+
     try:
         await bot_discord.tree.sync()
     except Exception as e:
@@ -1169,20 +1172,31 @@ async def on_ready():
     await bot_discord.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
-            name="🪭Em tournê | Ouvindo: Arirang"
+            name="🪭 Em turnê | Arirang"
         )
     )
 
-@bot_discord.tree.command(name="teste", description="Disparo")
+
+# ⚠️ COMANDO /teste ÚNICO (NÃO DUPLICAR)
+@bot_discord.tree.command(name="teste", description="Dispara teste completo do sistema")
 async def teste(interaction: discord.Interaction):
 
     await interaction.response.defer(ephemeral=True)
 
     try:
         await run_full_test_discord()
-        await interaction.delete_original_response()
+
+        await interaction.followup.send(
+            "✅ Teste executado com sucesso.",
+            ephemeral=True
+        )
+
     except Exception as e:
-        print(f"[TESTE ERROR] {e}")
+        await interaction.followup.send(
+            f"❌ Erro no teste: {e}",
+            ephemeral=True
+        )
+
 
 # === CORE ENGINE === #
 async def monitor_loop():
@@ -1197,13 +1211,15 @@ async def monitor_loop():
                 await check_weverse(session)
                 await check_social(session)
                 await update_panel()
+
                 await asyncio.sleep(25)
 
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
-# === START TELEGRAM (FIX FINAL SEM CONFLICT E SEM CANCEL) === #
+
+# === TELEGRAM START === #
 def start_telegram():
     if not TELEGRAM_TOKEN:
         return
@@ -1224,7 +1240,9 @@ def start_telegram():
         await app.initialize()
         await app.bot.delete_webhook(drop_pending_updates=True)
         await app.start()
-        await app.updater.start_polling()
+
+        # ✅ CORRETO (sem updater)
+        await app.run_polling()
 
     asyncio.create_task(run())
 
