@@ -1144,20 +1144,44 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
     if cmd == "ping":
         resposta = f"🏓 Pong! {get_uptime()}"
 
-    elif cmd == "comandos":
-        resposta = "/ping\n/comandos\n/teste\n/bts"
+  elif cmd == "bts":
 
-    elif cmd == "bts":
-        resposta = "\n".join([
-            "🐨 KIM NAMJOON",
-            "🐹 KIM SEOKJIN",
-            "🐱 MIN YOONGI",
-            "🐿️ JUNG HOSEOK",
-            "🐥 PARK JIMIN",
-            "🐻 KIM TAEHYUNG",
-            "🐰 JEON JUNGKOOK",
-            "💜 BTS"
-        ])
+    membros = [
+        "🐨 KIM NAMJOON",
+        "🐹 KIM SEOKJIN",
+        "🐱 MIN YOONGI",
+        "🐿️ JUNG HOSEOK",
+        "🐥 PARK JIMIN",
+        "🐻 KIM TAEHYUNG",
+        "🐰 JEON JUNGKOOK",
+        "💜 BTS"
+    ]
+
+    # vai enviar em "fanchart" (um por um no Discord/Telegram)
+    if origem == "discord" and interaction:
+
+        await interaction.response.send_message(membros[0])
+
+        for m in membros[1:]:
+            await asyncio.sleep(1.2)
+            await interaction.channel.send(m)
+
+        await asyncio.sleep(1.2)
+        await interaction.channel.send(
+            "🪭Ouça Arirang no Spotify🪭\n"
+            "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
+        )
+
+        resposta = None  # já enviado direto
+
+    elif origem == "telegram":
+
+        msg = "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭\n" + \
+              "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
+
+        await telegram_send(chat_id, msg)
+
+        resposta = None
 
     elif cmd == "teste":
         resposta = "⚠️ Iniciando teste completo..."
