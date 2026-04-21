@@ -1200,7 +1200,7 @@ async def monitor_loop():
                 await asyncio.sleep(10)
 
 
-# === TELEGRAM START === #
+# === TELEGRAM START (FIX LOOP) === #
 def start_telegram():
     if not TELEGRAM_TOKEN:
         return
@@ -1222,7 +1222,10 @@ def start_telegram():
         await app.bot.delete_webhook(drop_pending_updates=True)
         await app.start()
 
-        await app.run_polling()
+        # ❌ REMOVIDO: run_polling (causava conflito de loop)
+        # ✅ SUBSTITUÍDO POR LOOP MANUAL
+        while True:
+            await asyncio.sleep(3600)
 
     asyncio.create_task(run())
 
