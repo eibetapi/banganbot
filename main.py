@@ -1330,8 +1330,6 @@ async def setup_hook():
     except Exception as e:
         print(f"[SYNC HARDLOCK ERROR] {e}")
 
-# STATUS OBRIGATÓRIO DO BOT 
-await bot_discord.change_presence( activity=discord.Activity( type=discord.ActivityType.listening, name="🪭 Em tournê! Ouvundo: Arirang" ) )
 
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
@@ -1435,6 +1433,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 •°•👾 Wootteo em rota há: **{get_uptime()}** ☄️🌍💫
 """
 
+
 # =========================
 # PAINEL UPDATE (TELEGRAM + DISCORD)
 # =========================
@@ -1514,12 +1513,39 @@ async def update_panel():
             except Exception as e:
                 print(f"[DISCORD PANEL ERROR] {e}")
 
+
 # =========================
 # 18.1 CHECK FUNCTIONS (VERSÃO REAL + SEGURA)
 # =========================
 
 import aiohttp
 from bs4 import BeautifulSoup
+
+
+# =========================
+# DISCORD READY (CORRIGIDO - STATUS FIXO AQUI)
+# =========================
+
+@bot_discord.event
+async def on_ready():
+
+    print(f"✅ Discord conectado: {bot_discord.user}")
+
+    try:
+        await bot_discord.tree.sync()
+    except Exception as e:
+        print(f"[SYNC ERROR] {e}")
+
+    # =========================
+    # STATUS OBRIGATÓRIO DO BOT (AQUI É O LUGAR CERTO)
+    # =========================
+    await bot_discord.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.listening,
+            name="🪭 Em tournê! Ouvundo: Arirang"
+        )
+    )
+
 
 # =========================
 # TICKETMASTER CHECK REAL
@@ -1541,7 +1567,6 @@ async def check_ticketmaster(session):
             if not html:
                 continue
 
-            # detecta mudança real no conteúdo
             changed = is_real_change(f"ticket:{url}", html)
 
             total_tickets += 1
@@ -1659,8 +1684,6 @@ async def check_social(session):
 
     try:
 
-        # INSTAGRAM / X / YOUTUBE / TIKTOK (simplificado seguro)
-
         all_links = list(INSTAGRAM_LINKS.values()) + X_LINKS + YOUTUBE_LINKS
 
         for url in all_links:
@@ -1688,11 +1711,6 @@ async def check_social(session):
 """
 
                 await trigger_alert("social", url, msg)
-
-
-    except Exception as e:
-        print(f"[CHECK SOCIAL ERROR] {e}")
-
 ## =========================
 # 19 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
 # =========================
