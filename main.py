@@ -1117,7 +1117,7 @@ async def test_youtube_live():
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 MOTOR + COMANDOS + TESTE (UNIFICADO FINAL)
+# 17 MOTOR + COMANDOS + TESTE (UNIFICADO FINAL CORRIGIDO)
 # =========================
 
 # === BOT DISCORD INIT === #
@@ -1162,27 +1162,33 @@ async def monitor_loop():
 
 async def bts_telegram_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     membros = ["🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
-    post_final = (
- "🪭 Ouça Arirang no Spotify\n"
-  "http://sptfy.bio/btsarirang"
+    post_final = "🪭 Ouça Arirang no Spotify\nhttp://sptfy.bio/btsarirang"
+    
     for nome in membros:
         await update.message.reply_text(nome)
         await asyncio.sleep(0.8)
     await update.message.reply_text(post_final, disable_web_page_preview=False)
 
 async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
     cmd = update.message.text.lower()
-    if "ping" in cmd: await update.message.reply_text("🚀 Wootteo em órbita! Sistema operante.")
+    if "ping" in cmd: 
+        await update.message.reply_text("🚀 Wootteo em órbita! Sistema operante.")
     elif "comandos" in cmd:
         await update.message.reply_text("👨‍🚀 **Comandos:** /ping, /bts, /teste, /comandos", parse_mode='Markdown')
-    elif "teste" in cmd: await telegram_teste_cmd(update, context)
+    elif "bts" in cmd:
+        await bts_telegram_cmd(update, context)
+    elif "teste" in cmd: 
+        await telegram_teste_cmd(update, context)
 
 async def telegram_teste_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if PANEL_CHAT_ID:
         try:
             await context.bot.send_message(chat_id=PANEL_CHAT_ID, text=f"⚠️ TESTE TELEGRAM OK - {datetime.now().strftime('%H:%M:%S')}")
             await update.message.reply_text(f"✅ Enviado para {PANEL_CHAT_ID}")
-        except Exception as e: await update.message.reply_text(f"❌ Erro: {e}")
+        except Exception as e: 
+            await update.message.reply_text(f"❌ Erro: {e}")
 
 # =========================
 # DISCORD EVENTS & COMMANDS
@@ -1194,7 +1200,8 @@ async def on_ready():
     try:
         synced = await bot_discord.tree.sync()
         print(f"🔄 Slash commands sincronizados: {len(synced)} ativos.")
-    except Exception as e: print(f"[SYNC ERROR] {e}")
+    except Exception as e: 
+        print(f"[SYNC ERROR] {e}")
     await bot_discord.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="🪭 Arirang"), status=discord.Status.online)
 
 @bot_discord.tree.command(name="ping", description="Status do bot")
@@ -1210,8 +1217,9 @@ async def bts_discord(interaction: discord.Interaction):
     membros = ["🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
     await interaction.response.send_message(membros[0])
     for nome in membros[1:]:
-        await asyncio.sleep(0.8); await interaction.followup.send(content=nome)
-    await interaction.followup.send(content="📀 Ouça Arirang no Spotify!")
+        await asyncio.sleep(0.8)
+        await interaction.followup.send(content=nome)
+    await interaction.followup.send(content="🪭 Ouça Arirang no Spotify\nhttp://sptfy.bio/btsarirang")
 
 @bot_discord.tree.command(name="teste", description="Teste de Redes Sociais")
 async def teste(interaction: discord.Interaction):
@@ -1219,103 +1227,148 @@ async def teste(interaction: discord.Interaction):
     try:
         await run_full_test_discord()
         await interaction.followup.send("✅ Testes de X, Insta e TikTok enviados ao canal oficial!")
-    except Exception as e: await interaction.followup.send(f"❌ Erro: {e}")
+    except Exception as e: 
+        await interaction.followup.send(f"❌ Erro: {e}")
 
 async def run_telegram_async():
     global bot_ticket
     if TELEGRAM_TOKEN:
-        from telegram.ext import ApplicationBuilder, CommandHandler
+        from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
         application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
         bot_ticket = application.bot
+        
+        # Handlers unificados (comandos com / e texto comum)
         application.add_handler(CommandHandler("ping", handle_commands_telegram))
         application.add_handler(CommandHandler("bts", bts_telegram_cmd))
         application.add_handler(CommandHandler("teste", handle_commands_telegram))
         application.add_handler(CommandHandler("comandos", handle_commands_telegram))
-        await application.initialize(); await application.start()
+        application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_commands_telegram))
+        
+        await application.initialize()
+        await application.start()
         await application.updater.start_polling(drop_pending_updates=True)
+        print("✅ [TELEGRAM] Sistema de resposta ativo.")
 
 # =========================
-# 18 CHECK SYSTEM + ALERTA REDES SOCIAIS (CORRIGIDO)
+# 18 CHECK SYSTEM + ALERTA REDES SOCIAIS (VERSÃO FINAL 100%)
 # =========================
+
+# Variável global para evitar alertas retroativos no boot
+PRIMEIRO_CICLO = True
 
 # === FUNÇÃO DE ALERTA UNIFICADO (X, INSTA, TIKTOK) === #
 async def disparar_alerta_redes_sociais(plataforma, perfil, link):
     """Envia alerta para o canal DISCORD_CHANNEL_ID (Redes Sociais)"""
+    
+    # SILENCIADOR: Se for a primeira varredura ao ligar, apenas registra mas não posta
+    if PRIMEIRO_CICLO:
+        print(f"🤫 [SILENCIADOR] Ignorando post antigo de {plataforma} detectado no boot.")
+        return
+
     channel_id = os.getenv("DISCORD_CHANNEL_ID")
     if not channel_id:
         print(f"⚠️ [ERRO] DISCORD_CHANNEL_ID não configurado para {plataforma}.")
         return
 
     try:
+        # Busca o canal de forma robusta (Cache ou Fetch)
         channel = bot_discord.get_channel(int(channel_id)) or await bot_discord.fetch_channel(int(channel_id))
+        
         if channel:
-            cores = {"X": discord.Color.blue(), "Instagram": discord.Color.magenta(), "TikTok": discord.Color.dark_grey()}
+            cores = {
+                "X": discord.Color.blue(), 
+                "Instagram": discord.Color.magenta(), 
+                "TikTok": discord.Color.dark_grey()
+            }
+            
             embed = discord.Embed(
                 title=f"🔔 NOVO POST: {plataforma.upper()}",
                 description=f"O perfil **{perfil}** acaba de postar!",
                 color=cores.get(plataforma, discord.Color.blue()),
                 timestamp=datetime.now()
             )
-            embed.add_field(name="🔗 Link", value=link, inline=False)
-            embed.set_footer(text="Motor Arirang | Wootteo")
+            embed.add_field(name="🔗 Link Direto", value=link, inline=False)
+            embed.set_footer(text="Motor Arirang | Wootteo Monitoring")
+            
             await channel.send(embed=embed)
-            print(f"✅ [DISCORD] Alerta {plataforma} postado.")
-    except Exception as e: print(f"❌ [ERRO ALERTA REDES] {e}")
+            print(f"✅ [DISCORD] Alerta {plataforma} postado no canal {channel_id}")
+    except Exception as e:
+        print(f"❌ [ERRO ALERTA REDES] {e}")
 
-# === FUNÇÃO DE TESTE CHAMADA PELO COMANDO /TESTE === #
+# === FUNÇÃO DE TESTE (CHAMADA PELO /TESTE) === #
 async def run_full_test_discord():
-    print("🧪 [TESTE] Simulando Redes Sociais...")
+    """Simula os disparos de rede social para o canal oficial"""
+    print("🧪 [TESTE] Iniciando simulação unificada para Redes Sociais...")
+    
+    # Força PRIMEIRO_CICLO como False apenas para o teste aparecer
+    global PRIMEIRO_CICLO
+    estado_original = PRIMEIRO_CICLO
+    PRIMEIRO_CICLO = False
+    
     await disparar_alerta_redes_sociais("X", "@BTS_twt", "https://x.com/bts_twt")
     await asyncio.sleep(1.2)
     await disparar_alerta_redes_sociais("Instagram", "@uarmyhope", "https://instagram.com/uarmyhope")
     await asyncio.sleep(1.2)
     await disparar_alerta_redes_sociais("TikTok", "@bts_official_bighit", "https://tiktok.com/@bts_official_bighit")
+    
+    PRIMEIRO_CICLO = estado_original
+    print("✅ [TESTE] Simulação concluída.")
 
-# === MONITORAMENTO AUXILIARES === #
+# === AUXILIARES DO MOTOR === #
 async def fetch(session, url):
     try:
         async with session.get(url, timeout=15) as resp:
             return await resp.text() if resp.status == 200 else None
     except: return None
 
-async def check_social(session):
-    # Exemplo de como o motor usa a função unificada
-    if 'SOCIAL_LINKS' in globals():
-        for url in SOCIAL_LINKS:
-            html = await fetch(session, url)
-            if html and is_new(url, html):
-                # Aqui você detecta se é X, Insta ou TikTok e chama:
-                await disparar_alerta_redes_sociais("X", "Perfil", url)
-
 def get_uptime():
     s = int(time.time() - start_time)
     return f"{s//3600}h {(s%3600)//60}m {s%60}s"
 
-# === MOTOR DE EXECUÇÃO PRINCIPAL === #
+# === MOTOR DE EXECUÇÃO PRINCIPAL (DECOLAGEM) === #
 async def main():
+    global PRIMEIRO_CICLO
     print("🛸 [SISTEMA] WOOTTEO EM PREPARAÇÃO PARA DECOLAGEM...")
+    
+    # 1. Flask para manter o Railway ativo
     try:
         keep_alive()
         print("✅ [FLASK] Web Server ativo.")
-    except Exception as e: print(f"❌ [FLASK] Erro: {e}")
+    except Exception as e: 
+        print(f"❌ [FLASK] Erro: {e}")
 
+    # 2. Iniciar Telegram (Polling independente)
     await run_telegram_async()
-    print("✅ [TELEGRAM] Wootteo online.")
+    print("✅ [TELEGRAM] Wootteo online e respondendo.")
 
+    # 3. Iniciar Monitor em Segundo Plano
     loop = asyncio.get_running_loop()
     loop.create_task(monitor_loop())
-    print("✅ [MONITOR] Ciclo Arirang em background.")
+    print("✅ [MONITOR] Ciclo Arirang iniciado.")
 
+    # 4. Timer para liberar alertas (Silencia os primeiros 45 segundos)
+    async def liberar_alertas():
+        global PRIMEIRO_CICLO
+        await asyncio.sleep(45)
+        PRIMEIRO_CICLO = False
+        print("🔔 [SISTEMA] Alertas reais ativados (Modo Silencioso OFF).")
+    
+    loop.create_task(liberar_alertas())
+
+    # 5. Iniciar Discord (Mantém o processo vivo)
     try:
         print("✅ [DISCORD] Wootteo tentando login...")
         await bot_discord.start(DISCORD_TOKEN)
     except Exception as e:
         print(f"❌ [DISCORD ERROR] {e}")
-        while True: await asyncio.sleep(3600)
+        while True: 
+            await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    try: asyncio.run(main())
-    except Exception as e: print(f"💥 [LOG FINAL]: {e}")
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"💥 [LOG FINAL]: {e}")
 
 # =========================
 # 19 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
