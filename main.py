@@ -45,12 +45,26 @@ DISCORD_TICKETS_CHANNEL_ID = 1494670074374651985
 DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461
 DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864
 
-bot_ticket = None
+# =========================
+# TELEGRAM INSTÂNCIAS (CORREÇÃO SEGURA)
+# =========================
+
+bot_ticket = None        # usado para envio de mensagens externas (alerts/painel)
+telegram_app = None      # usado pelo ApplicationBuilder (BLOCO 18.1)
+
+# =========================
+# INITIALIZATION LEGACY (MANTIDO PARA COMPATIBILIDADE)
+# =========================
 
 if TELEGRAM_TOKEN:
     try:
+        # ⚠️ MANTIDO para compatibilidade com chamadas antigas do sistema
+        # NÃO É MAIS O BOT PRINCIPAL DO RUNTIME
         bot_ticket = Bot(token=TELEGRAM_TOKEN)
+
         print("[SISTEMA] Telegram configurado com sucesso.")
+        print("[SISTEMA] Modo híbrido ativo (legacy + async runtime)")
+
     except Exception as e:
         print(f"[ERRO CONFIG TELEGRAM] {e}")
 
@@ -318,18 +332,41 @@ def get_countdown_data():
     return prox_data, prox_local, d_prox, d_br
 
 # =========================
-# 9 SESSION 
+# 9 SESSION (HTTP CLIENT GLOBAL)
 # =========================
+
+import aiohttp
 
 http_session = None
 
+
 async def get_session():
+    """
+    Cria e reutiliza uma única sessão HTTP global.
+    Isso evita múltiplas conexões abertas e mantém o bot leve e estável em tempo real.
+    """
     global http_session
 
+    # cria sessão se não existir ou se estiver fechada
     if http_session is None or http_session.closed:
-        http_session = aiohttp.ClientSession()
+        http_session = aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=30)
+        )
+        print("[SESSION] Nova sessão HTTP criada")
 
     return http_session
+
+
+async def close_session():
+    """
+    Fecha a sessão HTTP de forma segura no shutdown do bot.
+    """
+    global http_session
+
+    if http_session and not http_session.closed:
+        await http_session.close()
+        print("[SESSION] Sessão HTTP encerrada")
+
 
 # =========================
 # 10 EMOJIS
@@ -1238,6 +1275,7 @@ async def on_ready():
         await bot_discord.tree.sync()
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
+
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
 # =========================
@@ -1342,7 +1380,7 @@ async def carregar_id_telegram():
 
 # === PAINEL UPDATE (REGRAS DE RECONEXÃO) === #
 
-async def update_panel():
+async def update_panel_v2():
     global panel_message_id, discord_panel_msg_id
 
     data_show, city, d_prox, d_br = get_countdown_data()
@@ -1363,24 +1401,21 @@ async def update_panel():
                     )
                     success = True
                 except Exception:
-                    # Se falhar (ex: mensagem apagada), limpa o ID
                     panel_message_id = None
 
-            # REGRA A: Se não houver ID ou a edição falhou, cria novo e fixa
+            # REGRA A: Se não houver ID ou falhar, cria novo
             if not success:
-                # Limpa fixados antigos para evitar poluição
                 try:
                     await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-                except: pass
+                except:
+                    pass
 
                 msg = await bot_ticket.send_message(
                     chat_id=PANEL_CHAT_ID,
                     text=texto
                 )
+
                 panel_message_id = msg.message_id
-                
-                # Salva o ID (Idealmente em um arquivo ou variável de ambiente)
-                # salvar_id_telegram(panel_message_id) # Função do Bloco 12
 
                 try:
                     await bot_ticket.pin_chat_message(
@@ -1388,7 +1423,9 @@ async def update_panel():
                         message_id=panel_message_id,
                         disable_notification=True
                     )
-                except: pass
+                except:
+                    pass
+
                 print(f"[TELEGRAM] Novo painel fixado: {panel_message_id}")
 
         except Exception as e:
@@ -1397,11 +1434,13 @@ async def update_panel():
     # === DISCORD PAINEL FIXO === #
     if DISCORD_PANEL_CHANNEL_ID:
         channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+
         if channel:
             embed = discord.Embed(
                 description=texto,
-                color=0x8A2BE2 # Roxo Arirang
+                color=0x8A2BE2
             )
+
             try:
                 if not discord_panel_msg_id:
                     async for msg in channel.history(limit=10):
@@ -1415,8 +1454,67 @@ async def update_panel():
                 else:
                     msg = await channel.send(embed=embed)
                     discord_panel_msg_id = msg.id
+
             except Exception as e:
                 print(f"[DC PANEL ERROR] {e}")
+
+# =========================
+# 18.1 TELEGRAM START (TIME REAL SAFE)
+# =========================
+
+async def start_telegram():
+    """
+    Inicializa o bot Telegram em modo assíncrono seguro,
+    garantindo funcionamento contínuo sem bloquear o Discord.
+    """
+
+    if not TELEGRAM_TOKEN:
+        print("[TELEGRAM] Token não encontrado. Ignorando inicialização.")
+        return
+
+    global bot_ticket, telegram_app
+
+    from telegram.ext import (
+        ApplicationBuilder,
+        MessageHandler,
+        ContextTypes,
+        filters
+    )
+
+    async def run():
+        global bot_ticket, telegram_app
+
+        try:
+            # cria aplicação Telegram (única instância oficial)
+            telegram_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+            # mantém referência do bot para envio externo (alerts/painel)
+            bot_ticket = telegram_app.bot
+
+            # handler de mensagens (comandos simples)
+            telegram_app.add_handler(
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_telegram)
+            )
+
+            # inicialização segura
+            await telegram_app.initialize()
+
+            # remove webhook pendente (evita duplicação de updates)
+            await telegram_app.bot.delete_webhook(drop_pending_updates=True)
+
+            await telegram_app.start()
+
+            print("✅ TELEGRAM ONLINE (TIME REAL ATIVO)")
+
+            # mantém loop vivo sem travar event loop principal
+            while True:
+                await asyncio.sleep(3600)
+
+        except Exception as e:
+            print(f"[TELEGRAM ERROR] {e}")
+
+    # roda em background (não bloqueia Discord nem monitor)
+    asyncio.create_task(run())
 
 # =========================
 # 19 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
@@ -1820,3 +1918,31 @@ async def start_engine():
 async def trigger_alert(alert_type, url, message):
 
     await smart_alert(alert_type, url, message)
+
+# =========================
+# 21 STARTUP FINAL (CORREÇÃO CRÍTICA)
+# =========================
+
+async def main():
+    print("[SYSTEM] Inicializando...")
+
+    # inicia web server
+    keep_alive()
+
+    # inicia telegram
+    start_telegram()
+
+    # inicia engine principal
+    asyncio.create_task(start_engine())
+
+    # inicia bot discord
+    await bot_discord.start(DISCORD_TOKEN)
+
+
+# === ENTRYPOINT === #
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("[SYSTEM] Encerrado manualmente")
+
