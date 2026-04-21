@@ -1330,6 +1330,9 @@ async def setup_hook():
     except Exception as e:
         print(f"[SYNC HARDLOCK ERROR] {e}")
 
+# STATUS OBRIGATÓRIO DO BOT 
+await bot_discord.change_presence( activity=discord.Activity( type=discord.ActivityType.listening, name="🪭 Em tournê! Ouvundo: Arirang" ) )
+
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
 # =========================
