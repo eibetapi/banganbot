@@ -1334,6 +1334,16 @@ async def main():
         while True:
             await asyncio.sleep(3600)
 
+
+# =========================
+# EXECUÇÃO FINAL (CORREÇÃO DO CRASH)
+# =========================
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"[FATAL ERROR] {e}")
 # =========================
 # 19 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
 # =========================
