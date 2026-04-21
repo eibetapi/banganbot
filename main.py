@@ -426,7 +426,7 @@ async def send_alert(alert_type, message):
 @bot_discord.tree.command(name="ping", description="Verifica status do bot")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(
-        "🏓 Pong! Bot ativo.",
+        f"🏓 Pong! {get_uptime()}",
         ephemeral=True
     )
 
@@ -437,6 +437,7 @@ async def comandos(interaction: discord.Interaction):
         "/ping\n/comandos\n/teste",
         ephemeral=True
     )
+
 # ======================
 # 12 GESTÃO DO PAINEL
 # ======================
@@ -1157,18 +1158,31 @@ async def teste(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
     try:
+        # executa TODOS os testes reais (bloco 16)
         await run_full_test_discord()
-
-        await interaction.followup.send(
-            "✅ Teste executado com sucesso.",
-            ephemeral=True
-        )
 
     except Exception as e:
         await interaction.followup.send(
             f"❌ Erro no teste: {e}",
             ephemeral=True
         )
+
+
+# ✅ COMANDO /bts ADICIONADO PARA DISCORD
+@bot_discord.tree.command(name="bts", description="Lista membros do BTS")
+async def bts(interaction: discord.Interaction):
+
+    membros = [
+        "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI",
+        "🐿️ JUNG HOSEOK", "🐥 PARK JIMIN",
+        "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"
+    ]
+
+    await interaction.response.defer(ephemeral=True)
+
+    for nome in membros:
+        await interaction.followup.send(nome, ephemeral=True)
+        await asyncio.sleep(0.8)
 
 
 # === CORE ENGINE === #
@@ -1218,7 +1232,6 @@ def start_telegram():
         await app.run_polling()
 
     asyncio.create_task(run())
-
 # =========================
 # 18 CHECK SYSTEM + ALERTA REDES SOCIAIS (VERSÃO FINAL 100%)
 # =========================
