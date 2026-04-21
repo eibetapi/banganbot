@@ -1117,7 +1117,7 @@ async def test_youtube_live():
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 MOTOR + COMANDOS + TESTE (ESTÁVEL & VISUAL)
+# 17 MOTOR + COMANDOS + TESTE (RESTAURAÇÃO SOLICITADA)
 # =========================
 
 # === BOT DISCORD INIT === #
@@ -1142,7 +1142,6 @@ async def monitor_loop():
                     await asyncio.sleep(5)
                     continue
 
-                # Roda todos os seus checks normalmente
                 await check_ticketmaster(session)
                 await check_buyticket(session)
                 await check_weverse(session)
@@ -1189,38 +1188,37 @@ async def on_ready():
     try:
         await bot_discord.tree.sync()
     except Exception as e: print(f"[SYNC ERROR] {e}")
-    await bot_discord.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="🪭 Arirang"))
+    # LINHA PROTEGIDA - NÃO ALTERAR
+    await bot_discord.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="🪭Em tournê | Ouvindo:  Arirang"))
 
-@bot_discord.tree.command(name="ping", description="Status")
+@bot_discord.tree.command(name="ping", description="Tempo de atividade")
 async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message("🏓 Pong!", ephemeral=False)
+    # Calcula uptime exato
+    await interaction.response.send_message(f"🚀 Wootteo ativo há: {get_uptime()}", ephemeral=False)
+
+@bot_discord.tree.command(name="comandos", description="Lista de comandos")
+async def comandos(interaction: discord.Interaction):
+    await interaction.response.send_message("`/ping`, `/bts`, `/teste`, `/comandos`", ephemeral=False)
 
 @bot_discord.tree.command(name="bts", description="Fanchant BTS")
 async def bts_discord(interaction: discord.Interaction):
-    # Resposta inicial imediata para evitar timeout
     await interaction.response.send_message("🐨 KIM NAMJOON")
     membros = ["🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
-    
     for nome in membros:
         await asyncio.sleep(0.8)
         await interaction.followup.send(content=nome)
     
-    # Arte do álbum direta do Spotify
-    img_capa = "https://i.scdn.co/image/ab67616d0000b2736761005a7667d602336369c7"
-    embed_spotify = discord.Embed(
-        title="🪭 Ouça no Spotify",
-        description="[**ARIRANG**](http://sptfy.bio/btsarirang)",
-        color=discord.Color.purple()
-    )
-    embed_spotify.set_image(url=img_capa)
-    await interaction.followup.send(embed=embed_spotify)
+    # Mensagem normal sem embed
+    await interaction.followup.send(content="🪭 Ouça Arirang no Spotify\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=snPWjmwkSNOZ9GFKbELhUA")
 
 @bot_discord.tree.command(name="teste", description="Disparo de testes")
 async def teste(interaction: discord.Interaction):
-    # Defer impede o erro de 'desatualizado'
+    # Defer sem mensagem visível de texto (apenas sinaliza ao sistema que o comando foi aceito)
     await interaction.response.defer(ephemeral=True)
+    # Dispara os alertas do bloco 16 imediatamente nos canais configurados
     await run_full_test_discord()
-    await interaction.followup.send("✅ Teste disparado no canal.", ephemeral=True)
+    # Encerra a interação sem enviar texto
+    await interaction.delete_original_response()
 
 # === INICIO TELEGRAM === #
 async def run_telegram_async():
