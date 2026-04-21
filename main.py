@@ -437,33 +437,6 @@ async def comandos(interaction: discord.Interaction):
         "/ping\n/comandos\n/teste",
         ephemeral=True
     )
-
-
-@bot_discord.tree.command(name="teste", description="Dispara alertas reais do sistema")
-async def teste(interaction: discord.Interaction):
-
-    await interaction.response.defer(ephemeral=True)
-
-    try:
-        global TEST_MODE
-        TEST_MODE = True
-
-        await run_full_test_discord()
-
-        TEST_MODE = False
-
-        await interaction.followup.send(
-            "✅ Teste executado com sucesso.",
-            ephemeral=True
-        )
-
-    except Exception as e:
-        TEST_MODE = False
-        await interaction.followup.send(
-            f"❌ Erro no teste: {e}",
-            ephemeral=True
-        )
-
 # ======================
 # 12 GESTÃO DO PAINEL
 # ======================
