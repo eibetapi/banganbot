@@ -1117,7 +1117,7 @@ async def test_youtube_live():
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 MOTOR + COMANDOS + TESTE (ESTABILIDADE TOTAL - FIX TELEGRAM)
+# 17 MOTOR + COMANDOS + TESTE (ESTABILIDADE TOTAL - FIX FINAL)
 # =========================
 
 # === BOT DISCORD INIT === #
@@ -1134,8 +1134,6 @@ async def bts_telegram_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message:
             await update.message.reply_text(nome)
         await asyncio.sleep(0.8)
-    if update.message:
-        await update.message.reply_text("🪭 Ouça Arirang no Spotify\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=-_f7djpeS1uJlq71_SiOOg")
 
 async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -1168,48 +1166,11 @@ async def on_ready():
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
 
-    # LINHA PROTEGIDA - NÃO ALTERAR
     await bot_discord.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
-            name="🪭Em tournê | Ouvindo:  Arirang"
+            name="🪭Em tournê | Ouvindo: Arirang"
         )
-    )
-
-@bot_discord.tree.command(name="ping", description="Uptime")
-async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        f"🚀 Wootteo ativo há: {get_uptime()}",
-        ephemeral=False
-    )
-
-@bot_discord.tree.command(name="comandos", description="Lista")
-async def comandos(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        "`/ping`, `/bts`, `/teste`, `/comandos`",
-        ephemeral=False
-    )
-
-@bot_discord.tree.command(name="bts", description="Fanchant")
-async def bts_discord(interaction: discord.Interaction):
-    await interaction.response.send_message("🐨 KIM NAMJOON")
-
-    membros = [
-        "🐹 KIM SEOKJIN",
-        "🐱 MIN YOONGI",
-        "🐿️ JUNG HOESOK",
-        "🐥 PARK JIMIN",
-        "🐻 KIM TAEHYUNG",
-        "🐰 JEON JUNGKOOK",
-        "💜 BTS"
-    ]
-
-    for nome in membros:
-        await asyncio.sleep(0.8)
-        await interaction.followup.send(content=nome)
-
-    await interaction.followup.send(
-        content="🪭 Ouça Arirang no Spotify\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=-_f7djpeS1uJlq71_SiOOg"
     )
 
 @bot_discord.tree.command(name="teste", description="Disparo")
@@ -1220,7 +1181,6 @@ async def teste(interaction: discord.Interaction):
     try:
         await run_full_test_discord()
         await interaction.delete_original_response()
-
     except Exception as e:
         print(f"[TESTE ERROR] {e}")
 
@@ -1239,20 +1199,19 @@ async def monitor_loop():
                 await update_panel()
                 await asyncio.sleep(25)
 
-            except NameError:
-                print("⚠️ [AGUARDANDO] Carregando definições das funções...")
-                await asyncio.sleep(5)
-
             except Exception as e:
                 print(f"[MONITOR ERROR] {e}")
                 await asyncio.sleep(10)
 
-# === START TELEGRAM (FIX CONFLICT 100%) === #
-async def run_telegram_async():
-    global bot_ticket
+# === START TELEGRAM (FIX FINAL SEM CONFLICT E SEM CANCEL) === #
+def start_telegram():
+    if not TELEGRAM_TOKEN:
+        return
 
-    if TELEGRAM_TOKEN:
-        from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+    from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+
+    async def run():
+        global bot_ticket
 
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
         bot_ticket = app.bot
@@ -1263,15 +1222,12 @@ async def run_telegram_async():
         app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_commands_telegram))
 
         await app.initialize()
+        await app.bot.delete_webhook(drop_pending_updates=True)
         await app.start()
+        await app.updater.start_polling()
 
-        # 🔥 FIX DEFINITIVO DO CONFLICT
-        try:
-            await bot_ticket.delete_webhook(drop_pending_updates=True)
-        except:
-            pass
+    asyncio.create_task(run())
 
-        await app.run_polling(close_loop=False)
 # =========================
 # 18 CHECK SYSTEM + ALERTA REDES SOCIAIS (VERSÃO FINAL 100%)
 # =========================
