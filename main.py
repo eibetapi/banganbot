@@ -1309,45 +1309,39 @@ async def main():
     global PRIMEIRO_CICLO
     print("🛸 [SISTEMA] WOOTTEO EM PREPARAÇÃO PARA DECOLAGEM...")
     
-    # 1. Flask para manter o Railway ativo
+    # 1. Flask
     try:
         keep_alive()
         print("✅ [FLASK] Web Server ativo.")
     except Exception as e: 
         print(f"❌ [FLASK] Erro: {e}")
 
-    # 2. Iniciar Telegram (Polling independente)
-    await run_telegram_async()
+    # 2. Iniciar Telegram (CORRIGIDO)
+    start_telegram()
     print("✅ [TELEGRAM] Wootteo online e respondendo.")
 
-    # 3. Iniciar Monitor em Segundo Plano
+    # 3. Monitor
     loop = asyncio.get_running_loop()
     loop.create_task(monitor_loop())
     print("✅ [MONITOR] Ciclo Arirang iniciado.")
 
-    # 4. Timer para liberar alertas (Silencia os primeiros 45 segundos)
+    # 4. Liberação de alertas
     async def liberar_alertas():
         global PRIMEIRO_CICLO
         await asyncio.sleep(45)
         PRIMEIRO_CICLO = False
-        print("🔔 [SISTEMA] Alertas reais ativados (Modo Silencioso OFF).")
-    
+        print("🔔 [SISTEMA] Alertas reais ativados.")
+
     loop.create_task(liberar_alertas())
 
-    # 5. Iniciar Discord (Mantém o processo vivo)
+    # 5. Discord
     try:
         print("✅ [DISCORD] Wootteo tentando login...")
         await bot_discord.start(DISCORD_TOKEN)
     except Exception as e:
         print(f"❌ [DISCORD ERROR] {e}")
-        while True: 
+        while True:
             await asyncio.sleep(3600)
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        print(f"💥 [LOG FINAL]: {e}")
 
 # =========================
 # 19 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
