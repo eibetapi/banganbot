@@ -1744,7 +1744,21 @@ import hashlib
 # =========================
 
 GLOBAL_CACHE = {}
-GLOBAL_LOCK = asyncio.Lock()
+
+# ⚠️ FIX IMPORTANTE:
+# Lock NÃO deve ser criado aqui no import time em alguns ambientes async
+GLOBAL_LOCK = None
+
+
+# =========================
+# INIT LOCK (CHAMAR NO STARTUP)
+# =========================
+
+async def init_global_lock():
+    global GLOBAL_LOCK
+    if GLOBAL_LOCK is None:
+        GLOBAL_LOCK = asyncio.Lock()
+
 
 # =========================
 # SMART CACHE CHECK (EVITA RE-ALERT REPETIDO)
@@ -1773,6 +1787,11 @@ def is_new_global(key, content):
 async def safe_run(coro, label="TASK"):
 
     try:
+
+        # FIX: suporta coroutine OU função async
+        if callable(coro):
+            return await coro()
+
         return await coro
 
     except Exception as e:
@@ -1808,7 +1827,7 @@ async def watchdog_monitor():
 
 
 # =========================
-# SAFE FETCH WRAPPER 
+# SAFE FETCH WRAPPER
 # =========================
 
 async def safe_fetch(session, url):
@@ -1833,8 +1852,12 @@ async def safe_fetch(session, url):
 
 async def locked_update_panel():
 
+    # FIX: evita crash se lock ainda não inicializou
+    if GLOBAL_LOCK is None:
+        await init_global_lock()
+
     async with GLOBAL_LOCK:
-        await safe_run(update_panel(), "PANEL")
+        await safe_run(update_panel, "PANEL")
 
 
 # =========================
@@ -1867,10 +1890,8 @@ async def start_engine():
     print("[ENGINE] iniciando sistema completo")
 
     await asyncio.gather(
-
         monitor_loop(),
         watchdog_monitor()
-
     )
 
 
@@ -1948,7 +1969,6 @@ async def run_task_safe(task_func, *args):
     except Exception as e:
         print(f"[TASK ERROR] {e}")
         return None
-
 
 # =========================
 # 20 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
