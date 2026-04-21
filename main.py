@@ -1323,7 +1323,7 @@ if not hasattr(bot_discord, "COMMANDS_LOADED"):
     bot_discord.COMMANDS_LOADED = True
 
 # =========================
-# 18 CHECK SYSTEM + AUXILIARES (VERSÃO DECOLAGEM DEFINITIVA)
+# 18 CHECK SYSTEM + AUXILIARES (VERSÃO CORRIGIDA)
 # =========================
 
 # === FUNÇÃO FETCH === #
@@ -1424,7 +1424,7 @@ def get_uptime():
     s = int(time.time() - start_time)
     return f"{s//3600}h {(s%3600)//60}m {s%60}s"
 
-# === MOTOR DE EXECUÇÃO DEFINITIVO (UNIFICADO) === #
+# === MOTOR DE EXECUÇÃO DEFINITIVO (CORRIGIDO) === #
 async def main():
     print("🛸 [SISTEMA] INICIANDO DECOLAGEM INDEPENDENTE...")
     
@@ -1435,31 +1435,28 @@ async def main():
     except Exception as e:
         print(f"❌ [FLASK] Erro: {e}")
 
-    # 2. Registrar tarefas de fundo no loop principal
+    # 2. Registrar o Monitor Loop no loop principal
     loop = asyncio.get_running_loop()
     loop.create_task(monitor_loop())
-    loop.create_task(watchdog_monitor())
-    loop.create_task(health_watcher())
-    print("✅ [MONITOR] Ciclos Arirang preparados em background.")
+    print("✅ [MONITOR] Ciclo Arirang preparado em background.")
 
     # 3. Disparar Telegram e Discord juntos
-    # O gather aqui garante que se um demorar para logar, o outro não trava
     print("🚀 [MOTORES] Ligando canais de comunicação...")
     
     try:
+        # Usamos gather para rodar os dois bots em paralelo
         await asyncio.gather(
             run_telegram_async(),
             bot_discord.start(DISCORD_TOKEN)
         )
     except Exception as e:
         print(f"⚠️ [AVISO] Interrupção nos motores: {e}")
-        # Mantém o container vivo para debug se algo falhar
+        # Mantém o container vivo para debug
         while True:
             await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     try:
-        # Ponto de entrada padrão
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("\n🛑 [SISTEMA] Wootteo retornando para a base.")
