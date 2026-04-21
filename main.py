@@ -427,16 +427,28 @@ async def send_alert(alert_type, message):
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(
         f"🏓 Pong! {get_uptime()}",
-        ephemeral=True
+        ephemeral=False
     )
 
 
 @bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
 async def comandos(interaction: discord.Interaction):
     await interaction.response.send_message(
-        "/ping\n/comandos\n/teste",
-        ephemeral=True
+        "/ping\n/comandos\n/teste\n/bts",
+        ephemeral=False
     )
+
+
+@bot_discord.tree.command(name="bts", description="Lista membros do BTS")
+async def bts(interaction: discord.Interaction):
+
+    membros = [
+        "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI",
+        "🐿️ JUNG HOSEOK", "🐥 PARK JIMIN",
+        "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"
+    ]
+
+    await interaction.response.send_message("\n".join(membros), ephemeral=False)
 
 # ======================
 # 12 GESTÃO DO PAINEL
