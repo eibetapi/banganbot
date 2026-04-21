@@ -1349,7 +1349,7 @@ async def setup_hook():
         print("[SYNC] setup_hook concluído com sucesso")
 
     except Exception as e:
-        print(f"[SYNC ERROR] {e}")
+        print(f"[SYNC ERROR] {e}") 
 
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
