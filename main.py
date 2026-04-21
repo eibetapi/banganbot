@@ -34,6 +34,17 @@ intents.message_content = True
 intents.guilds = True
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
+# =========================
+# FIX OBRIGATÓRIO: SYNC DE SLASH COMMANDS
+# =========================
+@bot_discord.event
+async def setup_hook():
+    try:
+        await bot_discord.tree.sync()
+        print("[SYNC] Slash commands sincronizados no setup_hook")
+    except Exception as e:
+        print(f"[SYNC HOOK ERROR] {e}")
+
 PANEL_CHAT_ID = -1003920883053
 
 panel_message_id = None
@@ -1108,6 +1119,7 @@ async def test_youtube_live():
 
 # =========================
 # 17 CORE FINAL LIMPO (SEM DUPLICAÇÃO DE COMMANDS)
+# + HARDLOCK ANTI-SUMIÇO DE SLASH COMMANDS
 # =========================
 
 # =========================
@@ -1129,15 +1141,12 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
 
     resposta = None
 
-    # ===== PING =====
     if cmd == "ping":
         resposta = f"🏓 Pong! {get_uptime()}"
 
-    # ===== COMANDOS =====
     elif cmd == "comandos":
         resposta = "/ping\n/comandos\n/teste\n/bts"
 
-    # ===== BTS =====
     elif cmd == "bts":
         resposta = "\n".join([
             "🐨 KIM NAMJOON",
@@ -1150,7 +1159,6 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
             "💜 BTS"
         ])
 
-    # ===== TESTE =====
     elif cmd == "teste":
         resposta = "⚠️ Iniciando teste completo..."
 
@@ -1170,7 +1178,7 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
             await telegram_send(chat_id, resposta)
 
     # =========================
-    # EXECUÇÃO DE AÇÕES
+    # EXECUÇÃO TESTE
     # =========================
 
     if cmd == "teste":
@@ -1191,7 +1199,7 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
 
 
 # =========================
-# TELEGRAM HANDLER (ÚNICO)
+# TELEGRAM HANDLER
 # =========================
 
 async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1201,11 +1209,7 @@ async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cmd = update.message.text.lower().replace("/", "").strip()
 
-    await executar_comando(
-        cmd=cmd,
-        origem="telegram",
-        chat_id=update.message.chat_id
-    )
+    await executar_comando(cmd, "telegram", chat_id=update.message.chat_id)
 
 
 # =========================
@@ -1239,7 +1243,7 @@ def start_telegram():
 
 
 # =========================
-# DISCORD COMMANDS (ÚNICOS - SEM DUPLICAÇÃO)
+# DISCORD COMMANDS
 # =========================
 
 @bot_discord.tree.command(name="ping")
@@ -1252,9 +1256,20 @@ async def comandos_cmd(interaction: discord.Interaction):
     await executar_comando("comandos", "discord", interaction=interaction)
 
 
-@bot_discord.tree.command(name="bts")
+# =========================
+# FIX ROBUSTO /bts (FORÇADO NO TREE)
+# =========================
+
 async def bts_cmd(interaction: discord.Interaction):
     await executar_comando("bts", "discord", interaction=interaction)
+
+bot_discord.tree.add_command(
+    app_commands.Command(
+        name="bts",
+        description="Mostra membros do BTS",
+        callback=bts_cmd
+    )
+)
 
 
 @bot_discord.tree.command(name="teste")
@@ -1264,25 +1279,32 @@ async def teste_cmd(interaction: discord.Interaction):
 
 
 # =========================
-# DISCORD READY (CORRIGIDO E UNIFICADO)
+# 🔒 HARDLOCK DE SLASH COMMANDS (ANTI-SUMIÇO)
 # =========================
 
 @bot_discord.event
-async def on_ready():
-    print(f"✅ Discord conectado: {bot_discord.user}")
+async def setup_hook():
+
+    print("[SYNC] iniciando hardlock de comandos...")
 
     try:
-        await bot_discord.tree.sync()
-    except Exception as e:
-        print(f"[SYNC ERROR] {e}")
+        # força sync total
+        synced = await bot_discord.tree.sync()
+        print(f"[SYNC] {len(synced)} comandos sincronizados")
 
-    # STATUS OBRIGATÓRIO DO BOT
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="🪭 Em tournê! Ouvundo: Arirang"
-        )
-    )
+        # valida se comandos críticos existem
+        nomes = [c.name for c in synced]
+
+        obrigatorios = ["ping", "comandos", "bts", "teste"]
+
+        for cmd in obrigatorios:
+            if cmd not in nomes:
+                print(f"[HARDLOCK] comando faltando: {cmd} -> resync forçado")
+                await bot_discord.tree.sync()
+                break
+
+    except Exception as e:
+        print(f"[SYNC HARDLOCK ERROR] {e}")
 
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
