@@ -1117,7 +1117,7 @@ async def test_youtube_live():
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 MOTOR + COMANDOS + TESTE (FIX ORDEM & CONFLITO)
+# 17 MOTOR + COMANDOS + TESTE (ESTABILIDADE TOTAL)
 # =========================
 
 # === BOT DISCORD INIT === #
@@ -1127,17 +1127,13 @@ intents.guilds = True
 
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
-# =========================
-# TELEGRAM COMMAND LOGIC
-# =========================
-
+# === TELEGRAM LOGIC === #
 async def bts_telegram_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     membros = ["🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
-    post_final = "🪭 Ouça Arirang no Spotify\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=-_f7djpeS1uJlq71_SiOOg"
     for nome in membros:
         if update.message: await update.message.reply_text(nome)
         await asyncio.sleep(0.8)
-    if update.message: await update.message.reply_text(post_final)
+    if update.message: await update.message.reply_text("🪭 Ouça Arirang no Spotify\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=-_f7djpeS1uJlq71_SiOOg")
 
 async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
@@ -1145,49 +1141,14 @@ async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT
     if "ping" in cmd: await update.message.reply_text("🚀 Wootteo em órbita!")
     elif "comandos" in cmd: await update.message.reply_text("/ping, /bts, /teste, /comandos")
     elif "bts" in cmd: await bts_telegram_cmd(update, context)
-    elif "teste" in cmd: await telegram_teste_cmd(update, context)
+    elif "teste" in cmd: 
+        if PANEL_CHAT_ID: await context.bot.send_message(chat_id=PANEL_CHAT_ID, text="⚠️ TESTE TELEGRAM OK")
 
-async def telegram_teste_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if PANEL_CHAT_ID:
-        try: await context.bot.send_message(chat_id=PANEL_CHAT_ID, text="⚠️ TESTE TELEGRAM OK")
-        except: pass
-
-# =========================
-# MONITOR LOOP (CORE ENGINE)
-# =========================
-
-async def monitor_loop():
-    # Aguarda o bot estar pronto antes de iniciar
-    while not bot_discord.is_ready():
-        await asyncio.sleep(5)
-    
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                # Verificação de segurança: as funções do Bloco 16 precisam existir no escopo global
-                await check_ticketmaster(session)
-                await check_buyticket(session)
-                await check_weverse(session)
-                await check_social(session)
-                await update_panel()
-                
-                await asyncio.sleep(25)
-            except NameError as ne:
-                print(f"⚠️ [AGUARDANDO FUNÇÕES] {ne}")
-                await asyncio.sleep(10)
-            except Exception as e:
-                print(f"[MONITOR ERROR] {e}")
-                await asyncio.sleep(10)
-
-# =========================
-# DISCORD EVENTS & COMMANDS
-# =========================
-
+# === DISCORD EVENTS === #
 @bot_discord.event
 async def on_ready():
     print(f"✅ Logado: {bot_discord.user}")
-    try:
-        await bot_discord.tree.sync()
+    try: await bot_discord.tree.sync()
     except Exception as e: print(f"[SYNC ERROR] {e}")
     # LINHA PROTEGIDA - NÃO ALTERAR
     await bot_discord.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="🪭Em tournê | Ouvindo:  Arirang"))
@@ -1205,24 +1166,48 @@ async def bts_discord(interaction: discord.Interaction):
     await interaction.response.send_message("🐨 KIM NAMJOON")
     membros = ["🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
     for nome in membros:
-        await asyncio.sleep(0.8)
-        await interaction.followup.send(content=nome)
+        await asyncio.sleep(0.8); await interaction.followup.send(content=nome)
     await interaction.followup.send(content="🪭 Ouça Arirang no Spotify\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=-_f7djpeS1uJlq71_SiOOg")
 
 @bot_discord.tree.command(name="teste", description="Disparo")
 async def teste(interaction: discord.Interaction):
+    # RESOLVE O ERRO DE "COMANDO DESATUALIZADO": Avisa ao Discord que o processamento começou
     await interaction.response.defer(ephemeral=True)
     try:
+        # Força o disparo dos alertas do Bloco 16/18
         await run_full_test_discord()
-    finally:
+        # Finaliza a interação silenciosamente
         await interaction.delete_original_response()
+    except Exception as e:
+        print(f"[TESTE ERROR] {e}")
 
-# === INICIO TELEGRAM ASYNC === #
+# === CORE ENGINE (POSICIONADO PARA EVITAR NAMEERROR) === #
+async def monitor_loop():
+    while not bot_discord.is_ready():
+        await asyncio.sleep(5)
+    
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                # O Python agora reconhecerá estas funções pois o loop inicia após o boot completo
+                await check_ticketmaster(session)
+                await check_buyticket(session)
+                await check_weverse(session)
+                await check_social(session)
+                await update_panel()
+                await asyncio.sleep(25)
+            except NameError:
+                print("⚠️ [AGUARDANDO] Carregando definições das funções...")
+                await asyncio.sleep(5)
+            except Exception as e:
+                print(f"[MONITOR ERROR] {e}"); await asyncio.sleep(10)
+
+# === START TELEGRAM === #
 async def run_telegram_async():
     global bot_ticket
     if TELEGRAM_TOKEN:
         from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-        # drop_pending_updates=True no Builder para limpar o erro de Conflict no boot
+        # drop_pending_updates=True resolve o erro de 'Conflict' no boot
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
         bot_ticket = app.bot
         app.add_handler(CommandHandler("ping", handle_commands_telegram))
@@ -1232,7 +1217,6 @@ async def run_telegram_async():
         
         await app.initialize()
         await app.start()
-        # Limpa atualizações presas que causam o Conflict
         await app.updater.start_polling(drop_pending_updates=True)
 
 # =========================
