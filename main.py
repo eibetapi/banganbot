@@ -1264,7 +1264,7 @@ async def teste_cmd(interaction: discord.Interaction):
 
 
 # =========================
-# DISCORD READY
+# DISCORD READY (CORRIGIDO E UNIFICADO)
 # =========================
 
 @bot_discord.event
@@ -1276,12 +1276,13 @@ async def on_ready():
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
 
-bot_discord.event async def on_ready(): 
-print(f"✅ Logado: {bot_discord.user}") 
-try: 
-await bot_discord.tree.sync() except Exception as e: 
-print(f"[SYNC ERROR] {e}") 
-await bot_discord.change_presence( activity=discord.Activity( type=discord.ActivityType.listening, name="🪭 Em turnê | Arirang" ) )
+    # STATUS OBRIGATÓRIO DO BOT
+    await bot_discord.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.listening,
+            name="🪭 Em tournê! Ouvundo: Arirang"
+        )
+    )
 
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
