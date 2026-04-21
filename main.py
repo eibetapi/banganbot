@@ -472,58 +472,51 @@ async def send_alert(alert_type, message):
 async def update_panel():
     global panel_message_id, discord_panel_msg_id
 
-    # dados dinâmicos
-    data_show, city, d_prox, d_br = get_countdown_data()
-    texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+    try:
+        # dados dinâmicos
+        data_show, city, d_prox, d_br = get_countdown_data()
+        texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-    # =========================
-    # TELEGRAM (PAINEL FIXO)
-    # =========================
-    if bot_ticket and PANEL_CHAT_ID:
-        try:
-            if not panel_message_id:
-                panel_message_id = carregar_id_telegram()
+        # =========================
+        # TELEGRAM (PAINEL FIXO)
+        # =========================
+        if bot_ticket and PANEL_CHAT_ID:
+            try:
+                if not panel_message_id:
+                    panel_message_id = carregar_id_telegram()
 
-            edited = False
+                edited = False
 
-            # tenta editar mensagem existente
-            if panel_message_id:
-                try:
-                    await bot_ticket.edit_message_text(
+                # tenta editar mensagem existente
+                if panel_message_id:
+                    try:
+                        await bot_ticket.edit_message_text(
+                            chat_id=PANEL_CHAT_ID,
+                            message_id=panel_message_id,
+                            text=texto,
+                            parse_mode=None
+                        )
+                        edited = True
+                    except:
+                        panel_message_id = None
+
+                # recria se não existir
+                if not edited:
+                    try:
+                        await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
+                    except:
+                        pass
+
+                    msg = await bot_ticket.send_message(
                         chat_id=PANEL_CHAT_ID,
-                        message_id=panel_message_id,
                         text=texto,
                         parse_mode=None
                     )
-                    edited = True
-                except:
-                    panel_message_id = None
 
-            # recria se não existir
-            if not edited:
-                try:
-                    await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-                except:
-                    pass
+                    panel_message_id = msg.message_id
+                    salvar_id_telegram(panel_message_id)
 
-                msg = await bot_ticket.send_message(
-                    chat_id=PANEL_CHAT_ID,
-                    text=texto,
-                    parse_mode=None
-                )
-
-                panel_message_id = msg.message_id
-                salvar_id_telegram(panel_message_id)
-
-                # pin seguro
-                try:
-                    await bot_ticket.pin_chat_message(
-                        chat_id=PANEL_CHAT_ID,
-                        message_id=panel_message_id,
-                        disable_notification=True
-                    )
-                except:
-                    await asyncio.sleep(1)
+                    # pin seguro
                     try:
                         await bot_ticket.pin_chat_message(
                             chat_id=PANEL_CHAT_ID,
@@ -531,53 +524,66 @@ async def update_panel():
                             disable_notification=True
                         )
                     except:
-                        pass
-
-        except Exception as e:
-            print(f"[TELEGRAM PANEL ERROR] {e}")
-
-    # =========================
-    # DISCORD PAINEL (EMBED ROXO FIXO)
-    # =========================
-    if DISCORD_PANEL_CHANNEL_ID:
-
-        channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
-
-        if channel:
-
-            embed = discord.Embed(
-                description=texto,
-                color=0x8A2BE2  # 🔥 borda roxa padrão obrigatória
-            )
-
-            try:
-
-                # tenta recuperar mensagem antiga
-                if not discord_panel_msg_id:
-
-                    async for msg in channel.history(limit=10):
-                        if msg.author == bot_discord.user:
-                            discord_panel_msg_id = msg.id
-                            break
-
-                # edita se existir
-                if discord_panel_msg_id:
-
-                    msg = await channel.fetch_message(discord_panel_msg_id)
-                    await msg.edit(embed=embed)
-
-                # cria se não existir
-                else:
-
-                    msg = await channel.send(embed=embed)
-                    discord_panel_msg_id = msg.id
+                        await asyncio.sleep(1)
+                        try:
+                            await bot_ticket.pin_chat_message(
+                                chat_id=PANEL_CHAT_ID,
+                                message_id=panel_message_id,
+                                disable_notification=True
+                            )
+                        except:
+                            pass
 
             except Exception as e:
-                print(f"[DC PANEL ERROR] {e}")
+                print(f"[TELEGRAM PANEL ERROR] {e}")
+
+        # =========================
+        # DISCORD PAINEL (EMBED ROXO FIXO)
+        # =========================
+        if DISCORD_PANEL_CHANNEL_ID:
+
+            channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+
+            if channel:
+
+                embed = discord.Embed(
+                    description=texto,
+                    color=0x8A2BE2
+                )
+
+                try:
+
+                    # tenta recuperar mensagem antiga
+                    if not discord_panel_msg_id:
+
+                        async for msg in channel.history(limit=10):
+                            if msg.author == bot_discord.user:
+                                discord_panel_msg_id = msg.id
+                                break
+
+                    # edita se existir
+                    if discord_panel_msg_id:
+
+                        msg = await channel.fetch_message(discord_panel_msg_id)
+                        await msg.edit(embed=embed)
+
+                    # cria se não existir
+                    else:
+
+                        msg = await channel.send(embed=embed)
+                        discord_panel_msg_id = msg.id
+
+                except Exception as e:
+                    print(f"[DC PANEL ERROR] {e}")
+
+    except Exception as e:
+        print(f"[PANEL UPDATE FATAL ERROR] {e}")
+
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
     global total_weverse, total_social, total_tickets, total_buy
     global last_weverse_check, last_social_check, last_ticket_check, last_buy_check
+
 
     return f"""🪭 ⊙⊝⊜ **ARIRANG TOUR** ⊙⊝⊜ 🪭
 
@@ -1332,21 +1338,13 @@ async def teste_cmd(interaction: discord.Interaction):
 
 @bot_discord.event
 async def setup_hook():
-
     print("[SYNC] iniciando setup_hook completo...")
 
     try:
-        # =========================
-        # SYNC INICIAL
-        # =========================
         synced = await bot_discord.tree.sync()
         print(f"[SYNC] {len(synced)} comandos sincronizados")
 
-        # =========================
-        # HARDLOCK DE VERIFICAÇÃO
-        # =========================
         nomes = [c.name for c in synced]
-
         obrigatorios = ["ping", "comandos", "bts", "teste"]
 
         for cmd in obrigatorios:
