@@ -1117,7 +1117,7 @@ async def test_youtube_live():
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 MOTOR + COMANDOS + TESTE (VISUAL SPOTIFY FINAL)
+# 17 MOTOR + COMANDOS + TESTE (ESTÁVEL & VISUAL)
 # =========================
 
 # === BOT DISCORD INIT === #
@@ -1142,6 +1142,7 @@ async def monitor_loop():
                     await asyncio.sleep(5)
                     continue
 
+                # Roda todos os seus checks normalmente
                 await check_ticketmaster(session)
                 await check_buyticket(session)
                 await check_weverse(session)
@@ -1163,19 +1164,19 @@ async def bts_telegram_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for nome in membros:
         await update.message.reply_text(nome)
         await asyncio.sleep(0.8)
-    await update.message.reply_text(post_final, disable_web_page_preview=False)
+    await update.message.reply_text(post_final)
 
 async def handle_commands_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text: return
     cmd = update.message.text.lower()
     if "ping" in cmd: await update.message.reply_text("🚀 Wootteo em órbita!")
-    elif "comandos" in cmd:
-        await update.message.reply_text("/ping, /bts, /teste, /comandos")
+    elif "comandos" in cmd: await update.message.reply_text("/ping, /bts, /teste, /comandos")
+    elif "bts" in cmd: await bts_telegram_cmd(update, context)
     elif "teste" in cmd: await telegram_teste_cmd(update, context)
 
 async def telegram_teste_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if PANEL_CHAT_ID:
-        try:
-            await context.bot.send_message(chat_id=PANEL_CHAT_ID, text=f"⚠️ TESTE TELEGRAM OK - {datetime.now().strftime('%H:%M:%S')}")
+        try: await context.bot.send_message(chat_id=PANEL_CHAT_ID, text="⚠️ TESTE TELEGRAM OK")
         except: pass
 
 # =========================
@@ -1194,48 +1195,47 @@ async def on_ready():
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("🏓 Pong!", ephemeral=False)
 
-@bot_discord.tree.command(name="comandos", description="Comandos")
-async def comandos(interaction: discord.Interaction):
-    await interaction.response.send_message("`/ping`, `/bts`, `/teste`, `/comandos`", ephemeral=False)
-
 @bot_discord.tree.command(name="bts", description="Fanchant BTS")
 async def bts_discord(interaction: discord.Interaction):
-    membros = ["🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
+    # Resposta inicial imediata para evitar timeout
+    await interaction.response.send_message("🐨 KIM NAMJOON")
+    membros = ["🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOESOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
     
-    await interaction.response.send_message(membros[0])
-    for nome in membros[1:]:
+    for nome in membros:
         await asyncio.sleep(0.8)
         await interaction.followup.send(content=nome)
     
-    # --- CARD SPOTIFY AJUSTADO ---
+    # Arte do álbum direta do Spotify
+    img_capa = "https://i.scdn.co/image/ab67616d0000b2736761005a7667d602336369c7"
     embed_spotify = discord.Embed(
         title="🪭 Ouça no Spotify",
         description="[**ARIRANG**](http://sptfy.bio/btsarirang)",
         color=discord.Color.purple()
     )
-    # A imagem do álbum agora carrega corretamente no tamanho oficial
-    embed_spotify.set_image(url="https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=LOH7sU1dScWFGMNXDlCIPQ")
-    
+    embed_spotify.set_image(url=img_capa)
     await interaction.followup.send(embed=embed_spotify)
 
 @bot_discord.tree.command(name="teste", description="Disparo de testes")
 async def teste(interaction: discord.Interaction):
-    await interaction.response.send_message("⌛", ephemeral=True)
+    # Defer impede o erro de 'desatualizado'
+    await interaction.response.defer(ephemeral=True)
     await run_full_test_discord()
+    await interaction.followup.send("✅ Teste disparado no canal.", ephemeral=True)
 
+# === INICIO TELEGRAM === #
 async def run_telegram_async():
     global bot_ticket
     if TELEGRAM_TOKEN:
-        from telegram.ext import ApplicationBuilder, CommandHandler
-        application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-        bot_ticket = application.bot
-        application.add_handler(CommandHandler("ping", handle_commands_telegram))
-        application.add_handler(CommandHandler("bts", bts_telegram_cmd))
-        application.add_handler(CommandHandler("teste", handle_commands_telegram))
-        application.add_handler(CommandHandler("comandos", handle_commands_telegram))
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling(drop_pending_updates=True)
+        from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+        bot_ticket = app.bot
+        app.add_handler(CommandHandler("ping", handle_commands_telegram))
+        app.add_handler(CommandHandler("bts", bts_telegram_cmd))
+        app.add_handler(CommandHandler("teste", handle_commands_telegram))
+        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_commands_telegram))
+        await app.initialize(); await app.start()
+        await app.updater.start_polling(drop_pending_updates=True)
+
 # =========================
 # 18 CHECK SYSTEM + ALERTA REDES SOCIAIS (VERSÃO FINAL 100%)
 # =========================
