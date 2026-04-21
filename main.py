@@ -356,7 +356,7 @@ def format_member(member_name):
     return emoji, name
 
 # =========================
-# 11 TEST MODE + CORE ROUTER + COMANDOS BASE
+# 11 TEST MODE + CORE ROUTER (SEM COMANDOS DUPLICADOS)
 # =========================
 
 TEST_MODE = False
@@ -372,7 +372,7 @@ async def send_discord(channel_id, content=None, embed=None):
     if embed is None and content is not None:
         embed = discord.Embed(
             description=content,
-            color=0x8A2BE2  # borda roxa padrão
+            color=0x8A2BE2
         )
 
     await channel.send(embed=embed)
@@ -406,49 +406,16 @@ async def send_alert(alert_type, message):
 
         elif alert_type in [
             "instagram_post", "instagram_reels", "instagram_stories", "instagram_live",
-            "tiktok_post", "tiktok_live"
+            "tiktok_post", "tiktok_live",
+            "youtube_post", "youtube_live",
+            "x_post"
         ]:
-            asyncio.create_task(
-                send_discord(DISCORD_SOCIAL_CHANNEL_ID, content=message)
-            )
-
-        elif alert_type in ["youtube_post", "youtube_live"]:
             asyncio.create_task(
                 send_discord(DISCORD_SOCIAL_CHANNEL_ID, content=message)
             )
 
     except Exception as e:
         print(f"[DISCORD ROUTER ERROR] {e}")
-
-
-# === DISCORD COMMANDS BASE === #
-
-@bot_discord.tree.command(name="ping", description="Verifica status do bot")
-async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        f"🏓 Pong! {get_uptime()}",
-        ephemeral=False
-    )
-
-
-@bot_discord.tree.command(name="comandos", description="Lista comandos disponíveis")
-async def comandos(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        "/ping\n/comandos\n/teste\n/bts",
-        ephemeral=False
-    )
-
-
-@bot_discord.tree.command(name="bts", description="Lista membros do BTS")
-async def bts(interaction: discord.Interaction):
-
-    membros = [
-        "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI",
-        "🐿️ JUNG HOSEOK", "🐥 PARK JIMIN",
-        "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"
-    ]
-
-    await interaction.response.send_message("\n".join(membros), ephemeral=False)
 
 # ======================
 # 12 GESTÃO DO PAINEL
@@ -1103,7 +1070,7 @@ async def test_youtube_live():
     await send_alert("youtube_live", msg)
 
 # =========================
-# 17 + 18 CORE FINAL LIMPO
+# 17 CORE FINAL LIMPO (SEM DUPLICAÇÃO DE COMMANDS)
 # =========================
 
 # =========================
@@ -1235,26 +1202,26 @@ def start_telegram():
 
 
 # =========================
-# DISCORD COMMANDS
+# DISCORD COMMANDS (ÚNICOS - SEM DUPLICAÇÃO)
 # =========================
 
 @bot_discord.tree.command(name="ping")
-async def ping(interaction: discord.Interaction):
+async def ping_cmd(interaction: discord.Interaction):
     await executar_comando("ping", "discord", interaction=interaction)
 
 
 @bot_discord.tree.command(name="comandos")
-async def comandos(interaction: discord.Interaction):
+async def comandos_cmd(interaction: discord.Interaction):
     await executar_comando("comandos", "discord", interaction=interaction)
 
 
 @bot_discord.tree.command(name="bts")
-async def bts(interaction: discord.Interaction):
+async def bts_cmd(interaction: discord.Interaction):
     await executar_comando("bts", "discord", interaction=interaction)
 
 
 @bot_discord.tree.command(name="teste")
-async def teste(interaction: discord.Interaction):
+async def teste_cmd(interaction: discord.Interaction):
     await interaction.response.defer()
     await executar_comando("teste", "discord", interaction=interaction)
 
@@ -1271,55 +1238,8 @@ async def on_ready():
         await bot_discord.tree.sync()
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
-
-
 # =========================
-# MONITOR LOOP ÚNICO
-# =========================
-
-async def monitor_loop():
-
-    await bot_discord.wait_until_ready()
-
-    async with aiohttp.ClientSession() as session:
-
-        while True:
-            try:
-                await check_ticketmaster(session)
-                await check_buyticket(session)
-                await check_weverse(session)
-                await check_social(session)
-                await update_panel()
-
-                await asyncio.sleep(25)
-
-            except Exception as e:
-                print(f"[MONITOR ERROR] {e}")
-                await asyncio.sleep(10)
-
-
-# =========================
-# MAIN FINAL
-# =========================
-
-async def main():
-
-    print("🛸 WOOTTEO CORE FINAL INICIANDO")
-
-    # WEB
-    keep_alive()
-
-    # TELEGRAM
-    start_telegram()
-
-    # MONITOR
-    asyncio.create_task(monitor_loop())
-
-    # DISCORD
-    await bot_discord.start(DISCORD_TOKEN)
-
-# =========================
-# 19 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
+# 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
 # =========================
 
 # === STATUS COUNTDOWN DATA === #
@@ -1499,7 +1419,7 @@ async def update_panel():
                 print(f"[DC PANEL ERROR] {e}")
 
 # =========================
-# 20 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
+# 19 FINAL MASTER (ANTI-CRASH + CACHE + DUPLICAÇÃO GLOBAL)
 # =========================
 
 # === GLOBAL CACHE (ANTI-DUPLICAÇÃO REAL) === #
@@ -1696,7 +1616,7 @@ async def run_task_safe(task_func, *args):
         return None
 
 # =========================
-# 21 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
+# 20 FINAL CORE HARDENING (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
 # =========================
 
 # === PRIORITY LEVELS === #
