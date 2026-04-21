@@ -1323,7 +1323,7 @@ if not hasattr(bot_discord, "COMMANDS_LOADED"):
     bot_discord.COMMANDS_LOADED = True
 
 # =========================
-# 18 CHECK SYSTEM + AUXILIARES (COMPLETO & ESTÁVEL)
+# 18 CHECK SYSTEM + AUXILIARES (VERSÃO DECOLAGEM DEFINITIVA)
 # =========================
 
 # === FUNÇÃO FETCH === #
@@ -1355,7 +1355,7 @@ async def carregar_id_telegram():
             print(f"[ERRO RECOVERY TG] {e}")
     return None
 
-# === MONITORAMENTO: TICKETMASTER CHECK === #
+# === MONITORAMENTO: TICKETMASTER, BUY, WEVERSE, SOCIAL === #
 async def check_ticketmaster(session):
     global last_ticket_check, total_tickets
     if 'TICKET_LINKS' not in globals() or not TICKET_LINKS: return
@@ -1367,10 +1367,8 @@ async def check_ticketmaster(session):
                 total_tickets += 1
                 found = "esgotado" not in html.lower()
                 await ticket_reposicao(url, url, found)
-        except Exception as e:
-            print(f"[ERR TICKET] {e}")
+        except Exception as e: print(f"[ERR TICKET] {e}")
 
-# === MONITORAMENTO: BUYTICKET CHECK === #
 async def check_buyticket(session):
     global last_buy_check, total_buy
     if 'BUY_LINKS' not in globals() or not BUY_LINKS: return
@@ -1378,12 +1376,9 @@ async def check_buyticket(session):
     for url in BUY_LINKS:
         try:
             html = await fetch(session, url)
-            if html and is_new(url, html):
-                total_buy += 1
-        except Exception as e:
-            print(f"[ERR BUY] {e}")
+            if html and is_new(url, html): total_buy += 1
+        except Exception as e: print(f"[ERR BUY] {e}")
 
-# === MONITORAMENTO: WEVERSE CHECK === #
 async def check_weverse(session):
     global last_weverse_check, total_weverse
     if 'WEVERSE_LINKS' not in globals() or not WEVERSE_LINKS: return
@@ -1391,12 +1386,9 @@ async def check_weverse(session):
     for url in WEVERSE_LINKS:
         try:
             html = await fetch(session, url)
-            if html and is_new(url, html):
-                total_weverse += 1
-        except Exception as e:
-            print(f"[ERR WEVERSE] {e}")
+            if html and is_new(url, html): total_weverse += 1
+        except Exception as e: print(f"[ERR WEVERSE] {e}")
 
-# === MONITORAMENTO: SOCIAL & YOUTUBE CHECK === #
 async def check_social(session):
     global last_social_check, total_social
     last_social_check = time.time()
@@ -1404,10 +1396,8 @@ async def check_social(session):
         for url in SOCIAL_LINKS:
             try:
                 html = await fetch(session, url)
-                if html and is_new(url, html):
-                    total_social += 1
-            except Exception as e:
-                print(f"[ERR SOCIAL] {e}")
+                if html and is_new(url, html): total_social += 1
+            except Exception as e: print(f"[ERR SOCIAL] {e}")
     await check_youtube(session)
 
 async def check_youtube(session):
@@ -1417,12 +1407,9 @@ async def check_youtube(session):
         if html:
             is_live = '{"text":"AO VIVO"}' in html or '"style":"LIVE"' in html
             if is_live:
-                if is_new(youtube_url + "/live", "LIVE"):
-                    await youtube_live(youtube_url)
-            elif is_new(youtube_url, html):
-                await youtube_post(youtube_url, youtube_url)
-    except Exception as e:
-        print(f"[ERR YOUTUBE] {e}")
+                if is_new(youtube_url + "/live", "LIVE"): await youtube_live(youtube_url)
+            elif is_new(youtube_url, html): await youtube_post(youtube_url, youtube_url)
+    except Exception as e: print(f"[ERR YOUTUBE] {e}")
 
 # === AUXILIARES DE INTERFACE === #
 def minutes_since(ts):
@@ -1437,41 +1424,47 @@ def get_uptime():
     s = int(time.time() - start_time)
     return f"{s//3600}h {(s%3600)//60}m {s%60}s"
 
-# === MOTOR DE EXECUÇÃO DEFINITIVO (RAILWAY) === #
+# === MOTOR DE EXECUÇÃO DEFINITIVO (UNIFICADO) === #
 async def main():
-    print("🛸 [SISTEMA] WOOTTEO EM PREPARAÇÃO PARA DECOLAGEM...")
+    print("🛸 [SISTEMA] INICIANDO DECOLAGEM INDEPENDENTE...")
     
+    # 1. Manter o Railway vivo via Flask
     try:
-        keep_alive() # Inicia o Flask
+        keep_alive()
         print("✅ [FLASK] Web Server ativo.")
     except Exception as e:
         print(f"❌ [FLASK] Erro: {e}")
 
-    # Inicia Telegram primeiro
-    await run_telegram_async()
-
-    # Cria as tarefas de fundo no loop atual
+    # 2. Registrar tarefas de fundo no loop principal
     loop = asyncio.get_running_loop()
     loop.create_task(monitor_loop())
     loop.create_task(watchdog_monitor())
     loop.create_task(health_watcher())
-    print("✅ [MONITOR] Ciclos Arirang ativados.")
+    print("✅ [MONITOR] Ciclos Arirang preparados em background.")
 
-    # Discord é o "start" final que segura o processo
+    # 3. Disparar Telegram e Discord juntos
+    # O gather aqui garante que se um demorar para logar, o outro não trava
+    print("🚀 [MOTORES] Ligando canais de comunicação...")
+    
     try:
-        print("✅ [DISCORD] Wootteo tentando login...")
-        await bot_discord.start(DISCORD_TOKEN)
+        await asyncio.gather(
+            run_telegram_async(),
+            bot_discord.start(DISCORD_TOKEN)
+        )
     except Exception as e:
-        print(f"❌ [ERRO CRÍTICO] {e}")
-        while True: await asyncio.sleep(3600)
+        print(f"⚠️ [AVISO] Interrupção nos motores: {e}")
+        # Mantém o container vivo para debug se algo falhar
+        while True:
+            await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     try:
+        # Ponto de entrada padrão
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        print("\n🛑 [SISTEMA] Wootteo encerrado.")
+        print("\n🛑 [SISTEMA] Wootteo retornando para a base.")
     except Exception as e:
-        print(f"💥 [LOG DE ERRO FINAL]: {e}")
+        print(f"💥 [LOG FINAL]: {e}")
 
 # =========================
 # 19 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
