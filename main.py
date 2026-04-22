@@ -1362,8 +1362,13 @@ def start_telegram():
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
         bot_ticket = app.bot
 
-        # 🔥 ESSA LINHA FALTANDO (ESSENCIAL)
-        panel_message_id = carregar_id_telegram()
+        # 🔥 tenta recuperar ID salvo (não sobrescreve se já existir)
+        try:
+            saved_id = carregar_id_telegram()
+            if saved_id:
+                panel_message_id = saved_id
+        except Exception as e:
+            print(f"[PANEL LOAD ERROR] {e}")
 
         app.add_handler(MessageHandler(filters.TEXT, handle_telegram))
 
