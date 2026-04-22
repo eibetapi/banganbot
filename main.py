@@ -832,8 +832,6 @@ async def instagram_live(url, member_name, title, found):
 LAST_TIKTOK_LINK = None
 LAST_YOUTUBE_LINK = None
 
-)
-
 # === TIKTOK === #
 
 async def tiktok_post(url, member_name, title, found):
