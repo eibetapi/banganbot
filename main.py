@@ -491,11 +491,6 @@ async def send_alert(alert_type, message):
     except Exception as e:
         print(f"[DISCORD ROUTER ERROR] {e}")
 
-
-# ======================
-# 12 GESTÃO DO PAINEL (FIX REAL TEMPO-REAL)
-# ======================
-
 # ======================
 # 12 GESTÃO DO PAINEL (FIX REAL TEMPO-REAL)
 # ======================
