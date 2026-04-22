@@ -1357,10 +1357,13 @@ def start_telegram():
 
     async def run():
 
-        global bot_ticket
+        global bot_ticket, panel_message_id
 
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
         bot_ticket = app.bot
+
+        # 🔥 ESSA LINHA FALTANDO (ESSENCIAL)
+        panel_message_id = carregar_id_telegram()
 
         app.add_handler(MessageHandler(filters.TEXT, handle_telegram))
 
