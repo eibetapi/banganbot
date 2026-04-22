@@ -1352,8 +1352,16 @@ async def setup_hook():
         print(f"[SYNC ERROR] {e}") 
 
 # =========================
-# 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL
+# 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL (CORRIGIDO)
 # =========================
+
+import asyncio
+import time
+import aiohttp
+import discord
+from datetime import datetime
+from bs4 import BeautifulSoup
+
 
 # =========================
 # STATUS COUNTDOWN DATA (ÚNICO E CORRIGIDO)
@@ -1369,10 +1377,6 @@ def get_countdown_data():
     days_to_brazil = 0
 
     brazil_found = False
-
-    # =========================
-    # PRÓXIMO SHOW GLOBAL
-    # =========================
 
     for item in AGENDA:
 
@@ -1392,10 +1396,6 @@ def get_countdown_data():
         except:
             continue
 
-    # =========================
-    # PRIMEIRO SHOW NO BRASIL
-    # =========================
-
     for item in AGENDA:
 
         try:
@@ -1414,7 +1414,6 @@ def get_countdown_data():
             continue
 
     return next_global_date, next_global_local, days_to_next_global, days_to_brazil
-
 
 # =========================
 # PAINEL RENDER (TEXTO BASE)
@@ -1455,7 +1454,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 
 
 # =========================
-# PAINEL UPDATE (TELEGRAM + DISCORD)
+# UPDATE PANEL
 # =========================
 
 async def update_panel():
@@ -1464,10 +1463,6 @@ async def update_panel():
 
     data_show, city, d_prox, d_br = get_countdown_data()
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
-
-    # =========================
-    # TELEGRAM
-    # =========================
 
     if bot_ticket and PANEL_CHAT_ID:
 
@@ -1496,20 +1491,13 @@ async def update_panel():
         except Exception as e:
             print(f"[TELEGRAM PANEL ERROR] {e}")
 
-    # =========================
-    # DISCORD
-    # =========================
-
     if DISCORD_PANEL_CHANNEL_ID:
 
         channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
 
         if channel:
 
-            embed = discord.Embed(
-                description=texto,
-                color=0x8A2BE2
-            )
+            embed = discord.Embed(description=texto, color=0x8A2BE2)
 
             try:
 
@@ -1535,6 +1523,149 @@ async def update_panel():
 
 
 # =========================
+# DISCORD READY
+# =========================
+
+@bot_discord.event
+async def on_ready():
+
+    print(f"Discord conectado: {bot_discord.user}")
+
+    try:
+        await bot_discord.tree.sync()
+    except Exception as e:
+        print(f"[SYNC ERROR] {e}")
+
+    await bot_discord.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.listening,
+            name="Arirang Tour"
+        )
+    )
+
+
+# =========================
+# CHECKERS
+# =========================
+
+async def check_ticketmaster(session):
+
+    global total_tickets, last_ticket_check
+
+    try:
+
+        for url in TICKET_LINKS:
+
+            await throttle("ticket_" + url, 1)
+
+            async with session.get(url, timeout=20) as resp:
+                html = await resp.text()
+
+            if not html:
+                continue
+
+            changed = is_real_change(f"ticket:{url}", html)
+
+            total_tickets += 1
+            last_ticket_check = time.time()
+
+            if changed:
+                await trigger_alert("ticket", url, f"TICKET UPDATE {url}")
+
+    except Exception as e:
+        print(f"[CHECK TICKET ERROR] {e}")
+
+
+async def check_buyticket(session):
+
+    global total_buy, last_buy_check
+
+    try:
+
+        for url in BUY_LINKS:
+
+            await throttle("buy_" + url, 1)
+
+            async with session.get(url, timeout=20) as resp:
+                html = await resp.text()
+
+            if not html:
+                continue
+
+            changed = is_real_change(f"buy:{url}", html)
+
+            total_buy += 1
+            last_buy_check = time.time()
+
+            if changed:
+                await trigger_alert("buy", url, f"BUY UPDATE {url}")
+
+    except Exception as e:
+        print(f"[CHECK BUY ERROR] {e}")
+
+
+async def check_weverse(session):
+
+    global total_weverse, last_weverse_check
+
+    try:
+
+        for url in WEVERSE_LINKS:
+
+            await throttle("weverse_" + url, 1)
+
+            async with session.get(url, timeout=20) as resp:
+                html = await resp.text()
+
+            if not html:
+                continue
+
+            changed = is_real_change(f"weverse:{url}", html)
+
+            total_weverse += 1
+            last_weverse_check = time.time()
+
+            if changed:
+
+                soup = BeautifulSoup(html, "html.parser")
+                title = soup.title.text if soup.title else "Weverse"
+
+                await trigger_alert("weverse", url, f"{title}")
+
+    except Exception as e:
+        print(f"[CHECK WEVERSE ERROR] {e}")
+
+
+async def check_social(session):
+
+    global total_social, last_social_check
+
+    try:
+
+        all_links = list(INSTAGRAM_LINKS.values()) + X_LINKS + YOUTUBE_LINKS
+
+        for url in all_links:
+
+            await throttle("social_" + url, 1)
+
+            async with session.get(url, timeout=20) as resp:
+                html = await resp.text()
+
+            if not html:
+                continue
+
+            changed = is_real_change(f"social:{url}", html)
+
+            total_social += 1
+            last_social_check = time.time()
+
+            if changed:
+                await trigger_alert("social", url, f"SOCIAL UPDATE {url}")
+
+    except Exception as e:
+        print(f"[CHECK SOCIAL ERROR] {e}")
+
+# =========================
 # 18.1 CHECK FUNCTIONS (VERSÃO REAL + SEGURA)
 # =========================
 
@@ -1543,28 +1674,28 @@ from bs4 import BeautifulSoup
 
 
 # =========================
-# DISCORD READY (CORRIGIDO - STATUS FIXO AQUI)
+# DISCORD READY (CORRIGIDO - STATUS FIXO)
 # =========================
 
 @bot_discord.event
 async def on_ready():
 
-    print(f"✅ Discord conectado: {bot_discord.user}")
+    print(f"Discord conectado: {bot_discord.user}")
 
     try:
         await bot_discord.tree.sync()
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
 
-    # =========================
-    # STATUS OBRIGATÓRIO DO BOT (AQUI É O LUGAR CERTO)
-    # =========================
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="🪭 Em tournê! Ouvundo: Arirang"
+    try:
+        await bot_discord.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.listening,
+                name="Arirang Tour"
+            )
         )
-    )
+    except Exception as e:
+        print(f"[STATUS ERROR] {e}")
 
 
 # =========================
@@ -1595,14 +1726,13 @@ async def check_ticketmaster(session):
             if changed:
 
                 msg = f"""
-🎫 TICKETMASTER UPDATE 🎫
-🔥 Mudança detectada!
+🎫 TICKETMASTER UPDATE
+🔥 Mudança detectada
 
 🔗 {url}
 """
 
                 await trigger_alert("ticket", url, msg)
-
 
     except Exception as e:
         print(f"[CHECK TICKET ERROR] {e}")
@@ -1636,14 +1766,13 @@ async def check_buyticket(session):
             if changed:
 
                 msg = f"""
-🎟️ BUYTICKET UPDATE 🎟️
-🔥 Mudança detectada!
+🎟️ BUYTICKET UPDATE
+🔥 Mudança detectada
 
 🔗 {url}
 """
 
-                await trigger_alert("reposicao", url, msg)
-
+                await trigger_alert("buy", url, msg)
 
     except Exception as e:
         print(f"[CHECK BUY ERROR] {e}")
@@ -1677,25 +1806,24 @@ async def check_weverse(session):
             if changed:
 
                 soup = BeautifulSoup(html, "html.parser")
-                title = soup.title.text if soup.title else "Weverse Update"
+                title = soup.title.text.strip() if soup.title else "Weverse Update"
 
                 msg = f"""
-🟣 WEVERSE UPDATE 🟣
-💜 Nova atualização detectada
+🟣 WEVERSE UPDATE
+💜 Nova postagem detectada
 
 📌 {title}
 🔗 {url}
 """
 
-                await trigger_alert("weverse_post", url, msg)
-
+                await trigger_alert("weverse", url, msg)
 
     except Exception as e:
         print(f"[CHECK WEVERSE ERROR] {e}")
 
 
 # =========================
-# SOCIAL CHECK REAL (X / IG / YT / TIKTOK)
+# SOCIAL CHECK REAL
 # =========================
 
 async def check_social(session):
@@ -1724,13 +1852,30 @@ async def check_social(session):
             if changed:
 
                 msg = f"""
-🌐 SOCIAL UPDATE 🌐
+🌐 SOCIAL UPDATE
 🔥 Mudança detectada
 
 🔗 {url}
 """
 
                 await trigger_alert("social", url, msg)
+
+    except Exception as e:
+        print(f"[CHECK SOCIAL ERROR] {e}")
+
+
+# =========================
+# SAFE SESSION WRAPPER (OPCIONAL MAS RECOMENDADO)
+# =========================
+
+async def create_session():
+
+    return aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=30),
+        headers={
+            "User-Agent": "Mozilla/5.0"
+        }
+    )
 
 # =========================
 # 19 FINAL MASTER (ANTI-SPAM INTELIGENTE + DIF REAL + PRIORIDADE)
