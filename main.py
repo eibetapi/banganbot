@@ -1655,6 +1655,7 @@ async def update_panel():
 
 @bot_discord.event
 async def on_ready():
+await recover_discord_panel()
 
     print(f"Discord conectado: {bot_discord.user}")
 
