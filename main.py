@@ -1539,7 +1539,7 @@ async def on_ready():
     await bot_discord.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
-            name="Arirang Tour"
+            name="🪭 Em tournê - Ouvindo Arirang🪭"
         )
     )
 
@@ -1691,7 +1691,7 @@ async def on_ready():
         await bot_discord.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
-                name="Arirang Tour"
+                name="🪭 Em tournê - Ouvindo Arirang🪭"
             )
         )
     except Exception as e:
