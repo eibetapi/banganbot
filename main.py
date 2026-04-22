@@ -476,12 +476,17 @@ async def update_panel():
         texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
         # =========================
-        # ANTI-SPAM (10s)
+        # ANTI-SPAM (10s) - FIX SEGURO
         # =========================
         now = time.time()
 
-        if last_panel_update and (now - last_panel_update < 10):
-            return
+        global last_panel_update
+
+        if 'last_panel_update' in globals():
+            if last_panel_update and (now - last_panel_update < 10):
+                return
+        else:
+            last_panel_update = 0
 
         last_panel_update = now
 
