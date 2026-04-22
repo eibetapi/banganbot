@@ -1818,12 +1818,12 @@ async def check_social(session):
                 print(f"[SOCIAL FETCH ERROR] {url} -> {fetch_error}")
                 html = None
 
-            # 🔥 CONTADOR SEMPRE
+            # 🔥 CONTADOR SEMPRE (mantido igual ao original)
             total_social += 1
             last_social_check = time.time()
 
-            # 🔥 SINCRONIZA PAINEL CORRETAMENTE (Telegram + Discord)
-            await locked_update_panel()
+            # 🔥 VOLTA PRO MÉTODO ORIGINAL (NÃO QUEBRA DISCORD)
+            await sync_panel_counters()
 
             if not html:
                 continue
@@ -1835,6 +1835,7 @@ async def check_social(session):
 
     except Exception as e:
         print(f"[CHECK SOCIAL ERROR] {e}")
+
 # =========================
 # SAFE SESSION WRAPPER (OPCIONAL MAS RECOMENDADO)
 # =========================
