@@ -1499,7 +1499,7 @@ def get_countdown_data():
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
 
-    return f"""🪭 ⊙⊝⊜ **ARIRANG TOUR** ⊙⊝⊜ 🪭
+    return f"""🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
 
 **✈️ PRÓXIMAS DATAS**
 
@@ -1523,8 +1523,8 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 ⏳ Último rastreio há: {minutes_since(last_ticket_check)} min
 
 🔵 Buyticket {status_color(last_buy_check)}
-🎯 Acessos realizados: **{total_buy}
-⏳ Último rastreio há: **{minutes_since(last_buy_check)} min
+🎯 Acessos realizados: {total_buy}
+⏳ Último rastreio há: {minutes_since(last_buy_check)} min
 
 •°•👾 Wootteo em rota há: {get_uptime()} ✨
 """
