@@ -910,6 +910,55 @@ async def youtube_live(url=None):
     await update_panel()
 
 # =========================
+# 15.1 ALERTAS TICKETMASTER & BUYTICKET (PADRÃO OFICIAL)
+# =========================
+
+async def ticket_reposicao(url, data, setor, categoria):
+    msg = f"""
+
+🔥 ALERTA DE REPOSIÇÃO 🔥
+📅 Data: {data}
+🔗 Link: {url}
+
+🎫 Setor: {setor}
+🏷️ Categoria: {categoria}
+
+"""
+    await send_alert("reposicao", msg)
+    await update_panel()
+
+
+async def ticket_agenda(url, data):
+    msg = f"""
+
+💜 AGENDA - NOVAS DATAS 💜
+📅 Data: {data}
+🔗 Link: {url}
+🏙️ Cidade: São Paulo
+🌎 País: Brasil
+ℹ️ Mais informações em breve
+
+"""
+    await send_alert("agenda", msg)
+    await update_panel()
+
+
+async def buyticket_revenda(url, data, valor, setor, categoria):
+    msg = f"""
+
+🎫 REVENDA BUYTICKET 🎫
+📅 Data: {data}
+🔗 Link: {url}
+💰 Valor: {valor}
+
+🎫 Setor: {setor}
+🏷️ Categoria: {categoria}
+
+"""
+    await send_alert("buyticket_revenda", msg)
+    await update_panel()
+
+# =========================
 # 16 SISTEMA DE TESTE (ESTRUTURA DE MENSAGENS FIXA)
 # =========================
 
@@ -1589,24 +1638,17 @@ async def check_ticketmaster(session):
             if not html:
                 continue
 
-            # 🔥 CONTADOR SEMPRE (acesso real)
             total_tickets += 1
             last_ticket_check = time.time()
+
+            await sync_panel_counters()
 
             changed = is_real_change(f"ticket:{url}", html)
 
             if changed:
 
-                asyncio.create_task(sync_panel_counters())
-
-                msg = f"""
-🎫 TICKETMASTER UPDATE
-🔥 Mudança detectada
-
-🔗 {url}
-"""
-
-                await trigger_alert("ticket", url, msg)
+                # 🔥 APENAS DISPARA EVENTO (SEM MSG PRÓPRIA)
+                await trigger_alert("ticket", url, None)
 
     except Exception as e:
         print(f"[CHECK TICKET ERROR] {e}")
@@ -1631,24 +1673,17 @@ async def check_buyticket(session):
             if not html:
                 continue
 
-            # 🔥 CONTADOR SEMPRE
             total_buy += 1
             last_buy_check = time.time()
+
+            await sync_panel_counters()
 
             changed = is_real_change(f"buy:{url}", html)
 
             if changed:
 
-                asyncio.create_task(sync_panel_counters())
-
-                msg = f"""
-🎟️ BUYTICKET UPDATE
-🔥 Mudança detectada
-
-🔗 {url}
-"""
-
-                await trigger_alert("buy", url, msg)
+                # 🔥 SEM MENSAGEM LOCAL
+                await trigger_alert("buy", url, None)
 
     except Exception as e:
         print(f"[CHECK BUY ERROR] {e}")
@@ -1677,24 +1712,16 @@ async def check_weverse(session):
             total_weverse += 1
             last_weverse_check = time.time()
 
+            # 🔄 SINCRONIZA PAINEL OBRIGATORIAMENTE
+            await sync_panel_counters()
+
             changed = is_real_change(f"weverse:{url}", html)
 
             if changed:
 
-                asyncio.create_task(sync_panel_counters())
-
-                soup = BeautifulSoup(html, "html.parser")
-                title = soup.title.text.strip() if soup.title else "Weverse Update"
-
-                msg = f"""
-🟣 WEVERSE UPDATE
-💜 Nova postagem detectada
-
-📌 {title}
-🔗 {url}
-"""
-
-                await trigger_alert("weverse", url, msg)
+                # 🚨 NÃO MONTA MENSAGEM AQUI
+                # só dispara evento pro bloco oficial (13)
+                await trigger_alert("weverse", url, None)
 
     except Exception as e:
         print(f"[CHECK WEVERSE ERROR] {e}")
@@ -1725,20 +1752,16 @@ async def check_social(session):
             total_social += 1
             last_social_check = time.time()
 
+            # 🔄 SINCRONIZA PAINEL OBRIGATORIAMENTE
+            await sync_panel_counters()
+
             changed = is_real_change(f"social:{url}", html)
 
             if changed:
 
-                asyncio.create_task(sync_panel_counters())
-
-                msg = f"""
-🌐 SOCIAL UPDATE
-🔥 Mudança detectada
-
-🔗 {url}
-"""
-
-                await trigger_alert("social", url, msg)
+                # 🚨 NÃO CRIA MENSAGEM AQUI
+                # só dispara pro handler oficial (bloco 14/15)
+                await trigger_alert("social", url, None)
 
     except Exception as e:
         print(f"[CHECK SOCIAL ERROR] {e}")
