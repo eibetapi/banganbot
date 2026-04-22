@@ -1591,8 +1591,10 @@ async def check_ticketmaster(session):
 
             changed = is_real_change(f"ticket:{url}", html)
 
-            total_tickets += 1
-            last_ticket_check = time.time()
+           total_tickets += 1
+last_ticket_check = time.time()
+
+asyncio.create_task(sync_panel_counters())
 
             if changed:
 
@@ -1632,7 +1634,9 @@ async def check_buyticket(session):
             changed = is_real_change(f"buy:{url}", html)
 
             total_buy += 1
-            last_buy_check = time.time()
+last_buy_check = time.time()
+
+asyncio.create_task(sync_panel_counters())
 
             if changed:
 
@@ -1671,8 +1675,10 @@ async def check_weverse(session):
 
             changed = is_real_change(f"weverse:{url}", html)
 
-            total_weverse += 1
-            last_weverse_check = time.time()
+          total_weverse += 1
+last_weverse_check = time.time()
+
+asyncio.create_task(sync_panel_counters())
 
             if changed:
 
@@ -1717,8 +1723,10 @@ async def check_social(session):
 
             changed = is_real_change(f"social:{url}", html)
 
-            total_social += 1
-            last_social_check = time.time()
+           total_social += 1
+last_social_check = time.time()
+
+asyncio.create_task(sync_panel_counters())
 
             if changed:
 
@@ -1875,6 +1883,16 @@ async def locked_update_panel():
     async with GLOBAL_LOCK:
         await safe_run(update_panel, "PANEL")
 
+# =========================
+# PANEL COUNTER SYNC FIX
+# =========================
+
+async def sync_panel_counters():
+    try:
+        # evita spam de atualização
+        await locked_update_panel()
+    except Exception as e:
+        print(f"[PANEL SYNC ERROR] {e}")
 
 # =========================
 # EVENT LOOP GUARD (ANTI FREEZE)
