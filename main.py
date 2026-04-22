@@ -617,7 +617,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
   🔔 Faltam {d_prox} dias.
   🩷 Faltam {d_br} dias para o BTS no Brasil!
 
-•°•🌙.•°**ATUALIZAÇÕES** .💫 * . * •°•°🛸
+•°•🌙.•°ATUALIZAÇÕES •°.💫 * . * •°•°🛸
 
   🟣 Weverse {status_color(last_weverse_check)}
   🎯 Acessos realizados: {total_weverse}
@@ -1508,7 +1508,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 🔔 Faltam {d_prox} dias.
 🩷 Faltam {d_br} dias para o BTS no Brasil!
 
-•°•🌙.•°**ATUALIZAÇÕES** .💫 * . * •°•°🛸
+•°•🌙.•°ATUALIZAÇÕES •°.💫 * . * •°•°🛸
 
 🟣 Weverse {status_color(last_weverse_check)}
 🎯 Acessos realizados: {total_weverse}
