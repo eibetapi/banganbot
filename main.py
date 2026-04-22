@@ -185,10 +185,6 @@ TIKTOK_LINKS = {
     "bts": "https://www.tiktok.com/@bts_official_bighit"
 }
 
-X_LINKS = [
-    "https://x.com/BTS_twt"
-]
-
 YOUTUBE_LINKS = [
     "https://www.youtube.com/@BTS"
 ]
@@ -456,7 +452,7 @@ async def send_alert(alert_type, message):
             "instagram_post", "instagram_reels", "instagram_stories", "instagram_live",
             "tiktok_post", "tiktok_live",
             "youtube_post", "youtube_live",
-            "x_post"
+            
         ]:
             asyncio.create_task(
                 send_discord(DISCORD_SOCIAL_CHANNEL_ID, content=message)
@@ -1804,7 +1800,7 @@ async def check_social(session):
 
     try:
 
-        all_links = list(INSTAGRAM_LINKS.values()) + X_LINKS + YOUTUBE_LINKS
+        all_links = list(INSTAGRAM_LINKS.values()) + YOUTUBE_LINKS
 
         for url in all_links:
 
