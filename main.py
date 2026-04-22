@@ -462,34 +462,47 @@ async def send_alert(alert_type, message):
         print(f"[DISCORD ROUTER ERROR] {e}")
 
 # ======================
-# 12 GESTÃO DO PAINEL
+# 12 GESTÃO DO PAINEL (TELEGRAM FIX FINAL)
 # ======================
 
 async def update_panel():
     global panel_message_id, discord_panel_msg_id, last_panel_update
 
     try:
-        # dados dinâmicos
+        # =========================
+        # DADOS DINÂMICOS
+        # =========================
         data_show, city, d_prox, d_br = get_countdown_data()
         texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-        # ⛔ ANTI-SPAM (10s)
+        # =========================
+        # ANTI-SPAM (10s)
+        # =========================
         now = time.time()
         if now - last_panel_update < 10:
             return
         last_panel_update = now
 
+        # =========================
+        # TELEGRAM PAINEL
+        # =========================
         if bot_ticket and PANEL_CHAT_ID:
 
             try:
-                # 🔍 garante memória do painel
+                # =========================
+                # 1) RECUPERA ID SALVO SEMPRE
+                # =========================
                 if not panel_message_id:
-                    panel_message_id = carregar_id_telegram()
+                    try:
+                        panel_message_id = carregar_id_telegram()
+                    except Exception as e:
+                        print(f"[PANEL LOAD ERROR] {e}")
+                        panel_message_id = None
 
                 edited = False
 
                 # =========================
-                # 🧠 REGRA B: tenta editar primeiro SEMPRE
+                # 2) TENTA EDITAR PRIMEIRO (REGRA OBRIGATÓRIA)
                 # =========================
                 if panel_message_id:
                     try:
@@ -502,15 +515,16 @@ async def update_panel():
                         edited = True
 
                     except Exception:
+                        # se falhar, perde referência mas NÃO cria ainda
                         panel_message_id = None
 
                 # =========================
-                # 🧠 REGRA A: só cria SE NÃO EXISTIR
+                # 3) SÓ CRIA SE REALMENTE NÃO EXISTE
                 # =========================
                 if not edited:
 
+                    # tenta limpar fixações antigas (sem risco se falhar)
                     try:
-                        # evita duplicação de fixados antigos
                         await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
                     except:
                         pass
@@ -524,25 +538,22 @@ async def update_panel():
                     panel_message_id = msg.message_id
                     salvar_id_telegram(panel_message_id)
 
+                    # =========================
+                    # 4) FIXAÇÃO SEGURA
+                    # =========================
                     try:
                         await bot_ticket.pin_chat_message(
                             chat_id=PANEL_CHAT_ID,
                             message_id=panel_message_id,
                             disable_notification=True
                         )
-                    except:
-                        await asyncio.sleep(1)
-                        try:
-                            await bot_ticket.pin_chat_message(
-                                chat_id=PANEL_CHAT_ID,
-                                message_id=panel_message_id,
-                                disable_notification=True
-                            )
-                        except:
-                            pass
+                    except Exception as e:
+                        print(f"[PIN ERROR] {e}")
 
             except Exception as e:
-                # 🧠 TRATAMENTO DE FLOOD
+                # =========================
+                # FLOOD CONTROL
+                # =========================
                 if "Flood control" in str(e):
                     try:
                         wait = int(str(e).split("Retry in ")[1].split(" ")[0])
@@ -555,7 +566,6 @@ async def update_panel():
 
     except Exception as e:
         print(f"[UPDATE PANEL ERROR] {e}")
-
  # =========================
 # DISCORD PAINEL (MÓDULO A - FIX OBRIGATÓRIO)
 # =========================
