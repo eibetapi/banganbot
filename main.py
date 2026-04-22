@@ -894,7 +894,8 @@ async def youtube_post(url, final_url=None):
     await update_panel()
 
 async def youtube_live(url=None):
-    global total_social, last_social_check
+   global total_social, last_social_check
+total_social += 1
 
     total_social += 1
     last_social_check = time.time()
@@ -1638,7 +1639,8 @@ async def check_weverse(session):
 
 async def check_social(session):
 
-    global total_social, last_social_check
+ global total_social, last_social_check
+total_social += 1
 
     try:
 
@@ -1828,7 +1830,8 @@ async def check_weverse(session):
 
 async def check_social(session):
 
-    global total_social, last_social_check
+global total_social, last_social_check
+total_social += 1
 
     try:
 
