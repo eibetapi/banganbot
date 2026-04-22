@@ -607,35 +607,37 @@ async def update_panel():
 def gerar_texto_painel(data_show, city, d_prox, d_br):
 
 
-    return f"""🪭 ⊙⊝⊜ **ARIRANG TOUR** ⊙⊝⊜ 🪭
+    return f"""🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
 
 
-**✈️ PRÓXIMAS DATAS**
+  ✈️ PRÓXIMAS DATAS
 
-  🎫 Data: **{data_show}**
-  📍 Local: **{city}**
-  🔔 Faltam **{d_prox}** dias.
-  🩷 Faltam **{d_br}** dias para o BTS no Brasil!
+  🎫 Data: {data_show}
+  📍 Local: {city}
+  🔔 Faltam {d_prox} dias.
+  🩷 Faltam {d_br} dias para o BTS no Brasil!
 
 •°•🌙.•°**ATUALIZAÇÕES** .💫 * . * •°•°🛸
 
-  🟣 **Weverse** {status_color(last_weverse_check)}
+  🟣 Weverse 
+{status_color(last_weverse_check)}
   🎯 Acessos realizados: **{total_weverse}**
   ⏳ Último rastreio há: **{minutes_since(last_weverse_check)} min**
 
-  ⚪ **Redes sociais** {status_color(last_social_check)}
+  ⚪ Redes sociais {status_color(last_social_check)}
   🎯 Acessos realizados: **{total_social}**
   ⏳ Último rastreio há: **{minutes_since(last_social_check)} min**
 
-  🟠 **Ticketmaster** {status_color(last_ticket_check)}
+  🟠 Ticketmaster {status_color(last_ticket_check)}
   🎯 Acessos realizados: **{total_tickets}**
   ⏳ Último rastreio há: **{minutes_since(last_ticket_check)} min**
 
-  🔵 **Buyticket** {status_color(last_buy_check)}
+  🔵 Buyticket 
+{status_color(last_buy_check)}
   🎯 Acessos realizados: **{total_buy}**
   ⏳ Último rastreio há: **{minutes_since(last_buy_check)} min**
 
-•°•👾 Wootteo em rota há: **{get_uptime()}** ☄️🌍💫
+•°•👾 Wootteo em rota há: {get_uptime()} ✨
 """
 
 # =========================
