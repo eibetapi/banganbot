@@ -1791,7 +1791,7 @@ async def check_weverse(session):
         print(f"[CHECK WEVERSE ERROR] {e}")
 
 # =========================
-# SOCIAL CHECK REAL
+# SOCIAL CHECK REAL (CORRIGIDO)
 # =========================
 
 async def check_social(session):
@@ -1800,16 +1800,28 @@ async def check_social(session):
 
     try:
 
+        # 🔥 REMOVE X daqui se você decidiu eliminar
         all_links = list(INSTAGRAM_LINKS.values()) + YOUTUBE_LINKS
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+        }
 
         for url in all_links:
 
-            await throttle("social_" + url, 1)
+            # 🔒 throttle mais seguro (evita 429)
+            await throttle("social_" + url, 5)
 
             html = None
 
             try:
-                async with session.get(url, timeout=20) as resp:
+                async with session.get(url, timeout=20, headers=headers) as resp:
+
+                    if resp.status == 429:
+                        print(f"[SOCIAL RATE LIMIT] {url} — aguardando 60s...")
+                        await asyncio.sleep(60)
+                        continue
+
                     if resp.status != 200:
                         raise Exception(f"Status {resp.status}")
 
@@ -1819,12 +1831,12 @@ async def check_social(session):
                 print(f"[SOCIAL FETCH ERROR] {url} -> {fetch_error}")
                 html = None
 
-            # 🔥 CONTADOR SEMPRE (mantido igual ao original)
+            # 🔄 contador SEMPRE atualiza (não mexe no painel base)
             total_social += 1
             last_social_check = time.time()
 
-            # 🔥 VOLTA PRO MÉTODO ORIGINAL (NÃO QUEBRA DISCORD)
-            await sync_panel_counters()
+            # 🔄 mantém painel vivo
+            await update_panel()
 
             if not html:
                 continue
