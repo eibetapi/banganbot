@@ -470,12 +470,18 @@ async def send_alert(alert_type, message):
 # ======================
 
 async def update_panel():
-    global panel_message_id, discord_panel_msg_id
+    global panel_message_id, discord_panel_msg_id, last_panel_update
 
     try:
         # dados dinâmicos
         data_show, city, d_prox, d_br = get_countdown_data()
         texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+
+        # ⛔ ANTI-SPAM (10s)
+        now = time.time()
+        if now - last_panel_update < 10:
+            return
+        last_panel_update = now
 
         if bot_ticket and PANEL_CHAT_ID:
 
@@ -499,7 +505,7 @@ async def update_panel():
                         )
                         edited = True
 
-                    except:
+                    except Exception:
                         panel_message_id = None
 
                 # =========================
@@ -540,7 +546,16 @@ async def update_panel():
                             pass
 
             except Exception as e:
-                print(f"[TELEGRAM PANEL ERROR] {e}")
+                # 🧠 TRATAMENTO DE FLOOD
+                if "Flood control" in str(e):
+                    try:
+                        wait = int(str(e).split("Retry in ")[1].split(" ")[0])
+                        print(f"[TELEGRAM FLOOD] aguardando {wait}s...")
+                        await asyncio.sleep(wait)
+                    except:
+                        pass
+                else:
+                    print(f"[TELEGRAM PANEL ERROR] {e}")
 
     except Exception as e:
         print(f"[UPDATE PANEL ERROR] {e}")
