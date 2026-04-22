@@ -489,58 +489,65 @@ async def update_panel():
         last_panel_update = now
 
         # =========================
-        # TELEGRAM PAINEL (REGRA FIXA)
+# TELEGRAM PAINEL (REGRA FIXA)
+# =========================
+if bot_ticket and PANEL_CHAT_ID:
+
+    try:
+        # tenta carregar ID uma única vez se vazio
+        if not panel_message_id:
+            try:
+                panel_message_id = carregar_id_telegram()
+            except:
+                panel_message_id = None
+
         # =========================
-        if bot_ticket and PANEL_CHAT_ID:
+        # EDITA SEMPRE PRIMEIRO (COM VALIDAÇÃO REAL)
+        # =========================
+        if panel_message_id:
 
             try:
-                # tenta carregar ID uma única vez se vazio
-                if not panel_message_id:
-                    try:
-                        panel_message_id = carregar_id_telegram()
-                    except:
-                        panel_message_id = None
+                await bot_ticket.edit_message_text(
+                    chat_id=PANEL_CHAT_ID,
+                    message_id=panel_message_id,
+                    text=texto,
+                    parse_mode=None
+                )
 
-                # EDITA SEMPRE PRIMEIRO
-                if panel_message_id:
-                    try:
-                        await bot_ticket.edit_message_text(
-                            chat_id=PANEL_CHAT_ID,
-                            message_id=panel_message_id,
-                            text=texto,
-                            parse_mode=None
-                        )
-                    except:
-                        panel_message_id = None
+            except Exception:
+                # 🔥 se falhar, assume que painel não é válido mais
+                panel_message_id = None
 
-                # SE NÃO EXISTE, CRIA NOVO E FIXA
-                if not panel_message_id:
+        # =========================
+        # SE NÃO EXISTE OU FALHOU → RECRIA
+        # =========================
+        if not panel_message_id:
 
-                    try:
-                        await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-                    except:
-                        pass
+            try:
+                await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
+            except:
+                pass
 
-                    msg = await bot_ticket.send_message(
-                        chat_id=PANEL_CHAT_ID,
-                        text=texto,
-                        parse_mode=None
-                    )
+            msg = await bot_ticket.send_message(
+                chat_id=PANEL_CHAT_ID,
+                text=texto,
+                parse_mode=None
+            )
 
-                    panel_message_id = msg.message_id
-                    salvar_id_telegram(panel_message_id)
+            panel_message_id = msg.message_id
+            salvar_id_telegram(panel_message_id)
 
-                    try:
-                        await bot_ticket.pin_chat_message(
-                            chat_id=PANEL_CHAT_ID,
-                            message_id=panel_message_id,
-                            disable_notification=True
-                        )
-                    except:
-                        pass
+            try:
+                await bot_ticket.pin_chat_message(
+                    chat_id=PANEL_CHAT_ID,
+                    message_id=panel_message_id,
+                    disable_notification=True
+                )
+            except:
+                pass
 
-            except Exception as e:
-                print(f"[TELEGRAM PANEL ERROR] {e}")
+    except Exception as e:
+        print(f"[TELEGRAM PANEL ERROR] {e}")
 
         # =========================
         # DISCORD PAINEL (EDIT ONLY)
