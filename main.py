@@ -1323,7 +1323,23 @@ async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
 
-    cmd = update.message.text.lower().replace("/", "").strip()
+    text = update.message.text.strip().lower()
+
+    # 🔥 remove @bot (ex: /ping@meubot)
+    if "@" in text:
+        text = text.split("@")[0]
+
+    # 🔥 garante formato comando
+    if text.startswith("/"):
+        cmd = text.replace("/", "").strip()
+    else:
+        return  # ignora mensagens que não são comandos
+
+    # 🔒 comandos permitidos (hardlock)
+    comandos_validos = ["ping", "bts", "comandos", "teste"]
+
+    if cmd not in comandos_validos:
+        return
 
     await executar_comando(cmd, "telegram", chat_id=update.message.chat_id)
 
@@ -1543,19 +1559,18 @@ async def update_panel():
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
     # ===== TELEGRAM =====
-    if bot_ticket and PANEL_CHAT_ID:
-        try:
+ if panel_message_id:
+    try:
+        await bot_ticket.edit_message_text(
+            chat_id=PANEL_CHAT_ID,
+            message_id=panel_message_id,
+            text=texto
+        )
+        return
 
-            if panel_message_id:
-                try:
-                    await bot_ticket.edit_message_text(
-                        chat_id=PANEL_CHAT_ID,
-                        message_id=panel_message_id,
-                        text=texto
-                    )
-                    return
-                except:
-                    panel_message_id = None
+    except Exception as e:
+        print(f"[EDIT FAIL] mantendo painel atual: {e}")
+        return  # 🚨 NÃO ZERA O ID
 
             msg = await bot_ticket.send_message(
                 chat_id=PANEL_CHAT_ID,
@@ -1779,30 +1794,31 @@ async def check_social(session):
 
             await throttle("social_" + url, 1)
 
-            async with session.get(url, timeout=20) as resp:
-                html = await resp.text()
+            html = None
+
+            try:
+                async with session.get(url, timeout=20) as resp:
+                    html = await resp.text()
+            except Exception as fetch_error:
+                print(f"[SOCIAL FETCH ERROR] {url} -> {fetch_error}")
+
+            # 🔥 CONTADOR SEMPRE (mesmo com erro)
+            total_social += 1
+            last_social_check = time.time()
+
+            # 🔄 atualiza painel SEMPRE
+            await sync_panel_counters()
 
             if not html:
                 continue
 
-            # 🔥 CONTADOR SEMPRE
-            total_social += 1
-            last_social_check = time.time()
-
-            # 🔄 SINCRONIZA PAINEL OBRIGATORIAMENTE
-            await sync_panel_counters()
-
             changed = is_real_change(f"social:{url}", html)
 
             if changed:
-
-                # 🚨 NÃO CRIA MENSAGEM AQUI
-                # só dispara pro handler oficial (bloco 14/15)
                 await trigger_alert("social", url, None)
 
     except Exception as e:
         print(f"[CHECK SOCIAL ERROR] {e}")
-
 # =========================
 # SAFE SESSION WRAPPER (OPCIONAL MAS RECOMENDADO)
 # =========================
