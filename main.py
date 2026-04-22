@@ -515,7 +515,7 @@ async def update_panel():
         if last_panel_update is None:
             last_panel_update = 0
 
-        if (now - last_panel_update) < 5:
+        if (now - last_panel_update) < 60:
             return
 
         last_panel_update = now
