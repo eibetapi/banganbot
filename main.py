@@ -894,8 +894,7 @@ async def youtube_post(url, final_url=None):
     await update_panel()
 
 async def youtube_live(url=None):
-   global total_social, last_social_check
-total_social += 1
+    global total_social, last_social_check
 
     total_social += 1
     last_social_check = time.time()
@@ -1327,7 +1326,7 @@ async def teste_cmd(interaction: discord.Interaction):
 
 
 # =========================
-# 🔒 SETUP HOOK ÚNICO (SYNC + HARDLOCK DE SLASH COMMANDS)
+# 🔒 DISCORD SETUP HOOK ÚNICO (SYNC + HARDLOCK)
 # =========================
 
 @bot_discord.event
@@ -1335,22 +1334,30 @@ async def setup_hook():
     print("[SYNC] iniciando setup_hook completo...")
 
     try:
+        # 🔄 Sync inicial dos slash commands
         synced = await bot_discord.tree.sync()
         print(f"[SYNC] {len(synced)} comandos sincronizados")
 
         nomes = [c.name for c in synced]
         obrigatorios = ["ping", "comandos", "bts", "teste"]
 
+        # 🔒 HARDLOCK: garante comandos essenciais
+        faltando = []
+
         for cmd in obrigatorios:
             if cmd not in nomes:
-                print(f"[HARDLOCK] comando faltando: {cmd} -> resync forçado")
-                await bot_discord.tree.sync()
-                break
+                faltando.append(cmd)
+
+        if faltando:
+            print(f"[HARDLOCK] comandos faltando: {faltando} -> resync forçado")
+
+            synced = await bot_discord.tree.sync()
+            print(f"[HARDLOCK] resync executado: {len(synced)} comandos agora ativos")
 
         print("[SYNC] setup_hook concluído com sucesso")
 
     except Exception as e:
-        print(f"[SYNC ERROR] {e}") 
+        print(f"[SYNC ERROR] {e}")
 
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL (CORRIGIDO)
@@ -1455,7 +1462,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 
 
 # =========================
-# UPDATE PANEL
+# UPDATE PANEL (FIX DUPLICATION SAFE)
 # =========================
 
 async def update_panel():
@@ -1465,207 +1472,69 @@ async def update_panel():
     data_show, city, d_prox, d_br = get_countdown_data()
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
+    # =========================
+    # TELEGRAM PANEL
+    # =========================
     if bot_ticket and PANEL_CHAT_ID:
 
         try:
 
+            # tenta editar mensagem existente
             if panel_message_id:
-
                 try:
                     await bot_ticket.edit_message_text(
                         chat_id=PANEL_CHAT_ID,
                         message_id=panel_message_id,
                         text=texto
                     )
+                    return  # evita duplicação de envio no mesmo ciclo
                 except:
-                    panel_message_id = None
+                    panel_message_id = None  # força recriação se falhar
 
-            if not panel_message_id:
+            # se não existe ou falhou, cria nova
+            msg = await bot_ticket.send_message(
+                chat_id=PANEL_CHAT_ID,
+                text=texto
+            )
 
-                msg = await bot_ticket.send_message(
-                    chat_id=PANEL_CHAT_ID,
-                    text=texto
-                )
-
-                panel_message_id = msg.message_id
+            panel_message_id = msg.message_id
 
         except Exception as e:
             print(f"[TELEGRAM PANEL ERROR] {e}")
 
+    # =========================
+    # DISCORD PANEL
+    # =========================
     if DISCORD_PANEL_CHANNEL_ID:
 
-        channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+        try:
+            channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
 
-        if channel:
+            if not channel:
+                return
 
             embed = discord.Embed(description=texto, color=0x8A2BE2)
 
-            try:
+            # tenta recuperar mensagem já existente
+            if not discord_panel_msg_id:
+                async for msg in channel.history(limit=15):
+                    if msg.author == bot_discord.user:
+                        discord_panel_msg_id = msg.id
+                        break
 
-                if not discord_panel_msg_id:
-
-                    async for msg in channel.history(limit=10):
-                        if msg.author == bot_discord.user:
-                            discord_panel_msg_id = msg.id
-                            break
-
-                if discord_panel_msg_id:
-
+            if discord_panel_msg_id:
+                try:
                     msg = await channel.fetch_message(discord_panel_msg_id)
                     await msg.edit(embed=embed)
+                except:
+                    discord_panel_msg_id = None  # força recriação
 
-                else:
+            if not discord_panel_msg_id:
+                msg = await channel.send(embed=embed)
+                discord_panel_msg_id = msg.id
 
-                    msg = await channel.send(embed=embed)
-                    discord_panel_msg_id = msg.id
-
-            except Exception as e:
-                print(f"[DISCORD PANEL ERROR] {e}")
-
-
-# =========================
-# DISCORD READY
-# =========================
-
-@bot_discord.event
-async def on_ready():
-
-    print(f"Discord conectado: {bot_discord.user}")
-
-    try:
-        await bot_discord.tree.sync()
-    except Exception as e:
-        print(f"[SYNC ERROR] {e}")
-
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="🪭 Em tournê - Ouvindo Arirang🪭"
-        )
-    )
-
-
-# =========================
-# CHECKERS
-# =========================
-
-async def check_ticketmaster(session):
-
-    global total_tickets, last_ticket_check
-
-    try:
-
-        for url in TICKET_LINKS:
-
-            await throttle("ticket_" + url, 1)
-
-            async with session.get(url, timeout=20) as resp:
-                html = await resp.text()
-
-            if not html:
-                continue
-
-            changed = is_real_change(f"ticket:{url}", html)
-
-            total_tickets += 1
-            last_ticket_check = time.time()
-
-            if changed:
-                await trigger_alert("ticket", url, f"TICKET UPDATE {url}")
-
-    except Exception as e:
-        print(f"[CHECK TICKET ERROR] {e}")
-
-
-async def check_buyticket(session):
-
-    global total_buy, last_buy_check
-
-    try:
-
-        for url in BUY_LINKS:
-
-            await throttle("buy_" + url, 1)
-
-            async with session.get(url, timeout=20) as resp:
-                html = await resp.text()
-
-            if not html:
-                continue
-
-            changed = is_real_change(f"buy:{url}", html)
-
-            total_buy += 1
-            last_buy_check = time.time()
-
-            if changed:
-                await trigger_alert("buy", url, f"BUY UPDATE {url}")
-
-    except Exception as e:
-        print(f"[CHECK BUY ERROR] {e}")
-
-
-async def check_weverse(session):
-
-    global total_weverse, last_weverse_check
-
-    try:
-
-        for url in WEVERSE_LINKS:
-
-            await throttle("weverse_" + url, 1)
-
-            async with session.get(url, timeout=20) as resp:
-                html = await resp.text()
-
-            if not html:
-                continue
-
-            changed = is_real_change(f"weverse:{url}", html)
-
-            total_weverse += 1
-            last_weverse_check = time.time()
-
-            if changed:
-
-                soup = BeautifulSoup(html, "html.parser")
-                title = soup.title.text if soup.title else "Weverse"
-
-                await trigger_alert("weverse", url, f"{title}")
-
-    except Exception as e:
-        print(f"[CHECK WEVERSE ERROR] {e}")
-
-
-async def check_social(session):
-
- global total_social, last_social_check
-total_social += 1
-
-    try:
-
-        all_links = list(INSTAGRAM_LINKS.values()) + X_LINKS + YOUTUBE_LINKS
-
-        for url in all_links:
-
-            await throttle("social_" + url, 1)
-
-            async with session.get(url, timeout=20) as resp:
-                html = await resp.text()
-
-            if not html:
-                continue
-
-            changed = is_real_change(f"social:{url}", html)
-
-            total_social += 1
-            last_social_check = time.time()
-
-            if changed:
-                await trigger_alert("social", url, f"SOCIAL UPDATE {url}")
-
-    except Exception as e:
-        print(f"[CHECK SOCIAL ERROR] {e}")
+        except Exception as e:
+            print(f"[DISCORD PANEL ERROR] {e}")
 
 # =========================
 # 18.1 CHECK FUNCTIONS (VERSÃO REAL + SEGURA)
@@ -1830,8 +1699,7 @@ async def check_weverse(session):
 
 async def check_social(session):
 
-global total_social, last_social_check
-total_social += 1
+    global total_social, last_social_check
 
     try:
 
