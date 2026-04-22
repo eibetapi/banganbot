@@ -476,17 +476,15 @@ async def update_panel():
         texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
         # =========================
-        # ANTI-SPAM (10s) - FIX SEGURO
+        # ANTI-SPAM (10s)
         # =========================
         now = time.time()
 
-        global last_panel_update
-
-        if 'last_panel_update' in globals():
-            if last_panel_update and (now - last_panel_update < 10):
-                return
-        else:
+        if 'last_panel_update' not in globals():
             last_panel_update = 0
+
+        if last_panel_update and (now - last_panel_update < 10):
+            return
 
         last_panel_update = now
 
@@ -497,22 +495,15 @@ async def update_panel():
             return
 
         try:
-            # =========================
-            # RECUPERA ID SALVO
-            # =========================
             if panel_message_id is None:
                 try:
                     panel_message_id = carregar_id_telegram()
-                except Exception as e:
-                    print(f"[PANEL LOAD ERROR] {e}")
+                except:
                     panel_message_id = None
 
             edited = False
 
-            # =========================
-            # EDITA PRIMEIRO (REGRA A)
-            # =========================
-            if panel_message_id is not None:
+            if panel_message_id:
                 try:
                     await bot_ticket.edit_message_text(
                         chat_id=PANEL_CHAT_ID,
@@ -521,18 +512,14 @@ async def update_panel():
                         parse_mode=None
                     )
                     edited = True
-
-                except Exception:
+                except:
                     panel_message_id = None
 
-            # =========================
-            # CRIA SOMENTE SE NECESSÁRIO
-            # =========================
             if not edited:
 
                 try:
                     await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-                except Exception:
+                except:
                     pass
 
                 msg = await bot_ticket.send_message(
@@ -550,64 +537,45 @@ async def update_panel():
                         message_id=panel_message_id,
                         disable_notification=True
                     )
-                except Exception as e:
-                    print(f"[PIN ERROR] {e}")
+                except:
+                    pass
 
         except Exception as e:
-            if "Flood control" in str(e):
+            print(f"[TELEGRAM PANEL ERROR] {e}")
+
+        # =========================
+        # DISCORD PAINEL (DENTRO DA FUNÇÃO - FIX REAL)
+        # =========================
+        if DISCORD_PANEL_CHANNEL_ID:
+
+            channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+
+            if channel:
+
+                embed = discord.Embed(
+                    description=texto,
+                    color=0x8A2BE2
+                )
+
                 try:
-                    wait = int(str(e).split("Retry in ")[1].split(" ")[0])
-                    print(f"[TELEGRAM FLOOD] aguardando {wait}s...")
-                    await asyncio.sleep(wait)
-                except Exception:
-                    pass
-            else:
-                print(f"[TELEGRAM PANEL ERROR] {e}")
+
+                    if discord_panel_msg_id:
+
+                        try:
+                            msg = await channel.fetch_message(discord_panel_msg_id)
+                            await msg.edit(embed=embed)
+                        except:
+                            discord_panel_msg_id = None
+
+                    if not discord_panel_msg_id:
+                        msg = await channel.send(embed=embed)
+                        discord_panel_msg_id = msg.id
+
+                except Exception as e:
+                    print(f"[DISCORD PANEL ERROR] {e}")
 
     except Exception as e:
         print(f"[UPDATE PANEL ERROR] {e}")
-
- # =========================
-# DISCORD PAINEL (MÓDULO A - FIX OBRIGATÓRIO)
-# =========================
-
-if DISCORD_PANEL_CHANNEL_ID:
-
-    channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
-
-    if channel:
-
-        embed = discord.Embed(
-            description=texto,
-            color=0x8A2BE2
-        )
-
-        try:
-
-            # =========================
-            # REGRA A (OBRIGATÓRIA):
-            # SEMPRE TENTAR EDITAR PRIMEIRO
-            # =========================
-            if discord_panel_msg_id:
-
-                try:
-                    msg = await channel.fetch_message(discord_panel_msg_id)
-                    await msg.edit(embed=embed)
-
-                except Exception:
-                    # se falhar, perde referência mas NÃO cria duplicado ainda
-                    discord_panel_msg_id = None
-
-            # =========================
-            # SÓ CRIA NOVO SE NÃO EXISTIR
-            # =========================
-            if not discord_panel_msg_id:
-
-                msg = await channel.send(embed=embed)
-                discord_panel_msg_id = msg.id
-
-        except Exception as e:
-            print(f"[DISCORD PANEL ERROR] {e}")
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
 
