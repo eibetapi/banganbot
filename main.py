@@ -1559,25 +1559,39 @@ async def update_panel():
     texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
     # ===== TELEGRAM =====
- if panel_message_id:
-    try:
-        await bot_ticket.edit_message_text(
-            chat_id=PANEL_CHAT_ID,
-            message_id=panel_message_id,
-            text=texto
-        )
-        return
+    if bot_ticket and PANEL_CHAT_ID:
 
-    except Exception as e:
-        print(f"[EDIT FAIL] mantendo painel atual: {e}")
-        return  # 🚨 NÃO ZERA O ID
+        try:
+            # tenta editar primeiro
+            if panel_message_id:
+                try:
+                    await bot_ticket.edit_message_text(
+                        chat_id=PANEL_CHAT_ID,
+                        message_id=panel_message_id,
+                        text=texto
+                    )
+                    return
 
+                except Exception as e:
+                    print(f"[EDIT FAIL] mantendo painel atual: {e}")
+                    return  # 🚨 NÃO ZERA O ID
+
+            # cria apenas se NÃO existir ID
             msg = await bot_ticket.send_message(
                 chat_id=PANEL_CHAT_ID,
                 text=texto
             )
 
             panel_message_id = msg.message_id
+
+            try:
+                await bot_ticket.pin_chat_message(
+                    chat_id=PANEL_CHAT_ID,
+                    message_id=panel_message_id,
+                    disable_notification=True
+                )
+            except:
+                pass
 
         except Exception as e:
             print(f"[TELEGRAM PANEL ERROR] {e}")
