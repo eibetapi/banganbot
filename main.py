@@ -500,42 +500,34 @@ panel_lock = asyncio.Lock()
 async def update_panel():
     global panel_message_id, discord_panel_msg_id, last_panel_update
 
-    try:
-        # =========================
-        # DADOS DINÂMICOS
-        # =========================
-        data_show, city, d_prox, d_br = get_countdown_data()
-        texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+    async with panel_lock:  # 🔥 AQUI É O PONTO CERTO
 
-        # =========================
-        # ANTI-SPAM ULTRA ESTÁVEL
-        # =========================
-        now = time.time()
+        try:
+            # =========================
+            # DADOS DINÂMICOS
+            # =========================
+            data_show, city, d_prox, d_br = get_countdown_data()
+            texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
-        if last_panel_update is None:
-            last_panel_update = 0
+            # =========================
+            # ANTI-SPAM ULTRA ESTÁVEL
+            # =========================
+            now = time.time()
 
-        if (now - last_panel_update) < 60:
-            return
+            if last_panel_update is None:
+                last_panel_update = 0
 
-        last_panel_update = now
+            if (now - last_panel_update) < 5:
+                return
 
-        # =========================
-        # TELEGRAM PAINEL (REGRA FIXA - NÃO ALTERADO)
-        # =========================
-        if bot_ticket and PANEL_CHAT_ID:
+            last_panel_update = now
 
-            async with panel_lock:
+            # =========================
+            # TELEGRAM PAINEL
+            # =========================
+            if bot_ticket and PANEL_CHAT_ID:
 
                 try:
-                    if not panel_message_id:
-                        try:
-                            panel_message_id = carregar_id_telegram()
-                        except:
-                            panel_message_id = None
-
-                    edited = False
-
                     if panel_message_id:
                         try:
                             await bot_ticket.edit_message_text(
@@ -544,103 +536,68 @@ async def update_panel():
                                 text=texto,
                                 parse_mode=None
                             )
-                            edited = True
+                            return
                         except Exception as e:
                             if "Retry in" in str(e):
                                 print(f"[EDIT FAIL] {e}")
                                 return
                             panel_message_id = None
 
-                    if not edited:
+                    msg = await bot_ticket.send_message(
+                        chat_id=PANEL_CHAT_ID,
+                        text=texto,
+                        parse_mode=None
+                    )
 
-                        try:
-                            await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-                        except:
-                            pass
+                    panel_message_id = msg.message_id
+                    salvar_id_telegram(panel_message_id)
 
-                        msg = await bot_ticket.send_message(
+                    try:
+                        await bot_ticket.pin_chat_message(
                             chat_id=PANEL_CHAT_ID,
-                            text=texto,
-                            parse_mode=None
+                            message_id=panel_message_id,
+                            disable_notification=True
                         )
-
-                        panel_message_id = msg.message_id
-                        salvar_id_telegram(panel_message_id)
-
-                        try:
-                            await bot_ticket.pin_chat_message(
-                                chat_id=PANEL_CHAT_ID,
-                                message_id=panel_message_id,
-                                disable_notification=True
-                            )
-                        except:
-                            pass
+                    except:
+                        pass
 
                 except Exception as e:
                     print(f"[TELEGRAM PANEL ERROR] {e}")
 
-        # =========================
-        # DISCORD PAINEL (SYNC FIX REAL)
-        # =========================
-        if DISCORD_PANEL_CHANNEL_ID and bot_discord:
+            # =========================
+            # DISCORD PAINEL
+            # =========================
+            if DISCORD_PANEL_CHANNEL_ID and bot_discord:
 
-            try:
-                channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+                try:
+                    channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
 
-                if not channel:
-                    return
+                    if channel:
 
-                embed = discord.Embed(
-                    description=texto,
-                    color=0x8A2BE2
-                )
+                        embed = discord.Embed(
+                            description=texto,
+                            color=0x8A2BE2
+                        )
 
-                edited = False
+                        edited = False
 
-                # =========================
-                # 1 - EDITA PELO ID
-                # =========================
-                if discord_panel_msg_id:
-                    try:
-                        msg = await channel.fetch_message(discord_panel_msg_id)
-                        await msg.edit(embed=embed)
-                        edited = True
-                    except:
-                        discord_panel_msg_id = None
-
-                # =========================
-                # 2 - RECUPERA MENSAGEM FIXADA
-                # =========================
-                if not edited:
-                    try:
-                        pinned = await channel.pins()
-
-                        for msg in pinned:
-                            if msg.author == bot_discord.user:
-                                discord_panel_msg_id = msg.id
+                        if discord_panel_msg_id:
+                            try:
+                                msg = await channel.fetch_message(discord_panel_msg_id)
                                 await msg.edit(embed=embed)
                                 edited = True
-                                break
-                    except:
-                        pass
+                            except:
+                                discord_panel_msg_id = None
 
-                # =========================
-                # 3 - FALLBACK FINAL
-                # =========================
-                if not edited:
-                    msg = await channel.send(embed=embed)
-                    discord_panel_msg_id = msg.id
+                        if not edited:
+                            msg = await channel.send(embed=embed)
+                            discord_panel_msg_id = msg.id
 
-                    try:
-                        await msg.pin()
-                    except:
-                        pass
+                except Exception as e:
+                    print(f"[DISCORD PANEL ERROR] {e}")
 
-            except Exception as e:
-                print(f"[DISCORD PANEL ERROR] {e}")
-
-    except Exception as e:
-        print(f"[UPDATE PANEL ERROR] {e}")
+        except Exception as e:
+            print(f"[UPDATE PANEL ERROR] {e}")
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
 
