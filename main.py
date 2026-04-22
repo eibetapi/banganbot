@@ -488,98 +488,63 @@ async def update_panel():
 
         last_panel_update = now
 
-# =========================
-# TELEGRAM PAINEL (REGRA FIXA CORRIGIDA)
-# =========================
-if bot_ticket and PANEL_CHAT_ID:
-
-    try:
         # =========================
-        # RECUPERA ID (MEMÓRIA + FALLBACK)
+        # TELEGRAM PAINEL (REGRA FIXA)
         # =========================
-        if not panel_message_id:
-            try:
-                panel_message_id = carregar_id_telegram()
-            except:
-                panel_message_id = None
-
-        # =========================
-        # TENTA EDITAR PRIMEIRO (REGRA OBRIGATÓRIA)
-        # =========================
-        edited = False
-
-        if panel_message_id:
-            try:
-                await bot_ticket.edit_message_text(
-                    chat_id=PANEL_CHAT_ID,
-                    message_id=panel_message_id,
-                    text=texto,
-                    parse_mode=None
-                )
-                edited = True
-
-            except:
-                panel_message_id = None
-
-        # =========================
-        # FALLBACK INTELIGENTE (RECUPERA ÚLTIMO FIXADO)
-        # =========================
-        if not edited:
+        if bot_ticket and PANEL_CHAT_ID:
 
             try:
-                msgs = await bot_ticket.get_chat_history(
-                    chat_id=PANEL_CHAT_ID,
-                    limit=10
-                )
+                # RECUPERA ID SALVO
+                if not panel_message_id:
+                    try:
+                        panel_message_id = carregar_id_telegram()
+                    except:
+                        panel_message_id = None
 
-                for m in msgs:
-                    if m.pinned:
-                        panel_message_id = m.message_id
-                        try:
-                            await bot_ticket.edit_message_text(
-                                chat_id=PANEL_CHAT_ID,
-                                message_id=panel_message_id,
-                                text=texto,
-                                parse_mode=None
-                            )
-                            edited = True
-                            break
-                        except:
-                            panel_message_id = None
+                edited = False
 
-            except:
-                pass
+                # TENTA EDITAR PRIMEIRO
+                if panel_message_id:
+                    try:
+                        await bot_ticket.edit_message_text(
+                            chat_id=PANEL_CHAT_ID,
+                            message_id=panel_message_id,
+                            text=texto,
+                            parse_mode=None
+                        )
+                        edited = True
+                    except:
+                        panel_message_id = None
 
-        # =========================
-        # SE NÃO ENCONTROU → CRIA NOVO
-        # =========================
-        if not edited:
+                # FALLBACK: CRIA NOVO SE PERDEU REFERÊNCIA
+                if not edited:
 
-            try:
-                await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-            except:
-                pass
+                    try:
+                        await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
+                    except:
+                        pass
 
-            msg = await bot_ticket.send_message(
-                chat_id=PANEL_CHAT_ID,
-                text=texto,
-                parse_mode=None
-            )
+                    msg = await bot_ticket.send_message(
+                        chat_id=PANEL_CHAT_ID,
+                        text=texto,
+                        parse_mode=None
+                    )
 
-            panel_message_id = msg.message_id
-            salvar_id_telegram(panel_message_id)
+                    panel_message_id = msg.message_id
+                    salvar_id_telegram(panel_message_id)
 
-            try:
-                await bot_ticket.pin_chat_message(
-                    chat_id=PANEL_CHAT_ID,
-                    message_id=panel_message_id,
-                    disable_notification=True
-                )
-            except:
-                pass
+                    try:
+                        await bot_ticket.pin_chat_message(
+                            chat_id=PANEL_CHAT_ID,
+                            message_id=panel_message_id,
+                            disable_notification=True
+                        )
+                    except:
+                        pass
 
-    except Exception as e:
-        print(f"[TELEGRAM PANEL ERROR] {e}")
+            except Exception as e:
+                print(f"[TELEGRAM PANEL ERROR] {e}")
+
         # =========================
         # DISCORD PAINEL (EDIT ONLY)
         # =========================
@@ -595,7 +560,7 @@ if bot_ticket and PANEL_CHAT_ID:
                         color=0x8A2BE2
                     )
 
-                    # SEMPRE EDITA PRIMEIRO
+                    # EDITA PRIMEIRO
                     if discord_panel_msg_id:
                         try:
                             msg = await channel.fetch_message(discord_panel_msg_id)
@@ -603,7 +568,7 @@ if bot_ticket and PANEL_CHAT_ID:
                         except:
                             discord_panel_msg_id = None
 
-                    # SÓ CRIA SE PERDEU REFERÊNCIA
+                    # CRIA SÓ SE PERDEU REFERÊNCIA
                     if not discord_panel_msg_id:
                         msg = await channel.send(embed=embed)
                         discord_panel_msg_id = msg.id
