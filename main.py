@@ -477,67 +477,70 @@ async def update_panel():
         data_show, city, d_prox, d_br = get_countdown_data()
         texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
+       if bot_ticket and PANEL_CHAT_ID:
+
+    try:
+        # 🔍 garante memória do painel
+        if not panel_message_id:
+            panel_message_id = carregar_id_telegram()
+
+        edited = False
+
         # =========================
-        # TELEGRAM (PAINEL FIXO)
+        # 🧠 REGRA B: tenta editar primeiro SEMPRE
         # =========================
-        if bot_ticket and PANEL_CHAT_ID:
+        if panel_message_id:
+            try:
+                await bot_ticket.edit_message_text(
+                    chat_id=PANEL_CHAT_ID,
+                    message_id=panel_message_id,
+                    text=texto,
+                    parse_mode=None
+                )
+                edited = True
+
+            except:
+                panel_message_id = None
+
+        # =========================
+        # 🧠 REGRA A: só cria SE NÃO EXISTIR
+        # =========================
+        if not edited:
 
             try:
-                if not panel_message_id:
-                    panel_message_id = carregar_id_telegram()
+                # evita duplicação de fixados antigos
+                await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
+            except:
+                pass
 
-                edited = False
+            msg = await bot_ticket.send_message(
+                chat_id=PANEL_CHAT_ID,
+                text=texto,
+                parse_mode=None
+            )
 
-                # tenta editar mensagem existente
-                if panel_message_id:
-                    try:
-                        await bot_ticket.edit_message_text(
-                            chat_id=PANEL_CHAT_ID,
-                            message_id=panel_message_id,
-                            text=texto,
-                            parse_mode=None
-                        )
-                        edited = True
-                    except:
-                        panel_message_id = None
+            panel_message_id = msg.message_id
+            salvar_id_telegram(panel_message_id)
 
-                # recria se não existir
-                if not edited:
-
-                    try:
-                        await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
-                    except:
-                        pass
-
-                    msg = await bot_ticket.send_message(
+            try:
+                await bot_ticket.pin_chat_message(
+                    chat_id=PANEL_CHAT_ID,
+                    message_id=panel_message_id,
+                    disable_notification=True
+                )
+            except:
+                await asyncio.sleep(1)
+                try:
+                    await bot_ticket.pin_chat_message(
                         chat_id=PANEL_CHAT_ID,
-                        text=texto,
-                        parse_mode=None
+                        message_id=panel_message_id,
+                        disable_notification=True
                     )
+                except:
+                    pass
 
-                    panel_message_id = msg.message_id
-                    salvar_id_telegram(panel_message_id)
-
-                    # pin seguro
-                    try:
-                        await bot_ticket.pin_chat_message(
-                            chat_id=PANEL_CHAT_ID,
-                            message_id=panel_message_id,
-                            disable_notification=True
-                        )
-                    except:
-                        await asyncio.sleep(1)
-                        try:
-                            await bot_ticket.pin_chat_message(
-                                chat_id=PANEL_CHAT_ID,
-                                message_id=panel_message_id,
-                                disable_notification=True
-                            )
-                        except:
-                            pass
-
-            except Exception as e:
-                print(f"[TELEGRAM PANEL ERROR] {e}")
+    except Exception as e:
+        print(f"[TELEGRAM PANEL ERROR] {e}")
 
         # =========================
         # DISCORD PAINEL (EMBED ROXO FIXO)
@@ -1167,7 +1170,6 @@ async def test_youtube_live():
 
 # =========================
 # 17 CORE FINAL LIMPO (SEM DUPLICAÇÃO DE COMMANDS)
-# + HARDLOCK ANTI-SUMIÇO DE SLASH COMMANDS
 # =========================
 
 # =========================
@@ -1182,10 +1184,17 @@ async def telegram_send(chat_id, text):
 
 
 # =========================
-# COMANDOS UNIFICADOS
+# COMANDOS UNIFICADOS (ENGINE PRINCIPAL)
 # =========================
 
 async def executar_comando(cmd, origem, interaction=None, chat_id=None):
+
+    # 🔒 ISOLAMENTO TOTAL DE ORIGEM
+    if origem not in ["discord", "telegram"]:
+        return
+
+    is_discord = origem == "discord"
+    is_telegram = origem == "telegram"
 
     resposta = None
 
@@ -1209,8 +1218,10 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
 
         resposta = "\n".join(membros)
 
-        # vai enviar em "fanchart" (um por um no Discord/Telegram)
-        if origem == "discord" and interaction:
+        # =========================
+        # DISCORD OUTPUT
+        # =========================
+        if is_discord and interaction:
 
             await interaction.response.send_message(membros[0])
 
@@ -1221,15 +1232,18 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
             await asyncio.sleep(1.2)
             await interaction.channel.send(
                 "🪭Ouça Arirang no Spotify🪭\n"
-                "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
+                "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h"
             )
 
-            resposta = None  # já enviado direto
+            resposta = None
 
-        elif origem == "telegram":
+        # =========================
+        # TELEGRAM OUTPUT
+        # =========================
+        elif is_telegram and chat_id:
 
             msg = "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭\n" + \
-                  "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h?si=brhGx5dkT0yOztd6CsEfdA"
+                  "https://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h"
 
             await telegram_send(chat_id, msg)
 
@@ -1244,53 +1258,41 @@ async def executar_comando(cmd, origem, interaction=None, chat_id=None):
         resposta = "⚠️ Iniciando teste completo..."
 
     # =========================
-    # ENVIO PADRÃO (DISCORD/TELEGRAM)
+    # ENVIO PADRÃO (ISOLADO E ÚNICO)
     # =========================
-
     if resposta:
 
-        if origem == "discord":
+        if is_discord and interaction:
+
             if interaction.response.is_done():
                 await interaction.followup.send(resposta)
             else:
                 await interaction.response.send_message(resposta)
 
-        elif origem == "telegram":
+        elif is_telegram and chat_id:
+
             await telegram_send(chat_id, resposta)
 
     # =========================
-    # ENVIO DA RESPOSTA
+    # EXECUÇÃO TESTE COMPLETO
     # =========================
-
-    if origem == "discord":
-        if resposta:
-            if interaction.response.is_done():
-                await interaction.followup.send(resposta)
-            else:
-                await interaction.response.send_message(resposta)
-
-    elif origem == "telegram":
-        if resposta:
-            await telegram_send(chat_id, resposta)
-
-    # =========================
-    # EXECUÇÃO TESTE
-    # =========================
-
     if cmd == "teste":
         try:
             await run_full_test_discord()
 
-            if origem == "discord":
+            if is_discord and interaction:
                 await interaction.followup.send("✅ Teste finalizado")
-            else:
+
+            elif is_telegram and chat_id:
                 await telegram_send(chat_id, "✅ Teste finalizado")
 
         except Exception as e:
             erro = f"❌ Erro: {e}"
-            if origem == "discord":
+
+            if is_discord and interaction:
                 await interaction.followup.send(erro)
-            else:
+
+            elif is_telegram and chat_id:
                 await telegram_send(chat_id, erro)
 
 
@@ -1313,12 +1315,14 @@ async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 
 def start_telegram():
+
     if not TELEGRAM_TOKEN:
         return
 
     from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
     async def run():
+
         global bot_ticket
 
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
@@ -1353,7 +1357,7 @@ async def comandos_cmd(interaction: discord.Interaction):
 
 
 # =========================
-# FIX ROBUSTO /bts (FORÇADO NO TREE)
+# BTS COMMAND (FORÇADO)
 # =========================
 
 async def bts_cmd(interaction: discord.Interaction):
@@ -1368,6 +1372,10 @@ bot_discord.tree.add_command(
 )
 
 
+# =========================
+# TESTE COMMAND
+# =========================
+
 @bot_discord.tree.command(name="teste")
 async def teste_cmd(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -1375,22 +1383,22 @@ async def teste_cmd(interaction: discord.Interaction):
 
 
 # =========================
-# 🔒 DISCORD SETUP HOOK ÚNICO (SYNC + HARDLOCK)
+# SETUP HOOK (SYNC + HARDLOCK)
 # =========================
 
 @bot_discord.event
 async def setup_hook():
+
     print("[SYNC] iniciando setup_hook completo...")
 
     try:
-        # 🔄 Sync inicial dos slash commands
+
         synced = await bot_discord.tree.sync()
         print(f"[SYNC] {len(synced)} comandos sincronizados")
 
         nomes = [c.name for c in synced]
         obrigatorios = ["ping", "comandos", "bts", "teste"]
 
-        # 🔒 HARDLOCK: garante comandos essenciais
         faltando = []
 
         for cmd in obrigatorios:
@@ -1401,7 +1409,7 @@ async def setup_hook():
             print(f"[HARDLOCK] comandos faltando: {faltando} -> resync forçado")
 
             synced = await bot_discord.tree.sync()
-            print(f"[HARDLOCK] resync executado: {len(synced)} comandos agora ativos")
+            print(f"[HARDLOCK] resync executado: {len(synced)} comandos ativos")
 
         print("[SYNC] setup_hook concluído com sucesso")
 
