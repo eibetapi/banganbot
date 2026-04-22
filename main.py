@@ -488,13 +488,15 @@ async def update_panel():
 
         last_panel_update = now
 
-        # =========================
-# TELEGRAM PAINEL (REGRA FIXA)
+# =========================
+# TELEGRAM PAINEL (REGRA FIXA CORRIGIDA)
 # =========================
 if bot_ticket and PANEL_CHAT_ID:
 
     try:
-        # tenta carregar ID uma única vez se vazio
+        # =========================
+        # RECUPERA ID (MEMÓRIA + FALLBACK)
+        # =========================
         if not panel_message_id:
             try:
                 panel_message_id = carregar_id_telegram()
@@ -502,10 +504,11 @@ if bot_ticket and PANEL_CHAT_ID:
                 panel_message_id = None
 
         # =========================
-        # EDITA SEMPRE PRIMEIRO (COM VALIDAÇÃO REAL)
+        # TENTA EDITAR PRIMEIRO (REGRA OBRIGATÓRIA)
         # =========================
-        if panel_message_id:
+        edited = False
 
+        if panel_message_id:
             try:
                 await bot_ticket.edit_message_text(
                     chat_id=PANEL_CHAT_ID,
@@ -513,15 +516,44 @@ if bot_ticket and PANEL_CHAT_ID:
                     text=texto,
                     parse_mode=None
                 )
+                edited = True
 
-            except Exception:
-                # 🔥 se falhar, assume que painel não é válido mais
+            except:
                 panel_message_id = None
 
         # =========================
-        # SE NÃO EXISTE OU FALHOU → RECRIA
+        # FALLBACK INTELIGENTE (RECUPERA ÚLTIMO FIXADO)
         # =========================
-        if not panel_message_id:
+        if not edited:
+
+            try:
+                msgs = await bot_ticket.get_chat_history(
+                    chat_id=PANEL_CHAT_ID,
+                    limit=10
+                )
+
+                for m in msgs:
+                    if m.pinned:
+                        panel_message_id = m.message_id
+                        try:
+                            await bot_ticket.edit_message_text(
+                                chat_id=PANEL_CHAT_ID,
+                                message_id=panel_message_id,
+                                text=texto,
+                                parse_mode=None
+                            )
+                            edited = True
+                            break
+                        except:
+                            panel_message_id = None
+
+            except:
+                pass
+
+        # =========================
+        # SE NÃO ENCONTROU → CRIA NOVO
+        # =========================
+        if not edited:
 
             try:
                 await bot_ticket.unpin_all_chat_messages(chat_id=PANEL_CHAT_ID)
@@ -548,7 +580,6 @@ if bot_ticket and PANEL_CHAT_ID:
 
     except Exception as e:
         print(f"[TELEGRAM PANEL ERROR] {e}")
-
         # =========================
         # DISCORD PAINEL (EDIT ONLY)
         # =========================
