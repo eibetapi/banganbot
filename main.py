@@ -1816,14 +1816,14 @@ async def check_social(session):
 
             except Exception as fetch_error:
                 print(f"[SOCIAL FETCH ERROR] {url} -> {fetch_error}")
-                html = None  # ✅ sem ()
+                html = None
 
             # 🔥 CONTADOR SEMPRE
             total_social += 1
             last_social_check = time.time()
 
-            # 🔄 atualiza painel SEMPRE
-            await sync_panel_counters()
+            # 🔥 SINCRONIZA PAINEL CORRETAMENTE (Telegram + Discord)
+            await locked_update_panel()
 
             if not html:
                 continue
