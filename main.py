@@ -461,6 +461,7 @@ async def send_alert(alert_type, message):
     except Exception as e:
         print(f"[DISCORD ROUTER ERROR] {e}")
 
+
 # ======================
 # 12 GESTÃO DO PAINEL (FIX REAL TEMPO-REAL)
 # ======================
@@ -549,7 +550,7 @@ async def update_panel():
                 except Exception as e:
                     print(f"[TELEGRAM PANEL ERROR] {e}")
 
-        # =========================
+# =========================
 # DISCORD PAINEL (SYNC FIX REAL)
 # =========================
 if DISCORD_PANEL_CHANNEL_ID and bot_discord:
