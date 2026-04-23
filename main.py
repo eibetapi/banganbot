@@ -932,6 +932,11 @@ async def update_panel():
 
     global panel_message_id, discord_panel_msg_id, last_panel_update
 
+    # 🔒 evita execução antes do bot estar pronto
+    if bot_ticket is None or bot_discord is None:
+        print("[PANEL] bots ainda não prontos")
+        return
+
     async with panel_lock:
 
         now = time.time()
@@ -942,8 +947,12 @@ async def update_panel():
 
         last_panel_update = now
 
-        data_show, city, d_prox, d_br = get_countdown_data()
-        texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+        try:
+            data_show, city, d_prox, d_br = get_countdown_data()
+            texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+        except Exception as e:
+            print(f"[PANEL DATA ERROR] {e}")
+            return
 
         # =========================
         # TELEGRAM SAFE UPDATE
@@ -961,7 +970,8 @@ async def update_panel():
                         )
                         return
 
-                    except Exception:
+                    except Exception as e:
+                        print(f"[TELEGRAM EDIT FAIL] {e}")
                         panel_message_id = None
 
                 msg = await bot_ticket.send_message(
@@ -977,8 +987,8 @@ async def update_panel():
                         message_id=panel_message_id,
                         disable_notification=True
                     )
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[TELEGRAM PIN FAIL] {e}")
 
             except Exception as e:
                 print(f"[TELEGRAM PANEL ERROR] {e}")
@@ -992,10 +1002,11 @@ async def update_panel():
             try:
                 channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
 
-                if not channel:
+                if channel is None:
                     channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
 
                 if not channel:
+                    print("[DISCORD PANEL] canal não encontrado")
                     return
 
                 embed = discord.Embed(
@@ -1003,26 +1014,25 @@ async def update_panel():
                     color=0x8A2BE2
                 )
 
-                msg = None
-
-                # 1) tenta ID salvo
+                # 1) tenta mensagem salva
                 if discord_panel_msg_id:
                     try:
                         msg = await channel.fetch_message(discord_panel_msg_id)
                         await msg.edit(embed=embed)
                         return
-                    except:
+                    except Exception as e:
+                        print(f"[DISCORD EDIT FAIL] {e}")
                         discord_panel_msg_id = None
 
-                # 2) fallback seguro: última mensagem do bot
+                # 2) fallback histórico
                 try:
                     async for m in channel.history(limit=25):
                         if m.author == bot_discord.user:
                             discord_panel_msg_id = m.id
                             await m.edit(embed=embed)
                             return
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[DISCORD HISTORY FAIL] {e}")
 
                 # 3) cria nova mensagem
                 msg = await channel.send(embed=embed)
@@ -1030,6 +1040,89 @@ async def update_panel():
 
             except Exception as e:
                 print(f"[DISCORD PANEL ERROR] {e}")
+
+
+# =========================
+# PAINEL BLINDADO (RECOVERY ROBUSTO)
+# =========================
+async def ensure_single_panel():
+
+    global PANEL_BOOT_DONE
+    global panel_message_id, discord_panel_msg_id
+
+    async with PANEL_BOOT_LOCK:
+
+        if PANEL_BOOT_DONE:
+            return
+
+        print("[12.1] iniciando recovery blindado...")
+
+        # =========================
+        # TELEGRAM RECOVERY
+        # =========================
+        try:
+            saved_id = carregar_id_telegram()
+            panel_message_id = saved_id if saved_id else None
+        except Exception as e:
+            print(f"[TELEGRAM RECOVERY ERROR] {e}")
+            panel_message_id = None
+
+
+        # =========================
+        # DISCORD RECOVERY (VALIDADO)
+        # =========================
+        try:
+
+            if bot_discord is None:
+                print("[RECOVERY] bot discord ainda não pronto")
+                discord_panel_msg_id = None
+                return
+
+            channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+
+            if channel is None:
+                channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
+
+            if channel:
+
+                async for msg in channel.history(limit=50):
+
+                    if (
+                        msg.author == bot_discord.user
+                        and msg.embeds
+                        and "ARIRANG TOUR" in msg.embeds[0].description
+                    ):
+                        discord_panel_msg_id = msg.id
+                        break
+
+        except Exception as e:
+            print(f"[12.1 DISCORD RECOVERY ERROR] {e}")
+            discord_panel_msg_id = None
+
+
+        PANEL_BOOT_DONE = True
+        print("[12.1] painel único garantido com validação real")
+
+
+# =========================
+# SAFE BOOT WRAPPER
+# =========================
+async def safe_boot():
+
+    async with PANEL_BOOT_LOCK:
+
+        if PANEL_BOOT_DONE:
+            return
+
+        try:
+            await ensure_single_panel()
+        except Exception as e:
+            print(f"[BOOT ERROR] {e}")
+            return
+
+        await asyncio.sleep(2)
+
+        print("[BOOT] sistema estabilizado com painel único")
 
 # =========================
 # 12.1 PAINEL BLINDADO (RECOVERY ROBUSTO)
