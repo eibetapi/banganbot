@@ -22,13 +22,16 @@ from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
 # =========================
-# 2 CONFIGURAÇÃO TELEGRAM / DISCORD
+# 2 CONFIGURAÇÃO TELEGRAM / DISCORD (FIX ANTI-DUPLICAÇÃO)
 # =========================
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Instância do bot Discord (Movida para cá para ser definida antes dos comandos)
+# 🔒 trava global anti-duplo start (evita 2 bots no restart/reconnect)
+BOOT_GUARD = False
+
+# Instância do bot Discord
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -61,17 +64,16 @@ DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864
 # TELEGRAM INSTÂNCIAS (CORREÇÃO SEGURA)
 # =========================
 
-bot_ticket = None        # usado para envio de mensagens externas (alerts/painel)
-telegram_app = None      # usado pelo ApplicationBuilder (BLOCO 18.1)
+bot_ticket = None        # envio de mensagens (alerts/painel)
+telegram_app = None      # runtime async (ApplicationBuilder)
 
 # =========================
-# INITIALIZATION LEGACY (MANTIDO PARA COMPATIBILIDADE)
+# INITIALIZATION LEGACY (COMPATIBILIDADE)
 # =========================
 
 if TELEGRAM_TOKEN:
     try:
-        # ⚠️ MANTIDO para compatibilidade com chamadas antigas do sistema
-        # NÃO É MAIS O BOT PRINCIPAL DO RUNTIME
+        # ⚠️ legado (não é o runtime principal)
         bot_ticket = Bot(token=TELEGRAM_TOKEN)
 
         print("[SISTEMA] Telegram configurado com sucesso.")
