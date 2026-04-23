@@ -592,6 +592,52 @@ async def weverse_media(url, member_name, title, message_translated, found):
         await send_alert("weverse_media", msg)
         await update_panel()
 
+# =========================
+# SISTEMA DE PERSISTÊNCIA (CONTADORES & ESTADO)
+# =========================
+
+import json
+import os
+
+# Arquivo para salvar os números e garantir que não zerem no restart
+COUNTERS_FILE = "counters_state.json"
+
+async def save_counters():
+    """Salva os totais de acessos e timestamps no disco da Railway."""
+    try:
+        data = {
+            "total_weverse": globals().get("total_weverse", 0),
+            "total_social": globals().get("total_social", 0),
+            "total_tickets": globals().get("total_tickets", 0),
+            "last_weverse_check": globals().get("last_weverse_check", 0),
+            "last_social_check": globals().get("last_social_check", 0),
+            "last_ticket_check": globals().get("last_ticket_check", 0)
+        }
+        with open(COUNTERS_FILE, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"[SAVE ERROR] Falha ao salvar contadores: {e}")
+
+async def load_counters():
+    """Carrega os dados salvos para as globais no início do bot."""
+    if os.path.exists(COUNTERS_FILE):
+        try:
+            with open(COUNTERS_FILE, 'r') as f:
+                data = json.load(f)
+                
+            # Restaura os valores para as variáveis globais
+            globals()["total_weverse"] = data.get("total_weverse", 0)
+            globals()["total_social"] = data.get("total_social", 0)
+            globals()["total_tickets"] = data.get("total_tickets", 0)
+            globals()["last_weverse_check"] = data.get("last_weverse_check", 0)
+            globals()["last_social_check"] = data.get("last_social_check", 0)
+            globals()["last_ticket_check"] = data.get("last_ticket_check", 0)
+            
+            print("[SYSTEM] Contadores restaurados do disco.")
+        except Exception as e:
+            print(f"[LOAD ERROR] Falha ao carregar contadores: {e}")
+    else:
+        print("[SYSTEM] Nenhum arquivo de contadores prévio encontrado.")
 
 # =========================
 # 14 INSTAGRAM ALERTS (PRODUÇÃO SEGURA)
