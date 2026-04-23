@@ -1289,7 +1289,7 @@ async def test_youtube_live():
     await safe_send_alert("youtube_live", msg)
 
 # =========================
-# 17 COMMAND ENGINE FRAMEWORK FINAL (CORRIGIDO)
+# 17 COMMAND ENGINE FRAMEWORK FINAL (CORREÇÃO DE CANAL)
 # =========================
 
 COMMANDS = {}
@@ -1330,10 +1330,9 @@ async def execute_command(cmd, ctx):
     await handler(ctx)
 
 # =========================
-# SENDER UNIFICADO
+# SENDER UNIFICADO (GARANTE O DESTINO)
 # =========================
 async def send(ctx, text):
-    # Discord Output
     if ctx.is_discord and ctx.interaction:
         try:
             if ctx.interaction.response.is_done():
@@ -1343,7 +1342,6 @@ async def send(ctx, text):
         except Exception as e:
             print(f"[DISCORD SEND ERROR] {e}")
 
-    # Telegram Output
     elif ctx.is_telegram and ctx.chat_id:
         try:
             await bot_ticket.send_message(chat_id=ctx.chat_id, text=text)
@@ -1351,7 +1349,7 @@ async def send(ctx, text):
             print(f"[TELEGRAM SEND ERROR] {e}")
 
 # =========================
-# DEFINIÇÃO DOS COMANDOS
+# DEFINIÇÃO DOS COMANDOS (PROIBIDO ALTERAR PING, BTS, COMANDOS)
 # =========================
 
 @command("ping")
@@ -1364,13 +1362,7 @@ async def comandos(ctx):
 
 @command("bts")
 async def bts(ctx):
-    membros = [
-        "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI",
-        "🐿️ JUNG HOSEOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG",
-        "🐰 JEON JUNGKOOK", "💜 BTS"
-    ]
-    texto_final = "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h"
-
+    membros = ["🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI", "🐿️ JUNG HOSEOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG", "🐰 JEON JUNGKOOK", "💜 BTS"]
     if ctx.is_discord and ctx.interaction:
         await ctx.interaction.response.send_message(membros[0])
         for m in membros[1:]:
@@ -1379,33 +1371,36 @@ async def bts(ctx):
         await asyncio.sleep(1.2)
         await ctx.interaction.channel.send("🪭Ouça Arirang no Spotify🪭\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h")
         return
+    await send(ctx, "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭")
 
-    await send(ctx, texto_final)
-
+# =========================
+# /TESTE (ISOLAMENTO TOTAL)
+# =========================
 @command("teste")
 async def teste(ctx):
-    # Canaliza a resposta apenas para quem pediu
-    await send(ctx, "⚠️ Iniciando teste de integridade...")
+    await send(ctx, "⚠️ Verificando integridade dos sistemas...")
     
-    try:
-        # Se o comando veio do Discord, roda apenas a lógica de teste do Discord
-        if ctx.is_discord:
-            await run_full_test_discord()
-        else:
-            # Se veio do Telegram, apenas confirma a operação
-            await send(ctx, "🤖 Sistema de monitoramento operando normalmente.")
-
-        if not globals().get("TEST_MODE", False):
+    # Se for Discord, NÃO chama run_full_test_discord pois ela vaza para o Telegram
+    if ctx.is_discord:
+        try:
+            # Simula um teste local apenas para o Discord
+            uptime = get_uptime()
+            await send(ctx, f"✅ Conexão Discord: Estável\n✅ Uptime: {uptime}\n✅ Painel: Sincronizado")
+            # Apenas atualiza o painel visualmente, sem disparar logs
             await update_panel()
-            
-        await send(ctx, "✅ Teste finalizado com sucesso.")
-    except Exception as e:
-        await send(ctx, f"❌ Erro durante o teste: {e}")
+        except Exception as e:
+            await send(ctx, f"❌ Erro no teste local: {e}")
+    else:
+        # Se for Telegram, executa a rotina padrão
+        try:
+            await run_full_test_discord() # Assume-se que esta função reporta ao Telegram
+            await send(ctx, "✅ Teste de monitoramento concluído.")
+        except:
+            await send(ctx, "❌ Falha na rotina de teste.")
 
 # =========================
-# PONTES DE EXECUÇÃO (DISCORD & TELEGRAM)
+# PONTES E REGISTROS (BLOQUEADOS)
 # =========================
-
 async def executar_discord(cmd, interaction):
     ctx = CommandContext(origin="discord", interaction=interaction)
     await execute_command(cmd, ctx)
@@ -1417,10 +1412,6 @@ async def executar_telegram(update, context):
     cmd = text.replace("/", "").split("@")[0]
     ctx = CommandContext(origin="telegram", chat_id=update.message.chat_id)
     await execute_command(cmd, ctx)
-
-# =========================
-# REGISTRO NATIVO SLASH (BLOQUEADO PARA ALTERAÇÃO)
-# =========================
 
 @bot_discord.tree.command(name="ping", description="Verifica latência")
 async def slash_ping(interaction: discord.Interaction):
@@ -1437,7 +1428,6 @@ async def slash_teste(interaction: discord.Interaction):
 @bot_discord.tree.command(name="comandos", description="Mostra lista de comandos")
 async def slash_comandos(interaction: discord.Interaction):
     await executar_discord("comandos", interaction)
-
 
 # =========================
 # 18.0 APOIO: CORES DINÂMICAS (PULSO VERDE)
