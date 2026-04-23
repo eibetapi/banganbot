@@ -209,19 +209,22 @@ import time
 app_web = Flask(__name__)
 
 # =========================
-# HEALTH CHECK (MELHOR PRA PRODUÇÃO)
+# HEALTH CHECK (CORRIGIDO)
 # =========================
 @app_web.route("/")
 def home():
-    return "Bots Arirang ativos"
+    return {
+        "status": "online",
+        "service": "Bots Arirang",
+        "uptime": int(time.time() - start_time)
+    }
 
 @app_web.route("/health")
 def health():
     return {
         "status": "ok",
-        "uptime": int(time.time())
+        "uptime": int(time.time() - start_time)
     }
-
 
 # =========================
 # THREAD CONTROL (ANTI-DUPLICAÇÃO REAL)
@@ -232,18 +235,19 @@ _web_started = False
 
 
 def run_web():
-    try:
-        port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8080))
 
-        app_web.run(
-            host="0.0.0.0",
-            port=port,
-            debug=False,
-            use_reloader=False
-        )
-
-    except Exception as e:
-        print(f"[WEB SERVER ERROR] {e}")
+    while True:
+        try:
+            app_web.run(
+                host="0.0.0.0",
+                port=port,
+                debug=False,
+                use_reloader=False
+            )
+        except Exception as e:
+            print(f"[WEB SERVER ERROR] {e}")
+            time.sleep(5)  # tenta reiniciar automaticamente
 
 
 def keep_alive():
