@@ -534,21 +534,20 @@ def get_uptime():
     try:
         s = int(time.time() - start_time)
         return f"{s//3600}h {(s%3600)//60}m {s%60}s"
-    except:
+    except Exception as e:
+        print(f"[UPTIME ERROR] {e}")
         return "0h 0m 0s"
 
 
 # =========================
-# STATUS REAL (SUBSTITUI O "FAKE BLINK")
+# STATUS REAL
 # =========================
 def resolve_status(last_check_time):
-    """
-    🔥 status baseado em atividade real
-    - > 30 min sem update = 🔴
-    - > 10 min = 🟡
-    - ativo = 🟢
-    """
     try:
+        if not isinstance(last_check_time, (int, float)):
+            print(f"[STATUS WARNING] valor inválido: {last_check_time}")
+            return "🔴"
+
         agora = time.time()
         diff = agora - last_check_time
 
@@ -559,7 +558,8 @@ def resolve_status(last_check_time):
         else:
             return "🟢"
 
-    except:
+    except Exception as e:
+        print(f"[STATUS ERROR] {e}")
         return "🔴"
 
 
@@ -567,15 +567,19 @@ def resolve_status(last_check_time):
 # CLEAN SAFE VALUE
 # =========================
 def clean(v):
-    return v if v and str(v).strip() else "ESGOTADO"
+    try:
+        return v if v and str(v).strip() else "ESGOTADO"
+    except Exception as e:
+        print(f"[CLEAN ERROR] {e}")
+        return "ESGOTADO"
 
 
 # =========================
-# DAYS LEFT (ROBUSTO)
+# DAYS LEFT
 # =========================
 def days_left(date_str):
     try:
-        if not date_str:
+        if not date_str or not isinstance(date_str, str):
             return 0
 
         target = datetime.strptime(date_str, "%d/%m/%Y").date()
@@ -583,7 +587,8 @@ def days_left(date_str):
 
         return max((target - today).days, 0)
 
-    except:
+    except Exception as e:
+        print(f"[DATE PARSE ERROR] {date_str} -> {e}")
         return 0
 
 
@@ -592,13 +597,16 @@ def days_left(date_str):
 # =========================
 def minutes_since(ts):
     try:
+        if not isinstance(ts, (int, float)):
+            return 0
         return int((time.time() - ts) / 60)
-    except:
+    except Exception as e:
+        print(f"[TIME ERROR] {e}")
         return 0
 
 
 # =========================
-# COUNTDOWN DATA (REFATORADO + SEGURO)
+# COUNTDOWN DATA (ROBUSTO + LOG)
 # =========================
 def get_countdown_data():
 
@@ -609,56 +617,46 @@ def get_countdown_data():
     d_prox = 0
     d_br = 0
 
-    try:
-        if not AGENDA:
-            return prox_data, prox_local, d_prox, d_br
+    if not isinstance(AGENDA, list):
+        print("[AGENDA ERROR] formato inválido")
+        return prox_data, prox_local, d_prox, d_br
 
-        # =========================
-        # 1 PASSAGEM SÓ (OTIMIZADO)
-        # =========================
-        for item in AGENDA:
+    for item in AGENDA:
 
-            if not isinstance(item, (list, tuple)) or len(item) < 4:
-                continue
+        if not isinstance(item, (list, tuple)) or len(item) < 4:
+            print(f"[AGENDA WARNING] item inválido ignorado: {item}")
+            continue
 
-            try:
-                show_dt = datetime.strptime(
-                    f"{item[0]} {item[3]}",
-                    "%d/%m/%Y %H:%M"
-                )
+        try:
+            show_dt = datetime.strptime(
+                f"{item[0]} {item[3]}",
+                "%d/%m/%Y %H:%M"
+            )
 
-                if show_dt > now_dt and prox_data == "Continua…":
-                    prox_data = item[0]
-                    prox_local = f"{item[1]}, {item[2]}"
-                    d_prox = (show_dt.date() - now_dt.date()).days
+            # próximo show global
+            if show_dt > now_dt and prox_data == "Continua…":
+                prox_data = item[0]
+                prox_local = f"{item[1]}, {item[2]}"
+                d_prox = (show_dt.date() - now_dt.date()).days
 
-                # Brasil countdown separado
-                if "Brasil" in str(item[2]) and d_br == 0:
+            # Brasil separado
+            if "Brasil" in str(item[2]) and d_br == 0:
+                br_date = datetime.strptime(item[0], "%d/%m/%Y").date()
 
-                    br_date = datetime.strptime(item[0], "%d/%m/%Y").date()
+                if br_date >= now_dt.date():
+                    d_br = (br_date - now_dt.date()).days
 
-                    if br_date >= now_dt.date():
-                        d_br = (br_date - now_dt.date()).days
-
-            except:
-                continue
-
-    except:
-        pass
+        except Exception as e:
+            print(f"[AGENDA PARSE ERROR] {item} -> {e}")
+            continue
 
     return prox_data, prox_local, d_prox, d_br
 
 
 # =========================
-# STATUS COLOR (VERSÃO REAL)
+# STATUS COLOR
 # =========================
 def status_color(last_check):
-
-    """
-    🔥 AGORA NÃO É FAKE BLINK
-    baseado em atividade real do sistema
-    """
-
     return resolve_status(last_check)
 
 # =========================
