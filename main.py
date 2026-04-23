@@ -105,6 +105,40 @@ PANEL_BOOT_LOCK = asyncio.Lock()
 PANEL_BOOT_DONE = False
 
 # =========================
+# 2.1 TELEGRAM START (PRODUÇÃO - FIX DEFINITIVO)
+# =========================
+
+async def start_telegram():
+
+    print("[TELEGRAM] inicializando...")
+
+    try:
+
+        # =========================
+        # MODO LEGACY (SEU ATUAL)
+        # =========================
+        if bot_ticket is not None:
+            print("[TELEGRAM] pronto (modo Bot básico)")
+            return
+
+        # =========================
+        # MODO APPLICATION (FUTURO)
+        # =========================
+        if telegram_app is not None:
+            await telegram_app.initialize()
+            await telegram_app.start()
+            print("[TELEGRAM] online (Application)")
+            return
+
+        # =========================
+        # NÃO CONFIGURADO
+        # =========================
+        print("[TELEGRAM] não configurado — ignorado")
+
+    except Exception as e:
+        print(f"[TELEGRAM ERROR] {e}")
+
+# =========================
 # 3 CONTROLE / CONTADORES GLOBAIS (FIX ESTÁVEL)
 # =========================
 
@@ -3144,37 +3178,3 @@ async def on_connect():
 
     # não cria loop, só garante conexão leve
     print("[DISCORD] connect event")
-
-# =========================
-# 24 TELEGRAM START (PRODUÇÃO - FIX DEFINITIVO)
-# =========================
-
-async def start_telegram():
-
-    print("[TELEGRAM] inicializando...")
-
-    try:
-
-        # =========================
-        # MODO LEGACY (SEU CASO ATUAL)
-        # =========================
-        if bot_ticket is not None:
-            print("[TELEGRAM] pronto (modo Bot básico)")
-            return
-
-        # =========================
-        # MODO APPLICATION (FUTURO)
-        # =========================
-        if telegram_app is not None:
-            await telegram_app.initialize()
-            await telegram_app.start()
-            print("[TELEGRAM] online (Application)")
-            return
-
-        # =========================
-        # NÃO CONFIGURADO
-        # =========================
-        print("[TELEGRAM] não configurado — ignorado")
-
-    except Exception as e:
-        print(f"[TELEGRAM ERROR] {e}")
