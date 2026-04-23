@@ -83,6 +83,13 @@ if TELEGRAM_TOKEN:
         print(f"[ERRO CONFIG TELEGRAM] {e}")
 
 # =========================
+# PANEL ANTI-DUPLICATION LOCK (GLOBAL)
+# =========================
+
+PANEL_BOOT_LOCK = asyncio.Lock()
+PANEL_BOOT_DONE = False
+
+# =========================
 # 3 CONTADORES GLOBAIS
 # =========================
 
@@ -2541,3 +2548,94 @@ async def recover_discord_panel():
                 return
     except:
         pass
+
+# =========================
+# 24 PANEL RECOVERY + SINGLE INSTANCE GUARD (STARTUP SAFE)
+# =========================
+
+PANEL_BOOT_LOCK = asyncio.Lock()
+PANEL_BOOT_DONE = False
+
+
+async def ensure_single_panel():
+    """
+    🔒 Garante que o painel seja único no Telegram e Discord
+    após restart/reconnect (evita duplicação no Railway)
+    """
+    global PANEL_BOOT_DONE, panel_message_id, discord_panel_msg_id
+
+    async with PANEL_BOOT_LOCK:
+
+        # evita rodar duas vezes no mesmo boot
+        if PANEL_BOOT_DONE:
+            return
+
+        PANEL_BOOT_DONE = True
+
+        # =========================
+        # TELEGRAM RECOVERY
+        # =========================
+        try:
+            saved_id = carregar_id_telegram()
+            if saved_id:
+                panel_message_id = saved_id
+        except Exception:
+            panel_message_id = None
+
+        # =========================
+        # DISCORD RECOVERY
+        # =========================
+        try:
+            if DISCORD_PANEL_CHANNEL_ID and bot_discord:
+                channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+
+                if channel:
+                    async for msg in channel.history(limit=30):
+                        if msg.author == bot_discord.user:
+                            discord_panel_msg_id = msg.id
+                            break
+        except Exception:
+            pass
+
+        print("[24 PANEL RECOVERY] painel único garantido (sem duplicação)")
+
+# =========================
+# 25 BOOT SEQUENCE SAFE START (STARTUP LOCK + ORDER FIX)
+# =========================
+
+BOOT_LOCK = asyncio.Lock()
+BOOT_DONE = False
+
+
+async def safe_boot():
+    """
+    🔒 Garante ordem correta de inicialização do sistema:
+
+    1. Recovery do painel (Telegram + Discord)
+    2. Bloqueio contra duplicação em restart
+    3. Liberação controlada do sistema
+    """
+
+    global BOOT_DONE
+
+    async with BOOT_LOCK:
+
+        if BOOT_DONE:
+            return
+
+        print("[25 BOOT] iniciando sequência segura...")
+
+        # =========================
+        # 1. RECOVERY OBRIGATÓRIO
+        # =========================
+        await ensure_single_panel()
+
+        # =========================
+        # 2. ESTABILIZAÇÃO DO STARTUP
+        # =========================
+        await asyncio.sleep(2)
+
+        BOOT_DONE = True
+
+        print("[25 BOOT] sistema liberado com segurança total")
+
