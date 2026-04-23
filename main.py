@@ -1509,7 +1509,10 @@ def get_countdown_data():
     days_to_next_global = 0
     days_to_brazil = 0
 
-    for item in AGENDA:
+    # Usando globals() para garantir acesso à agenda carregada
+    agenda_data = globals().get("AGENDA", [])
+
+    for item in agenda_data:
         try:
             show_dt = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
 
@@ -1521,7 +1524,7 @@ def get_countdown_data():
         except:
             continue
 
-    for item in AGENDA:
+    for item in agenda_data:
         try:
             if "Brasil" in item[2]:
                 br_date = datetime.strptime(item[0], "%d/%m/%Y").date()
@@ -1580,7 +1583,7 @@ async def update_panel():
         try:
             now = time.time()
 
-            # anti-spam leve (não quebra fluxo)
+            # anti-spam leve (mínimo 5s entre updates visuais)
             if (now - last_panel_update) < 5:
                 return
 
@@ -1591,10 +1594,9 @@ async def update_panel():
 
 
             # =========================
-            # TELEGRAM
+            # TELEGRAM (Persistente)
             # =========================
             if bot_ticket and PANEL_CHAT_ID:
-
                 try:
                     if panel_message_id:
                         try:
@@ -1603,53 +1605,49 @@ async def update_panel():
                                 message_id=panel_message_id,
                                 text=texto
                             )
-                            return
                         except:
+                            # Se falhar o edit, limpa o ID e tenta postar de novo
                             panel_message_id = None
 
-                    msg = await bot_ticket.send_message(
-                        chat_id=PANEL_CHAT_ID,
-                        text=texto
-                    )
-
-                    panel_message_id = msg.message_id
+                    if not panel_message_id:
+                        msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto)
+                        panel_message_id = msg.message_id
+                        try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, panel_message_id)
+                        except: pass
+                        # FIX: Salva ID no disco imediatamente para evitar duplicidade no próximo reset
+                        save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
 
                 except Exception as e:
                     print(f"[TELEGRAM PANEL ERROR] {e}")
 
 
             # =========================
-            # DISCORD
+            # DISCORD (Persistente)
             # =========================
             if DISCORD_PANEL_CHANNEL_ID:
-
                 try:
                     channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+                    if not channel: channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
 
-                    if not channel:
-                        return
+                    if channel:
+                        embed = discord.Embed(description=texto, color=0x8A2BE2)
 
-                    embed = discord.Embed(
-                        description=texto,
-                        color=0x8A2BE2
-                    )
+                        if discord_panel_msg_id:
+                            try:
+                                msg = await channel.fetch_message(discord_panel_msg_id)
+                                await msg.edit(embed=embed)
+                            except:
+                                discord_panel_msg_id = None
 
-                    # tenta editar mensagem existente
-                    if discord_panel_msg_id:
-                        try:
-                            msg = await channel.fetch_message(discord_panel_msg_id)
-                            await msg.edit(embed=embed)
-                            return
-                        except:
-                            discord_panel_msg_id = None
-
-                    # cria nova se necessário
-                    msg = await channel.send(embed=embed)
-                    discord_panel_msg_id = msg.id
+                        if not discord_panel_msg_id:
+                            msg = await channel.send(embed=embed)
+                            discord_panel_msg_id = msg.id
+                            try: await msg.pin()
+                            except: pass
+                            save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
 
                 except Exception as e:
                     print(f"[DISCORD PANEL ERROR] {e}")
-
 
         except Exception as e:
             print(f"[UPDATE PANEL ERROR] {e}")
@@ -1662,6 +1660,11 @@ async def update_panel():
 @bot_discord.event
 async def on_ready():
 
+    # Evita inicialização múltipla se o Discord reconectar
+    if globals().get("PANEL_BOOT_DONE", False):
+        print(f"Discord reconectado: {bot_discord.user}")
+        return
+
     print(f"Discord conectado: {bot_discord.user}")
 
     try:
@@ -1669,235 +1672,80 @@ async def on_ready():
     except Exception as e:
         print(f"[SYNC ERROR] {e}")
 
-    try:
-        await bot_discord.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.listening,
-                name="🪭 Em tournê - Ouvindo Arirang🪭"
-            )
+    await bot_discord.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.listening,
+            name="🪭 Em tournê - Ouvindo Arirang🪭"
         )
-    except Exception as e:
-        print(f"[STATUS ERROR] {e}")
+    )
 
-    # 🔧 garante inicialização do painel antes do watchdog estabilizar
+    # 🔧 Garante recuperação dos IDs do disco e estabilização
     try:
+        await ensure_single_panel() # Chama a recuperação do Bloco 12
         await update_panel()
     except Exception as e:
         print(f"[PANEL INIT ERROR] {e}")
 
 # =========================
-# 18.1 CHECK FUNCTIONS (VERSÃO REAL + SEGURA - BLINDADA)
+# 18.1 CHECK FUNCTIONS (FIX PERSISTÊNCIA)
 # =========================
 
-import aiohttp
-from bs4 import BeautifulSoup
-import time
-
-# =========================
-# SAFE THROTTLE LOCAL
-# =========================
-LAST_CALL = {}
-
-async def throttle(key, delay=2):
-
-    now = time.time()
-    last = LAST_CALL.get(key, 0)
-
-    if now - last < delay:
-        await asyncio.sleep(delay - (now - last))
-
-    LAST_CALL[key] = time.time()
-
-
-# =========================
-# SAFE HTML FETCH
-# =========================
-async def fetch_html(session, url):
-
-    try:
-        async with session.get(url, timeout=20) as resp:
-
-            if resp.status != 200:
-                return None
-
-            return await resp.text(errors="ignore")
-
-    except Exception as e:
-        print(f"[FETCH ERROR] {url} -> {e}")
-        return None
-
-
-# =========================
-# SAFE PANEL SYNC (ANTI FLOOD)
-# =========================
-_last_sync = 0
-
-async def sync_panel():
-
-    global _last_sync
-
-    try:
-        now = time.time()
-
-        # 🔒 evita spam no Railway (upgrade importante)
-        if now - _last_sync < 2:
-            return
-
-        _last_sync = now
-
-        await update_panel()
-
-    except Exception as e:
-        print(f"[PANEL SYNC ERROR] {e}")
-
-
-# =========================
-# TICKETMASTER CHECK (BLINDADO)
-# =========================
 async def check_ticketmaster(session):
-
     global total_tickets, last_ticket_check
-
     try:
-
         for url in TICKET_LINKS:
-
             await throttle("ticket_" + url, 1)
-
             html = await fetch_html(session, url)
+            if not html: continue
 
-            if not html:
-                continue
-
-            # 🔒 só conta se teve resposta válida
+            # FIX: Incremento com persistência real
             total_tickets += 1
             last_ticket_check = time.time()
+            await save_counters() # Salva no JSON imediatamente
 
-            # evita update direto em loop
             await sync_panel()
 
-            # valida mudança real
             if is_real_change(f"ticket:{url}", html):
                 await trigger_alert("ticket", url, None)
-
     except Exception as e:
         print(f"[CHECK TICKET ERROR] {e}")
 
-
-# =========================
-# BUYTICKET CHECK (BLINDADO)
-# =========================
-async def check_buyticket(session):
-
-    global total_buy, last_buy_check
-
-    try:
-
-        for url in BUY_LINKS:
-
-            await throttle("buy_" + url, 1)
-
-            html = await fetch_html(session, url)
-
-            if not html:
-                continue
-
-            total_buy += 1
-            last_buy_check = time.time()
-
-            await sync_panel()
-
-            if is_real_change(f"buy:{url}", html):
-                await trigger_alert("buy", url, None)
-
-    except Exception as e:
-        print(f"[CHECK BUY ERROR] {e}")
-
-
-# =========================
-# WEVERSE CHECK (BLINDADO)
-# =========================
 async def check_weverse(session):
-
     global total_weverse, last_weverse_check
-
     try:
-
         for url in WEVERSE_LINKS:
-
             await throttle("weverse_" + url, 1)
-
             html = await fetch_html(session, url)
-
-            if not html:
-                continue
+            if not html: continue
 
             total_weverse += 1
             last_weverse_check = time.time()
+            await save_counters() # Salva no JSON
 
             await sync_panel()
 
             if is_real_change(f"weverse:{url}", html):
                 await trigger_alert("weverse", url, None)
-
     except Exception as e:
         print(f"[CHECK WEVERSE ERROR] {e}")
 
-
-# =========================
-# SOCIAL CHECK (BLINDADO + ANTI FLOOD)
-# =========================
 async def check_social(session):
-
     global total_social, last_social_check
-
     try:
-
         all_links = list(INSTAGRAM_LINKS.values()) + YOUTUBE_LINKS
-
         for url in all_links:
-
             await throttle("social_" + url, 3)
-
             html = await fetch_html(session, url)
-
-            # 🔒 só conta se respondeu algo
             if html:
                 total_social += 1
                 last_social_check = time.time()
+                await save_counters() # Salva no JSON
+                await sync_panel()
 
-            await sync_panel()
-
-            if not html:
-                continue
-
-            if is_real_change(f"social:{url}", html):
-                await trigger_alert("social", url, None)
-
+                if is_real_change(f"social:{url}", html):
+                    await trigger_alert("social", url, None)
     except Exception as e:
         print(f"[CHECK SOCIAL ERROR] {e}")
-
-
-# =========================
-# ALERT DISPATCH SAFE (DEDUP EXTRA)
-# =========================
-async def trigger_alert(alert_type, url, message):
-
-    try:
-
-        key = f"{alert_type}:{url}"
-
-        # 🔒 evita dupla chamada por camada externa
-        if not is_real_change(key, url):
-            return
-
-        await send_alert(alert_type, message or url)
-
-        # sync leve (não força loop pesado)
-        await sync_panel()
-
-    except Exception as e:
-        print(f"[TRIGGER ERROR] {e}")
 
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
@@ -2027,11 +1875,14 @@ async def locked_update_panel():
 
         now = time.time()
 
+        # [FIX] Respeita o cooldown mas garante que o estado final seja salvo
         if now - _last_panel_sync < 2:
             return
 
         _last_panel_sync = now
 
+        # [FIX] Garante que contadores e IDs de mensagem estejam em disco antes do update visual
+        await save_counters()
         await update_panel()
 
 # =========================
@@ -2050,6 +1901,7 @@ async def priority_send(alert_type, message, key=None):
 
     if level == 3:
         await send_alert(alert_type, message)
+        # Sincronia imediata para eventos críticos
         await locked_update_panel()
         return
 
@@ -2062,6 +1914,7 @@ async def priority_send(alert_type, message, key=None):
     if level == 1:
         await asyncio.sleep(1.5)
         await send_alert(alert_type, message)
+        # Nível 1 não força update de painel para economizar API
 
 # =========================
 # ALERT ENTRYPOINT
@@ -2079,7 +1932,7 @@ async def trigger_alert(alert_type, url, message):
 async def safe_monitor_cycle(session):
 
     try:
-
+        # [FIX] Cada check agora salva contadores internamente (Bloco 18)
         await throttle("ticket", 1)
         await check_ticketmaster(session)
 
@@ -2092,6 +1945,7 @@ async def safe_monitor_cycle(session):
         await throttle("social", 1)
         await check_social(session)
 
+        # Update final do ciclo para garantir paridade
         await locked_update_panel()
 
     except Exception as e:
@@ -2107,6 +1961,7 @@ async def monitor_loop():
 
     await bot_discord.wait_until_ready()
 
+    # Prevenção de race condition no boot
     if _ENGINE_STARTED:
         return
 
@@ -2114,10 +1969,12 @@ async def monitor_loop():
 
     print("[MONITOR] RUNNING (SINGLE INSTANCE)")
 
+    # [FIX] Reaproveitamento de sessão para evitar overhead de handshake
     async with aiohttp.ClientSession() as session:
 
         while True:
             await safe_monitor_cycle(session)
+            # Sleep balanceado para não ser banido pelos servidores (Weverse/IG)
             await asyncio.sleep(20)
 
 # =========================
@@ -2134,8 +1991,10 @@ async def watchdog():
 
         await asyncio.sleep(60)
 
-        if not panel_message_id:
-            print("[WATCHDOG] painel perdido -> repair")
+        # [FIX] Recuperação automática se o ID sumir da memória
+        if not globals().get("panel_message_id") or not globals().get("discord_panel_msg_id"):
+            print("[WATCHDOG] painel perdido ou IDs desincronizados -> reparando via disco")
+            await ensure_single_panel()
             await update_panel()
 
 # =========================
@@ -2149,6 +2008,7 @@ async def health_watcher():
     while True:
 
         try:
+            # system_health() deve retornar um dicionário com o estado dos serviços
             health = system_health()
 
             if not health["panel_ok"]:
@@ -2166,21 +2026,18 @@ async def health_watcher():
 
 async def start_engine():
 
-    global _ENGINE_STARTED
-
-    if _ENGINE_STARTED:
+    # A trava global impede que tasks duplicadas rodem após reconexões
+    if globals().get("_ENGINE_TASKS_STARTED", False):
         return
 
-    _ENGINE_STARTED = True
+    globals()["_ENGINE_TASKS_STARTED"] = True
 
     print("[ENGINE] FINAL MODE STARTED (UNIFIED PRODUCTION)")
 
     tasks = [
-
         asyncio.create_task(monitor_loop()),
         asyncio.create_task(watchdog()),
         asyncio.create_task(health_watcher()),
-
     ]
 
     await asyncio.gather(*tasks, return_exceptions=True)
@@ -2195,7 +2052,9 @@ async def safe_boot():
 
         print("[BOOT] iniciando sistema")
 
+        # [FIX] Carregamento obrigatório de estado persistente antes de ligar motores
         await ensure_single_panel()
+        await load_counters()
 
         await asyncio.sleep(2)
 
@@ -2239,6 +2098,9 @@ async def main():
         _BOOT_STARTED = True
 
         try:
+            # Carrega contadores e IDs persistentes antes de qualquer outra coisa
+            await load_counters()
+            await ensure_single_panel()
 
             # =========================
             # WEB SERVER
@@ -2255,11 +2117,13 @@ async def main():
             # ENGINE PRINCIPAL (CONTROLADO)
             # =========================
             if _ENGINE_TASK is None:
+                # O start_engine já contém monitor_loop, watchdog e health_watcher
                 _ENGINE_TASK = asyncio.create_task(start_engine())
 
             # =========================
             # DISCORD BOT (ENTRYPOINT ÚNICO)
             # =========================
+            # O start() bloqueia a execução, então deve ser o último
             await bot_discord.start(DISCORD_TOKEN)
 
         except Exception as e:
@@ -2317,12 +2181,14 @@ async def panel_loop():
         while True:
 
             try:
+                # FIX: Garante que os contadores salvos no disco reflitam no painel
                 await update_panel()
 
             except Exception as e:
                 print(f"[PANEL LOOP ERROR] {e}")
 
-            await asyncio.sleep(5)
+            # Intervalo de 20s para evitar rate-limit agressivo
+            await asyncio.sleep(20)
 
     finally:
         PANEL_LOOP_RUNNING = False
@@ -2344,17 +2210,6 @@ async def start_background_tasks():
 
         PANEL_LOOP_TASK = asyncio.create_task(panel_loop())
 
-
-# =========================
-# DISCORD CONNECT SAFE HOOK (BLINDADO)
-# =========================
-@bot_discord.event
-async def on_connect():
-
-    print("[DISCORD] conectado com segurança")
-
-    # garante apenas 1 execução real
-    await start_background_tasks()
 
 # =========================
 # 22 BOOT MASTER SAFE (ABSOLUTE MODE)
@@ -2395,27 +2250,25 @@ async def recover_panels():
 
     global panel_message_id, discord_panel_msg_id
 
-    try:
-        channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+    # Prioridade 1: Recuperar do Arquivo (Mais seguro contra resets)
+    ids_disco = carregar_storage(PANEL_DATA_FILE)
+    if ids_disco:
+        panel_message_id = ids_disco.get("tg_msg_id", panel_message_id)
+        discord_panel_msg_id = ids_disco.get("dc_msg_id", discord_panel_msg_id)
 
-        if channel:
-            async for msg in channel.history(limit=30):
-                if msg.author == bot_discord.user:
-                    discord_panel_msg_id = msg.id
-                    break
-
-    except Exception as e:
-        print(f"[RECOVERY DISCORD ERROR] {e}")
-
-    try:
-        saved_id = carregar_id_telegram()
-
-        if saved_id:
-            panel_message_id = saved_id
-
-    except Exception as e:
-        print(f"[RECOVERY TELEGRAM ERROR] {e}")
-        panel_message_id = None
+    # Prioridade 2: Busca ativa no histórico do Discord se o disco falhar
+    if not discord_panel_msg_id:
+        try:
+            channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+            if not channel: channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
+            
+            if channel:
+                async for msg in channel.history(limit=30):
+                    if msg.author == bot_discord.user and "ARIRANG TOUR" in (msg.content or ""):
+                        discord_panel_msg_id = msg.id
+                        break
+        except Exception as e:
+            print(f"[RECOVERY DISCORD ERROR] {e}")
 
 
 # =========================
@@ -2463,8 +2316,7 @@ async def safe_boot():
         print("[BOOT] iniciando sequência master...")
 
         await ensure_single_panel()
-
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
 
         BOOT_DONE = True
 
@@ -2472,13 +2324,19 @@ async def safe_boot():
 
 
 # =========================
-# DISCORD READY SAFE HOOK
+# DISCORD EVENTS (UNIFICADOS PARA EVITAR RACE CONDITION)
 # =========================
 
 @bot_discord.event
 async def on_ready():
 
-    print("[DISCORD] ready")
+    # Evita que o on_ready dispare lógicas de boot se for apenas uma reconexão
+    if globals().get("_READY_FIRED", False):
+        print("[DISCORD] Reconnected")
+        return
+    
+    globals()["_READY_FIRED"] = True
+    print("[DISCORD] Ready - Finalizing Startup")
 
     try:
         await safe_boot()
@@ -2490,19 +2348,12 @@ async def on_ready():
                 name="🪭 Em tournê - Ouvindo Arirang🪭"
             )
         )
+        
+        # Inicia o loop de atualização visual do painel
+        await start_background_tasks()
 
     except Exception as e:
         print(f"[ON_READY ERROR] {e}")
-
-
-# =========================
-# CONNECT SAFE HOOK (IDEMPOTENTE)
-# =========================
-
-@bot_discord.event
-async def on_connect():
-
-    print("[DISCORD] connect event (safe)")
 
 
 # =========================
@@ -2528,6 +2379,8 @@ def system_health():
             "panel_ok": False,
             "boot_done": False,
             "panel_loop": False
+        }
+
         }
 
 # =========================
@@ -2556,6 +2409,7 @@ HEALTH_STARTED = False
 def system_integrity_check():
 
     try:
+        # Puxa os estados reais definidos nos blocos de BOOT e ENGINE
         return {
             "boot_done": globals().get("BOOT_DONE", False),
             "panel_ok": bool(
@@ -2594,15 +2448,15 @@ async def wait_system_ready():
 
         status = system_integrity_check()
 
-        # sistema pronto
+        # sistema pronto (Boot concluído e pelo menos um painel localizado)
         if status["boot_done"] and status["panel_ok"]:
             BOOT_SEQUENCE_READY = True
             print("[BOOT MAP] sistema pronto para engine")
             return True
 
-        # timeout de segurança (evita travar infinito no Railway)
+        # timeout de segurança (evita travar infinito no Railway se as APIs demorarem)
         if time.time() - start > timeout:
-            print("[BOOT MAP] timeout de boot, liberando com fallback")
+            print("[BOOT MAP] timeout de boot, liberando com fallback para evitar travamento")
             BOOT_SEQUENCE_READY = True
             return False
 
@@ -2620,8 +2474,11 @@ async def start_engine_guard():
     if ENGINE_STARTED:
         return
 
-    ENGINE_STARTED = True
+    # FIX: Aciona a inicialização real da engine se ainda não subiu
+    if not globals().get("_ENGINE_TASKS_STARTED", False):
+        asyncio.create_task(start_engine())
 
+    ENGINE_STARTED = True
     print("[BOOT MAP] engine liberado")
 
 
@@ -2637,7 +2494,6 @@ async def start_watchdog_guard():
         return
 
     WATCHDOG_STARTED = True
-
     print("[BOOT MAP] watchdog liberado")
 
 
@@ -2653,7 +2509,6 @@ async def start_health_guard():
         return
 
     HEALTH_STARTED = True
-
     print("[BOOT MAP] health monitor liberado")
 
 
@@ -2665,10 +2520,10 @@ async def boot_sequence_map():
 
     print("[BOOT MAP] iniciando controle de sequência...")
 
-    # 1. espera sistema estabilizar (boot + panel)
+    # 1. espera sistema estabilizar (carregamento de disco + recovery de painel)
     await wait_system_ready()
 
-    # 2. libera camadas em ordem segura
+    # 2. libera camadas em ordem segura para evitar race conditions
     await start_engine_guard()
     await start_watchdog_guard()
     await start_health_guard()
@@ -2680,7 +2535,7 @@ async def boot_sequence_map():
 # =========================
 
 LAST_REPAIR_TIME = 0
-REPAIR_COOLDOWN = 60  # segundos
+REPAIR_COOLDOWN = 60  # segundos (Janela de segurança contra flood)
 
 
 def can_run_repair():
