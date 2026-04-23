@@ -642,12 +642,19 @@ panel_lock = asyncio.Lock()
 
 async def recover_panel_state():
     global panel_message_id, discord_panel_msg_id
+
     try:
+        # =========================
+        # TELEGRAM RECOVERY
+        # =========================
         try:
             panel_message_id = carregar_id_telegram()
-        except:
+        except Exception:
             panel_message_id = None
 
+        # =========================
+        # DISCORD RECOVERY
+        # =========================
         try:
             if DISCORD_PANEL_CHANNEL_ID and bot_discord:
                 channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
@@ -656,7 +663,7 @@ async def recover_panel_state():
                         if msg.author == bot_discord.user:
                             discord_panel_msg_id = msg.id
                             break
-        except:
+        except Exception:
             pass
 
         print("[RECOVERY] painel restaurado com sucesso")
@@ -683,7 +690,7 @@ async def update_panel():
         texto = gerar_texto_painel(data_show, city, d_prox, d_br)
 
         # =========================
-        # TELEGRAM
+        # TELEGRAM PANEL
         # =========================
         if bot_ticket and PANEL_CHAT_ID:
 
@@ -693,7 +700,7 @@ async def update_panel():
                     if not panel_message_id:
                         try:
                             panel_message_id = carregar_id_telegram()
-                        except:
+                        except Exception:
                             panel_message_id = None
 
                     edited = False
@@ -729,14 +736,14 @@ async def update_panel():
                                 message_id=panel_message_id,
                                 disable_notification=True
                             )
-                        except:
+                        except Exception:
                             pass
 
                 except Exception as e:
                     print(f"[TELEGRAM PANEL ERROR] {e}")
 
         # =========================
-        # DISCORD
+        # DISCORD PANEL
         # =========================
         if DISCORD_PANEL_CHANNEL_ID and bot_discord:
 
@@ -753,14 +760,16 @@ async def update_panel():
 
                 edited = False
 
+                # 1 - tenta editar direto
                 if discord_panel_msg_id:
                     try:
                         msg = await channel.fetch_message(discord_panel_msg_id)
                         await msg.edit(embed=embed)
                         edited = True
-                    except:
+                    except Exception:
                         discord_panel_msg_id = None
 
+                # 2 - tenta recuperar última mensagem do bot
                 if not edited:
                     try:
                         async for msg in channel.history(limit=25):
@@ -769,25 +778,16 @@ async def update_panel():
                                 await msg.edit(embed=embed)
                                 edited = True
                                 break
-                    except:
+                    except Exception:
                         pass
 
+                # 3 - cria se não encontrou nada
                 if not edited:
                     msg = await channel.send(embed=embed)
                     discord_panel_msg_id = msg.id
 
             except Exception as e:
                 print(f"[DISCORD PANEL ERROR] {e}")
-
-
-# =========================
-# OBS 12.1
-# =========================
-# - evita duplicação em restart
-# - recupera painel automaticamente
-# - edita antes de criar
-# - sync Discord + Telegram
-# - anti flood 60s
 
 # =========================
 # 13 ALERTAS WEVERSE (CORRIGIDO)
