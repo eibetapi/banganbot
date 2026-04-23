@@ -1289,11 +1289,10 @@ async def test_youtube_live():
     await safe_send_alert("youtube_live", msg)
 
 # =========================
-# 17 COMMAND ENGINE FRAMEWORK FINAL
+# 17 COMMAND ENGINE FRAMEWORK FINAL (CORRIGIDO)
 # =========================
 
 COMMANDS = {}
-
 
 # =========================
 # REGISTRADOR DE COMANDOS
@@ -1304,12 +1303,10 @@ def command(name):
         return func
     return wrapper
 
-
 # =========================
 # CONTEXTO PADRÃO
 # =========================
 class CommandContext:
-
     def __init__(self, origin, interaction=None, chat_id=None):
         self.origin = origin
         self.interaction = interaction
@@ -1323,30 +1320,21 @@ class CommandContext:
     def is_telegram(self):
         return self.origin == "telegram"
 
-
 # =========================
 # DISPATCHER CENTRAL
 # =========================
 async def execute_command(cmd, ctx):
-
     handler = COMMANDS.get(cmd)
-
     if not handler:
         return
-
     await handler(ctx)
-
 
 # =========================
 # SENDER UNIFICADO
 # =========================
 async def send(ctx, text):
-
-    # =========================
-    # DISCORD OUTPUT
-    # =========================
+    # Discord Output
     if ctx.is_discord and ctx.interaction:
-
         try:
             if ctx.interaction.response.is_done():
                 await ctx.interaction.followup.send(text)
@@ -1355,140 +1343,92 @@ async def send(ctx, text):
         except Exception as e:
             print(f"[DISCORD SEND ERROR] {e}")
 
-
-    # =========================
-    # TELEGRAM OUTPUT
-    # =========================
+    # Telegram Output
     elif ctx.is_telegram and ctx.chat_id:
-
         try:
-            await bot_ticket.send_message(
-                chat_id=ctx.chat_id,
-                text=text
-            )
+            await bot_ticket.send_message(chat_id=ctx.chat_id, text=text)
         except Exception as e:
             print(f"[TELEGRAM SEND ERROR] {e}")
 
+# =========================
+# DEFINIÇÃO DOS COMANDOS
+# =========================
 
-# =========================
-# /PING
-# =========================
 @command("ping")
 async def ping(ctx):
     await send(ctx, f"🏓 Pong! {get_uptime()}")
 
-
-# =========================
-# /COMANDOS
-# =========================
 @command("comandos")
 async def comandos(ctx):
     await send(ctx, "/ping\n/comandos\n/teste\n/bts")
 
-
-# =========================
-# /BTS (MULTI OUTPUT CONTROLADO)
-# =========================
 @command("bts")
 async def bts(ctx):
-
     membros = [
-        "🐨 KIM NAMJOON",
-        "🐹 KIM SEOKJIN",
-        "🐱 MIN YOONGI",
-        "🐿️ JUNG HOSEOK",
-        "🐥 PARK JIMIN",
-        "🐻 KIM TAEHYUNG",
-        "🐰 JEON JUNGKOOK",
-        "💜 BTS"
+        "🐨 KIM NAMJOON", "🐹 KIM SEOKJIN", "🐱 MIN YOONGI",
+        "🐿️ JUNG HOSEOK", "🐥 PARK JIMIN", "🐻 KIM TAEHYUNG",
+        "🐰 JEON JUNGKOOK", "💜 BTS"
     ]
+    texto_final = "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h"
 
-    texto_final = "\n".join(membros) + \
-        "\n\n🪭Ouça Arirang no Spotify🪭\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h"
-
-
-    # =========================
-    # DISCORD (MODO ANIMADO)
-    # =========================
     if ctx.is_discord and ctx.interaction:
-
         await ctx.interaction.response.send_message(membros[0])
-
         for m in membros[1:]:
             await asyncio.sleep(1.2)
             await ctx.interaction.channel.send(m)
-
         await asyncio.sleep(1.2)
-        await ctx.interaction.channel.send(
-            "🪭Ouça Arirang no Spotify🪭\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h"
-        )
-
+        await ctx.interaction.channel.send("🪭Ouça Arirang no Spotify🪭\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h")
         return
 
-
-    # =========================
-    # TELEGRAM (VERSÃO LIMPA E EQUIVALENTE)
-    # =========================
     await send(ctx, texto_final)
 
-
-# =========================
-# /TESTE
-# =========================
 @command("teste")
 async def teste(ctx):
-
     await send(ctx, "⚠️ Iniciando teste completo...")
-
     try:
-        # Garante que os testes rodem e o painel sincronize ao final
         await run_full_test_discord()
-        
-        # FIX: Sincroniza os painéis após o teste (se não estiver em modo isolado)
         if not globals().get("TEST_MODE", False):
             await update_panel()
-            
         await send(ctx, "✅ Teste finalizado")
-
     except Exception as e:
         await send(ctx, f"❌ Erro: {e}")
 
+# =========================
+# PONTES DE EXECUÇÃO (DISCORD & TELEGRAM)
+# =========================
 
-# =========================
-# DISCORD HANDLER
-# =========================
 async def executar_discord(cmd, interaction):
-
-    ctx = CommandContext(
-        origin="discord",
-        interaction=interaction
-    )
-
+    ctx = CommandContext(origin="discord", interaction=interaction)
     await execute_command(cmd, ctx)
 
-
-# =========================
-# TELEGRAM HANDLER
-# =========================
 async def executar_telegram(update, context):
-
-    # FIX: Verificação de segurança para mensagens nulas
-    if not update.message or not update.message.text:
-        return
-
+    if not update.message or not update.message.text: return
     text = update.message.text.strip().lower()
-
-    if not text.startswith("/"):
-        return
-
+    if not text.startswith("/"): return
     cmd = text.replace("/", "").split("@")[0]
-
-    ctx = CommandContext(
-        origin="telegram",
-        chat_id=update.message.chat_id
-    )
-
+    ctx = CommandContext(origin="telegram", chat_id=update.message.chat_id)
     await execute_command(cmd, ctx)
+
+# =========================
+# REGISTRO NATIVO SLASH (O QUE FALTAVA)
+# =========================
+
+@bot_discord.tree.command(name="ping", description="Verifica latência")
+async def slash_ping(interaction: discord.Interaction):
+    await executar_discord("ping", interaction)
+
+@bot_discord.tree.command(name="bts", description="Lista os membros do BTS")
+async def slash_bts(interaction: discord.Interaction):
+    await executar_discord("bts", interaction)
+
+@bot_discord.tree.command(name="teste", description="Executa o teste de monitoramento")
+async def slash_teste(interaction: discord.Interaction):
+    await executar_discord("teste", interaction)
+
+@bot_discord.tree.command(name="comandos", description="Mostra lista de comandos")
+async def slash_comandos(interaction: discord.Interaction):
+    await executar_discord("comandos", interaction)
+
 
 # =========================
 # 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL (UNIFICADO FINAL)
@@ -1502,22 +1442,36 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 # =========================
-# 18.0 APOIO: CORES E DATAS
+# 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL (PULSO ATIVO)
 # =========================
-def status_color(last_check_time):
+
+import asyncio
+import time
+import discord
+from datetime import datetime
+
+# =========================
+# 18.0 APOIO: CORES DINÂMICAS (PULSO VERDE)
+# =========================
+def status_color(last_check_time, tipo):
+    # Se estiver a verificar agora, mostra VERDE (Efeito de piscar/atividade)
+    if globals().get(f"is_checking_{tipo}", False):
+        return "🟢"
+    
     if not last_check_time or last_check_time == 0:
         return "🔴"
+        
     elapsed = time.time() - last_check_time
-    if elapsed < 300: return "🟢"
-    elif elapsed < 900: return "🟡"
+    if elapsed < 600: return "🟣" # Online e Ativo
+    elif elapsed < 1800: return "🟡" # Em espera
     else: return "🔴"
 
 def get_countdown_data():
     now_dt = datetime.now()
-    next_global_date = "Continua…"
-    next_global_local = "---"
+    next_global_date, next_global_local = "Continua…", "---"
     days_to_next_global, days_to_brazil = 0, 0
     agenda_data = globals().get("AGENDA", [])
+    
     for item in agenda_data:
         try:
             show_dt = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
@@ -1537,10 +1491,9 @@ def get_countdown_data():
     return next_global_date, next_global_local, days_to_next_global, days_to_brazil
 
 # =========================
-# 18.1 GERAÇÃO DE TEXTO (SINTAXE BLINDADA)
+# 18.1 GERAÇÃO DE TEXTO (STATUS ATUALIZADO)
 # =========================
 def gerar_texto_painel(data_show, city, d_prox, d_br):
-    # Puxa globais para variáveis locais antes da f-string (evita SyntaxError)
     lwc = globals().get("last_weverse_check", 0)
     lsc = globals().get("last_social_check", 0)
     ltc = globals().get("last_ticket_check", 0)
@@ -1560,19 +1513,19 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 
 •°•🌙.•°ATUALIZAÇÕES •°.💫 * . * •°•°🛸
 
-🟣 Weverse {status_color(lwc)}
+🟣 Weverse {status_color(lwc, "weverse")}
 🎯 Acessos realizados: {tw}
 
-🟠 Redes sociais {status_color(lsc)}
+🟠 Redes sociais {status_color(lsc, "social")}
 🎯 Acessos realizados: {ts}
 
-💷 Ticketmaster {status_color(ltc)}
+💷 Ticketmaster {status_color(ltc, "ticket")}
 🎯 Acessos realizados: {tt}
 
 •°•👾 Wootteo em rota há: {uptime} ✨"""
 
 # =========================
-# 18.2 SINCRONIZAÇÃO E EVENTO
+# 18.2 SINCRONIZAÇÃO E EVENTO ON_READY
 # =========================
 panel_lock = asyncio.Lock()
 last_panel_update = 0
@@ -1582,7 +1535,7 @@ async def update_panel():
     async with panel_lock:
         try:
             now = time.time()
-            if (now - last_panel_update) < 5: return
+            if (now - last_panel_update) < 3: return # Reduzi para 3s para o pulso ser mais rápido
             last_panel_update = now
             d_show, city, d_prox, d_br = get_countdown_data()
             texto = gerar_texto_painel(d_show, city, d_prox, d_br)
@@ -1597,7 +1550,6 @@ async def update_panel():
                         panel_message_id = m.message_id
                         try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, panel_message_id)
                         except: pass
-                        save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
                 except: pass
 
             if DISCORD_PANEL_CHANNEL_ID:
@@ -1616,88 +1568,80 @@ async def update_panel():
                             discord_panel_msg_id = m.id
                             try: await m.pin()
                             except: pass
-                            save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
+                    save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
                 except: pass
         except Exception as e: print(f"[PANEL ERR] {e}")
 
 @bot_discord.event
 async def on_ready():
-    # 1. Verificação de Boot (Garante que rode apenas uma vez)
-    if globals().get("PANEL_BOOT_DONE", False): 
-        print(f"RECONECTADO: {bot_discord.user}")
-        return
+    # 1. FORÇAR FRASE DE STATUS (Sempre)
+    act = discord.Activity(type=discord.ActivityType.listening, name="🪭 Em tournê - Ouvindo Arirang🪭")
+    await bot_discord.change_presence(status=discord.Status.online, activity=act)
 
+    # 2. FORÇAR SYNC DE COMANDOS (Para o Bloco 17 aparecer)
+    try:
+        await bot_discord.tree.sync()
+        print(f"[SYNC] Comandos atualizados para {bot_discord.user}")
+    except Exception as e: print(f"[SYNC ERROR] {e}")
+
+    # 3. TRAVA DE BOOT ÚNICO
+    if globals().get("PANEL_BOOT_DONE", False): return
     print(f"DISCORD CONECTADO: {bot_discord.user}")
 
-    # 2. SINCRONIZAÇÃO DE COMANDOS (Faz os comandos aparecerem no Discord)
-    try:
-        print("[SYNC] Sincronizando comandos Slash...")
-        synced = await bot_discord.tree.sync()
-        print(f"[SYNC] {len(synced)} comandos sincronizados com sucesso!")
-    except Exception as e:
-        print(f"[SYNC ERROR] Falha ao sincronizar comandos: {e}")
-
-    # 3. FRASE OBRIGATÓRIA DE STATUS
-    activity = discord.Activity(
-        type=discord.ActivityType.listening, 
-        name="🪭 Em tournê - Ouvindo Arirang🪭"
-    )
-    await bot_discord.change_presence(status=discord.Status.online, activity=activity)
-
-    # 4. INICIALIZAÇÃO DO PAINEL
     try:
         await ensure_single_panel()
         await update_panel()
         globals()["PANEL_BOOT_DONE"] = True
-        print("[SYSTEM] Painel e Status inicializados.")
-    except Exception as e:
-        print(f"[INIT ERROR] {e}")
+    except Exception as e: print(f"[INIT ERROR] {e}")
 
 # =========================
-# 18.3 MONITORAMENTO (CHECKERS)
+# 18.3 MONITORAMENTO (CHECKERS COM PULSO VERDE)
 # =========================
 async def check_ticketmaster(session):
-    global total_tickets, last_ticket_check
     try:
+        globals()["is_checking_ticket"] = True
+        await update_panel()
         for url in TICKET_LINKS:
             await throttle("ticket_" + url, 1)
             html = await fetch_html(session, url)
             if not html: continue
-            total_tickets += 1
-            last_ticket_check = time.time()
+            globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
+            globals()["last_ticket_check"] = time.time()
             await save_counters()
-            await update_panel()
-            if is_real_change(f"ticket:{url}", html): await trigger_alert("ticket", url, None)
-    except: pass
+        globals()["is_checking_ticket"] = False
+        await update_panel()
+    except: globals()["is_checking_ticket"] = False
 
 async def check_weverse(session):
-    global total_weverse, last_weverse_check
     try:
+        globals()["is_checking_weverse"] = True
+        await update_panel()
         for url in WEVERSE_LINKS:
             await throttle("weverse_" + url, 1)
             html = await fetch_html(session, url)
             if not html: continue
-            total_weverse += 1
-            last_weverse_check = time.time()
+            globals()["total_weverse"] = globals().get("total_weverse", 0) + 1
+            globals()["last_weverse_check"] = time.time()
             await save_counters()
-            await update_panel()
-            if is_real_change(f"weverse:{url}", html): await trigger_alert("weverse", url, None)
-    except: pass
+        globals()["is_checking_weverse"] = False
+        await update_panel()
+    except: globals()["is_checking_weverse"] = False
 
 async def check_social(session):
-    global total_social, last_social_check
     try:
+        globals()["is_checking_social"] = True
+        await update_panel()
         all_links = list(INSTAGRAM_LINKS.values()) + YOUTUBE_LINKS
         for url in all_links:
             await throttle("social_" + url, 3)
             html = await fetch_html(session, url)
             if html:
-                total_social += 1
-                last_social_check = time.time()
+                globals()["total_social"] = globals().get("total_social", 0) + 1
+                globals()["last_social_check"] = time.time()
                 await save_counters()
-                await update_panel()
-                if is_real_change(f"social:{url}", html): await trigger_alert("social", url, None)
-    except: pass
+        globals()["is_checking_social"] = False
+        await update_panel()
+    except: globals()["is_checking_social"] = False
 
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
@@ -2270,41 +2214,6 @@ async def safe_boot():
         BOOT_DONE = True
 
         print("[BOOT] sistema liberado com segurança total")
-
-
-# =========================
-# DISCORD EVENTS (UNIFICADOS PARA EVITAR RACE CONDITION)
-# =========================
-
-@bot_discord.event
-async def on_ready():
-
-    # Evita que o on_ready dispare lógicas de boot se for apenas uma reconexão
-    if globals().get("_READY_FIRED", False):
-        print("[DISCORD] Reconnected")
-        return
-    
-    globals()["_READY_FIRED"] = True
-    print("[DISCORD] Ready - Finalizing Startup")
-
-    try:
-        await safe_boot()
-        await bot_discord.tree.sync()
-
-        await bot_discord.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.listening,
-                name="🪭 Em tournê - Ouvindo Arirang🪭"
-            )
-
-)
-        
-        # Inicia o loop de atualização visual do painel
-        await start_background_tasks()
-
-    except Exception as e:
-        print(f"[ON_READY ERROR] {e}")
-
 
 # =========================
 # HEALTH CHECK (SAFE + RAILWAY FRIENDLY)
