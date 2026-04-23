@@ -1486,7 +1486,7 @@ async def executar_telegram(update, context):
     await execute_command(cmd, ctx)
 
 # =========================
-# 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL (UNIFICADO 18 & 18.1)
+# 18 DISCORD ON_READY + SYNC + TELEGRAM INTELLIGENT PANEL (UNIFICADO FINAL)
 # =========================
 
 import asyncio
@@ -1497,7 +1497,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 # =========================
-# FUNÇÃO DE STATUS
+# 18.0 APOIO: CORES E DATAS
 # =========================
 def status_color(last_check_time):
     if not last_check_time or last_check_time == 0:
@@ -1507,27 +1507,20 @@ def status_color(last_check_time):
     elif elapsed < 900: return "🟡"
     else: return "🔴"
 
-# =========================
-# STATUS COUNTDOWN DATA
-# =========================
 def get_countdown_data():
     now_dt = datetime.now()
     next_global_date = "Continua…"
     next_global_local = "---"
-    days_to_next_global = 0
-    days_to_brazil = 0
+    days_to_next_global, days_to_brazil = 0, 0
     agenda_data = globals().get("AGENDA", [])
-
     for item in agenda_data:
         try:
             show_dt = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
             if show_dt > now_dt:
-                next_global_date = item[0]
-                next_global_local = f"{item[1]}, {item[2]}"
+                next_global_date, next_global_local = item[0], f"{item[1]}, {item[2]}"
                 days_to_next_global = (show_dt.date() - now_dt.date()).days
                 break
         except: continue
-
     for item in agenda_data:
         try:
             if "Brasil" in item[2]:
@@ -1539,15 +1532,17 @@ def get_countdown_data():
     return next_global_date, next_global_local, days_to_next_global, days_to_brazil
 
 # =========================
-# PAINEL TEXTO (LAYOUT ORIGINAL PRESERVADO)
+# 18.1 GERAÇÃO DE TEXTO (SINTAXE BLINDADA)
 # =========================
 def gerar_texto_painel(data_show, city, d_prox, d_br):
+    # Puxa globais para variáveis locais antes da f-string (evita SyntaxError)
     lwc = globals().get("last_weverse_check", 0)
     lsc = globals().get("last_social_check", 0)
     ltc = globals().get("last_ticket_check", 0)
     tw = globals().get("total_weverse", 0)
     ts = globals().get("total_social", 0)
     tt = globals().get("total_tickets", 0)
+    uptime = get_uptime()
 
     return f"""🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
 
@@ -1563,19 +1558,16 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 🟣 Weverse {status_color(lwc)}
 🎯 Acessos realizados: {tw}
 
-
 🟠 Redes sociais {status_color(lsc)}
 🎯 Acessos realizados: {ts}
-
 
 💷 Ticketmaster {status_color(ltc)}
 🎯 Acessos realizados: {tt}
 
-•°•👾 Wootteo em rota há: {get_uptime()} ✨
-"""
+•°•👾 Wootteo em rota há: {uptime} ✨"""
 
 # =========================
-# UPDATE PANEL
+# 18.2 SINCRONIZAÇÃO E EVENTO
 # =========================
 panel_lock = asyncio.Lock()
 last_panel_update = 0
@@ -1587,8 +1579,8 @@ async def update_panel():
             now = time.time()
             if (now - last_panel_update) < 5: return
             last_panel_update = now
-            data_show, city, d_prox, d_br = get_countdown_data()
-            texto = gerar_texto_painel(data_show, city, d_prox, d_br)
+            d_show, city, d_prox, d_br = get_countdown_data()
+            texto = gerar_texto_painel(d_show, city, d_prox, d_br)
 
             if bot_ticket and PANEL_CHAT_ID:
                 try:
@@ -1596,8 +1588,8 @@ async def update_panel():
                         try: await bot_ticket.edit_message_text(chat_id=PANEL_CHAT_ID, message_id=panel_message_id, text=texto)
                         except: panel_message_id = None
                     if not panel_message_id:
-                        msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto)
-                        panel_message_id = msg.message_id
+                        m = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto)
+                        panel_message_id = m.message_id
                         try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, panel_message_id)
                         except: pass
                         save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
@@ -1605,41 +1597,31 @@ async def update_panel():
 
             if DISCORD_PANEL_CHANNEL_ID:
                 try:
-                    channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
-                    if not channel: channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
-                    if channel:
-                        embed = discord.Embed(description=texto, color=0x8A2BE2)
+                    chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
+                    if not chan: chan = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
+                    if chan:
+                        emb = discord.Embed(description=texto, color=0x8A2BE2)
                         if discord_panel_msg_id:
                             try:
-                                msg = await channel.fetch_message(discord_panel_msg_id)
-                                await msg.edit(embed=embed)
+                                m = await chan.fetch_message(discord_panel_msg_id)
+                                await m.edit(embed=emb)
                             except: discord_panel_msg_id = None
                         if not discord_panel_msg_id:
-                            msg = await channel.send(embed=embed)
-                            discord_panel_msg_id = msg.id
-                            try: await msg.pin()
+                            m = await chan.send(embed=emb)
+                            discord_panel_msg_id = m.id
+                            try: await m.pin()
                             except: pass
                             save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
                 except: pass
         except Exception as e: print(f"[PANEL ERR] {e}")
 
-# =========================
-# EVENTOS (FRASE ORIGINAL PRESERVADA)
-# =========================
 @bot_discord.event
 async def on_ready():
     if globals().get("PANEL_BOOT_DONE", False): return
     print(f"Discord conectado: {bot_discord.user}")
     try: await bot_discord.tree.sync()
     except: pass
-    
-    await bot_discord.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening, 
-            name="🪭 Em tournê - Ouvindo Arirang🪭"
-        )
-    )
-    
+    await bot_discord.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="🪭 Em tournê - Ouvindo Arirang🪭"))
     try:
         await ensure_single_panel()
         await update_panel()
@@ -1647,9 +1629,8 @@ async def on_ready():
     except: pass
 
 # =========================
-# 18.1 FUNÇÕES DE MONITORAMENTO (CHECKERS)
+# 18.3 MONITORAMENTO (CHECKERS)
 # =========================
-
 async def check_ticketmaster(session):
     global total_tickets, last_ticket_check
     try:
@@ -1659,11 +1640,10 @@ async def check_ticketmaster(session):
             if not html: continue
             total_tickets += 1
             last_ticket_check = time.time()
-            await save_counters() # PERSISTÊNCIA
+            await save_counters()
             await update_panel()
-            if is_real_change(f"ticket:{url}", html):
-                await trigger_alert("ticket", url, None)
-    except Exception as e: print(f"[TICKET ERR] {e}")
+            if is_real_change(f"ticket:{url}", html): await trigger_alert("ticket", url, None)
+    except: pass
 
 async def check_weverse(session):
     global total_weverse, last_weverse_check
@@ -1674,11 +1654,10 @@ async def check_weverse(session):
             if not html: continue
             total_weverse += 1
             last_weverse_check = time.time()
-            await save_counters() # PERSISTÊNCIA
+            await save_counters()
             await update_panel()
-            if is_real_change(f"weverse:{url}", html):
-                await trigger_alert("weverse", url, None)
-    except Exception as e: print(f"[WEVERSE ERR] {e}")
+            if is_real_change(f"weverse:{url}", html): await trigger_alert("weverse", url, None)
+    except: pass
 
 async def check_social(session):
     global total_social, last_social_check
@@ -1690,11 +1669,11 @@ async def check_social(session):
             if html:
                 total_social += 1
                 last_social_check = time.time()
-                await save_counters() # PERSISTÊNCIA
+                await save_counters()
                 await update_panel()
-                if is_real_change(f"social:{url}", html):
-                    await trigger_alert("social", url, None)
-    except Exception as e: print(f"[SOCIAL ERR] {e}")
+                if is_real_change(f"social:{url}", html): await trigger_alert("social", url, None)
+    except: pass
+
 
 
 # =========================
