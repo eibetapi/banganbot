@@ -2274,6 +2274,8 @@ async def on_ready():
                 type=discord.ActivityType.listening,
                 name="🪭 Em tournê - Ouvindo Arirang🪭"
             )
+
+)
         
         # Inicia o loop de atualização visual do painel
         await start_background_tasks()
@@ -2305,8 +2307,6 @@ def system_health():
             "panel_ok": False,
             "boot_done": False,
             "panel_loop": False
-        }
-
         }
 
 # =========================
@@ -2358,7 +2358,6 @@ def system_integrity_check():
             "health": False
         }
 
-
 # =========================
 # GATE DE SEGURANÇA (BLOQUEIA EXECUÇÃO PRECOCE)
 # =========================
@@ -2387,7 +2386,6 @@ async def wait_system_ready():
             return False
 
         await asyncio.sleep(2)
-
 
 # =========================
 # ENGINE GUARD (ANTI DUPLICAÇÃO)
