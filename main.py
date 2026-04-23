@@ -36,7 +36,7 @@ from flask import Flask
 from telegram import Bot
 
 # =========================
-# 2 CONFIGURAÇÃO E PERSISTÊNCIA (FIX PROBLEMAS 1, 2, 3 E 4)
+# 2 CONFIGURAÇÃO E PERSISTÊNCIA
 # =========================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -95,8 +95,17 @@ async def start_telegram():
 COUNTER_LOCK = asyncio.Lock()
 
 async def save_counters():
-    data = {"tickets": total_tickets, "weverse": total_weverse, "social": total_social,
-    save_storage(COUNTERS_FILE, data)
+    """Salva os contadores no disco para evitar perda de dados."""
+    try:
+        # [FIX] Adicionado o fechamento do dicionário } e do parênteses
+        data = {
+            "tickets": total_tickets, 
+            "weverse": total_weverse, 
+            "social": total_social
+        }
+        save_storage(COUNTERS_FILE, data)
+    except Exception as e:
+        print(f"[SAVE ERROR] {e}")
 
 async def increment_ticket():
     global total_tickets
