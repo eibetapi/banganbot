@@ -25,20 +25,30 @@ from telegram.ext import ContextTypes
 # 2 CONFIGURAÇÃO TELEGRAM / DISCORD (FIX ANTI-DUPLICAÇÃO)
 # =========================
 
+import os
+import discord
+from discord.ext import commands
+from telegram import Bot
+
+# =========================
+# TOKENS
+# =========================
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
-# 🔒 trava global anti-duplo start (evita 2 bots no restart/reconnect)
-BOOT_GUARD = False
+# =========================
+# DISCORD BOT
+# =========================
 
-# Instância do bot Discord
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
+
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
 
 # =========================
-# FIX OBRIGATÓRIO: SYNC DE SLASH COMMANDS
+# SETUP HOOK (ÚNICO - REMOVIDA DUPLICAÇÃO)
 # =========================
 
 @bot_discord.event
@@ -48,6 +58,10 @@ async def setup_hook():
         print("[SYNC] Slash commands sincronizados no setup_hook")
     except Exception as e:
         print(f"[SYNC HOOK ERROR] {e}")
+
+# =========================
+# IDS DO SISTEMA
+# =========================
 
 PANEL_CHAT_ID = -1003920883053
 
@@ -61,30 +75,31 @@ DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461
 DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864
 
 # =========================
-# TELEGRAM INSTÂNCIAS (CORREÇÃO SEGURA)
+# TELEGRAM (CORRIGIDO - SEM DUPLO RUNTIME AQUI)
 # =========================
 
-bot_ticket = None        # envio de mensagens (alerts/painel)
-telegram_app = None      # runtime async (ApplicationBuilder)
+bot_ticket = None
+telegram_app = None  # mantido só como placeholder (não iniciar aqui)
 
 # =========================
-# INITIALIZATION LEGACY (COMPATIBILIDADE)
+# TELEGRAM LEGACY INIT
 # =========================
 
 if TELEGRAM_TOKEN:
     try:
-        # ⚠️ legado (não é o runtime principal)
         bot_ticket = Bot(token=TELEGRAM_TOKEN)
 
         print("[SISTEMA] Telegram configurado com sucesso.")
-        print("[SISTEMA] Modo híbrido ativo (legacy + async runtime)")
+        print("[SISTEMA] Modo legacy ativo")
 
     except Exception as e:
         print(f"[ERRO CONFIG TELEGRAM] {e}")
 
 # =========================
-# PANEL ANTI-DUPLICATION LOCK (GLOBAL)
+# PANEL LOCK (ÚNICO)
 # =========================
+
+import asyncio
 
 PANEL_BOOT_LOCK = asyncio.Lock()
 PANEL_BOOT_DONE = False
