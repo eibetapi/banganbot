@@ -46,6 +46,8 @@ DISCORD_PANEL_CHANNEL_ID = 1494667029150695625
 # Arquivos de persistência
 COUNTERS_FILE = "counters.json"
 PANEL_DATA_FILE = "panel_data.json"
+PANEL_BOOT_DONE = False
+
 
 def load_storage(file, default):
     if os.path.exists(file):
