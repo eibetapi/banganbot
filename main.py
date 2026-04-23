@@ -3146,11 +3146,8 @@ async def on_connect():
     print("[DISCORD] connect event")
 
 # =========================
-# 24 TELEGRAM START (SAFE / ANTI-CRASH)
+# 24 TELEGRAM START (PRODUÇÃO SEGURA)
 # =========================
-
-# Este bloco garante que o sistema NÃO QUEBRE
-# mesmo que o Telegram não esteja configurado ainda
 
 async def start_telegram():
 
@@ -3158,34 +3155,21 @@ async def start_telegram():
 
     try:
 
-        # =========================
-        # CASO 1: telegram_app (python-telegram-bot v20+)
-        # =========================
+        # python-telegram-bot (Application)
         if "telegram_app" in globals():
-
             await telegram_app.initialize()
             await telegram_app.start()
-
-            print("[TELEGRAM] online via Application")
+            print("[TELEGRAM] online (Application)")
             return
 
-
-        # =========================
-        # CASO 2: telegram_bot (outro padrão)
-        # =========================
+        # fallback genérico
         if "telegram_bot" in globals():
-
             if hasattr(telegram_bot, "start"):
                 await telegram_bot.start()
-                print("[TELEGRAM] online via Bot.start()")
+                print("[TELEGRAM] online (Bot)")
                 return
 
-
-        # =========================
-        # FALLBACK (NÃO CONFIGURADO)
-        # =========================
-        print("[TELEGRAM] não configurado — ignorado com segurança")
+        print("[TELEGRAM] não configurado — ignorado")
 
     except Exception as e:
-
         print(f"[TELEGRAM ERROR] {e}")
