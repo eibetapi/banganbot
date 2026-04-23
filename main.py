@@ -1,29 +1,20 @@
 # =========================
 # 0 HEALTH CHECK (MUST BE FIRST LEVEL)
 # =========================
-
 def system_health():
-
     try:
         return {
             "panel_ok": bool(globals().get("panel_message_id") or globals().get("discord_panel_msg_id")),
-            "boot_done": globals().get("BOOT_DONE", False),
+            "boot_done": globals().get("PANEL_BOOT_DONE", False),
             "panel_loop": globals().get("PANEL_LOOP_RUNNING", False)
         }
-
     except Exception as e:
         print(f"[HEALTH ERROR] {e}")
-        return {
-            "panel_ok": False,
-            "boot_done": False,
-            "panel_loop": False
-        }
-
+        return {"panel_ok": False, "boot_done": False, "panel_loop": False}
 
 # =========================
-# AUTO REPAIR SAFE (FIX OBRIGATÓRIO DO LOG)
+# AUTO REPAIR SAFE
 # =========================
-
 async def auto_repair_panel():
     try:
         await update_panel()
@@ -31,392 +22,141 @@ async def auto_repair_panel():
         print(f"[AUTO REPAIR ERROR] {e}")
 
 # =========================
-# 1 BOT WOOTTEO
+# 1 BOT WOOTTEO & IMPORTS
 # =========================
-
-import asyncio
-import time
-import hashlib
-import os
-import re
+import asyncio, time, hashlib, os, re, json
 from datetime import datetime
-from threading import Thread
-
+from threading import Thread, Lock
 import discord
 from discord.ext import commands
 from discord import app_commands
-
 import aiohttp
 from bs4 import BeautifulSoup
 from flask import Flask
-
-from telegram import Bot, Update
-from telegram.ext import ContextTypes
-
-# =========================
-# 2 CONFIGURAÇÃO TELEGRAM / DISCORD (FIX ANTI-DUPLICAÇÃO)
-# =========================
-
-import os
-import discord
-from discord.ext import commands
 from telegram import Bot
 
 # =========================
-# TOKENS
+# 2 CONFIGURAÇÃO E PERSISTÊNCIA (FIX PROBLEMAS 1, 2, 3 E 4)
 # =========================
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+PANEL_CHAT_ID = -1003920883053
+DISCORD_PANEL_CHANNEL_ID = 1494667029150695625
 
-# =========================
-# DISCORD BOT
-# =========================
+# Arquivos de persistência
+COUNTERS_FILE = "counters.json"
+PANEL_DATA_FILE = "panel_data.json"
 
+def load_storage(file, default):
+    if os.path.exists(file):
+        with open(file, "r") as f: return json.load(f)
+    return default
+
+def save_storage(file, data):
+    with open(file, "w") as f: json.dump(data, f)
+
+# Carregar dados salvos
+stored_counters = load_storage(COUNTERS_FILE, {"tickets": 0, "weverse": 0, "social": 0, "buy": 0})
+stored_panel = load_storage(PANEL_DATA_FILE, {"tg_msg_id": None, "dc_msg_id": None})
+
+# Variáveis globais sincronizadas
+total_tickets = stored_counters["tickets"]
+total_weverse = stored_counters["weverse"]
+total_social = stored_counters["social"]
+total_buy = stored_counters["buy"]
+panel_message_id = stored_panel["tg_msg_id"] # ID do Telegram
+discord_panel_msg_id = stored_panel["dc_msg_id"] # ID do Discord
+
+# Bot Discord
 intents = discord.Intents.default()
 intents.message_content = True
-intents.guilds = True
-
 bot_discord = commands.Bot(command_prefix="!", intents=intents)
-
-# =========================
-# SETUP HOOK (ÚNICO - REMOVIDA DUPLICAÇÃO)
-# =========================
 
 @bot_discord.event
 async def setup_hook():
     try:
         await bot_discord.tree.sync()
-        print("[SYNC] Slash commands sincronizados no setup_hook")
-    except Exception as e:
-        print(f"[SYNC HOOK ERROR] {e}")
+        print("[SYNC] Slash commands sincronizados")
+    except Exception as e: print(f"[SYNC ERROR] {e}")
 
 # =========================
-# IDS DO SISTEMA
+# 2.1 TELEGRAM START
 # =========================
-
-PANEL_CHAT_ID = -1003920883053
-
-panel_message_id = None
-discord_panel_msg_id = None
-panel_initialized = False
-
-DISCORD_PANEL_CHANNEL_ID = 1494667029150695625
-DISCORD_TICKETS_CHANNEL_ID = 1494670074374651985
-DISCORD_WEVERSE_CHANNEL_ID = 1494680233025208461
-DISCORD_SOCIAL_CHANNEL_ID = 1494682078950981864
-
-# =========================
-# TELEGRAM (CORRIGIDO - SEM DUPLO RUNTIME AQUI)
-# =========================
-
-bot_ticket = None
-telegram_app = None  # mantido só como placeholder (não iniciar aqui)
-
-# =========================
-# TELEGRAM LEGACY INIT
-# =========================
-
-if TELEGRAM_TOKEN:
-    try:
-        bot_ticket = Bot(token=TELEGRAM_TOKEN)
-
-        print("[SISTEMA] Telegram configurado com sucesso.")
-        print("[SISTEMA] Modo legacy ativo")
-
-    except Exception as e:
-        print(f"[ERRO CONFIG TELEGRAM] {e}")
-
-# =========================
-# PANEL LOCK (ÚNICO)
-# =========================
-
-import asyncio
-
-PANEL_BOOT_LOCK = asyncio.Lock()
-PANEL_BOOT_DONE = False
-
-# =========================
-# 2.1 TELEGRAM START (PRODUÇÃO - FIX DEFINITIVO)
-# =========================
+bot_ticket = Bot(token=TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
 
 async def start_telegram():
-
-    print("[TELEGRAM] inicializando...")
-
-    try:
-
-        # =========================
-        # MODO LEGACY (SEU ATUAL)
-        # =========================
-        if bot_ticket is not None:
-            print("[TELEGRAM] pronto (modo Bot básico)")
-            return
-
-        # =========================
-        # MODO APPLICATION (FUTURO)
-        # =========================
-        if telegram_app is not None:
-            await telegram_app.initialize()
-            await telegram_app.start()
-            print("[TELEGRAM] online (Application)")
-            return
-
-        # =========================
-        # NÃO CONFIGURADO
-        # =========================
-        print("[TELEGRAM] não configurado — ignorado")
-
-    except Exception as e:
-        print(f"[TELEGRAM ERROR] {e}")
+    if bot_ticket:
+        print("[TELEGRAM] pronto (Modo Legacy)")
 
 # =========================
-# 3 CONTROLE / CONTADORES GLOBAIS (FIX ESTÁVEL)
+# 3 CONTROLE DE CONTADORES (FIX SINCRONIA)
 # =========================
-
-import asyncio
-import time
-
-# =========================
-# CONTADORES GLOBAIS
-# =========================
-
-total_tickets = 0
-total_weverse = 0
-total_social = 0
-
-last_ticket_check = time.time()
-last_weverse_check = time.time()
-last_social_check = time.time()
-last_buy_check = time.time()
-total_buy = 0
-
-SEEN_TICKET = set()
-SEEN_WEVERSE = set()
-SEEN_SOCIAL = set()
-
-start_time = time.time()
-
-# 🔒 lock leve para proteger updates concorrentes
 COUNTER_LOCK = asyncio.Lock()
 
-# =========================
-# FUNÇÕES SEGURAS PARA ATUALIZAR CONTADORES
-# =========================
+async def save_counters():
+    data = {"tickets": total_tickets, "weverse": total_weverse, "social": total_social, "buy": total_buy}
+    save_storage(COUNTERS_FILE, data)
 
 async def increment_ticket():
     global total_tickets
     async with COUNTER_LOCK:
         total_tickets += 1
+        await save_counters()
         return total_tickets
 
 async def increment_weverse():
     global total_weverse
     async with COUNTER_LOCK:
         total_weverse += 1
+        await save_counters()
         return total_weverse
 
 async def increment_social():
     global total_social
     async with COUNTER_LOCK:
         total_social += 1
+        await save_counters()
         return total_social
 
 # =========================
-# 4 WEB SERVER (PRODUÇÃO BLINDADA)
+# 4 WEB SERVER (KEEP ALIVE)
 # =========================
-
-from flask import Flask
-from threading import Thread, Lock
-import os
-import time
-
 app_web = Flask(__name__)
+start_time = time.time()
 
-# =========================
-# HEALTH CHECK (CORRIGIDO)
-# =========================
 @app_web.route("/")
-def home():
-    return {
-        "status": "online",
-        "service": "Bots Arirang",
-        "uptime": int(time.time() - start_time)
-    }
+def home(): return {"status": "online", "uptime": int(time.time() - start_time)}
 
-@app_web.route("/health")
-def health():
-    return {
-        "status": "ok",
-        "uptime": int(time.time() - start_time)
-    }
-
-# =========================
-# THREAD CONTROL (ANTI-DUPLICAÇÃO REAL)
-# =========================
-
-_web_lock = Lock()
 _web_started = False
-
-
 def run_web():
-    port = int(os.environ.get("PORT", 8080))
-
-    while True:
-        try:
-            app_web.run(
-                host="0.0.0.0",
-                port=port,
-                debug=False,
-                use_reloader=False
-            )
-        except Exception as e:
-            print(f"[WEB SERVER ERROR] {e}")
-            time.sleep(5)  # tenta reiniciar automaticamente
-
+    app_web.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), debug=False, use_reloader=False)
 
 def keep_alive():
-    """
-    🔒 Garante apenas UMA instância do Flask rodando
-    com proteção real contra corrida de threads
-    """
-
     global _web_started
-
-    with _web_lock:
-
-        if _web_started:
-            return
-
+    if not _web_started:
         _web_started = True
-
-        thread = Thread(
-            target=run_web,
-            daemon=True
-        )
-
-        thread.start()
-
-        print("[WEB SERVER] iniciado com segurança")
+        Thread(target=run_web, daemon=True).start()
 
 # =========================
-# 5 FUNÇÃO ANTI-SPAM (HASH INTELIGENTE)
+# 5 ANTI-SPAM E HASH (PERSISTENTE)
 # =========================
-
-import hashlib
-import os
-import json
-import asyncio
-import time
-
-CONTENT_HASH = {}
-
-CACHE_FILE = "content_hash_cache.json"
-
-# 🔒 lock para acesso concorrente
+CONTENT_HASH = load_storage("content_hash_cache.json", {})
 CONTENT_LOCK = asyncio.Lock()
 
-# controle de save otimizado
-_last_save_time = 0
-SAVE_INTERVAL = 10  # segundos
-
-
-# =========================
-# LOAD CACHE (PERSISTÊNCIA)
-# =========================
-def load_content_cache():
-    global CONTENT_HASH
-
-    try:
-        if os.path.exists(CACHE_FILE):
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                CONTENT_HASH = json.load(f)
-                print("[CACHE] carregado com sucesso")
-    except Exception as e:
-        print(f"[CACHE LOAD ERROR] {e}")
-        CONTENT_HASH = {}
-
-
-# =========================
-# SAVE CACHE (OTIMIZADO)
-# =========================
-def _save_now():
-    try:
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(CONTENT_HASH, f)
-    except Exception as e:
-        print(f"[CACHE SAVE ERROR] {e}")
-
-
-async def save_content_cache():
-    global _last_save_time
-
-    now = time.time()
-
-    # evita salvar toda hora
-    if now - _last_save_time < SAVE_INTERVAL:
-        return
-
-    async with CONTENT_LOCK:
-        _save_now()
-        _last_save_time = now
-
-
-# =========================
-# NORMALIZAÇÃO INTELIGENTE (MELHORADA)
-# =========================
 def normalize_html(html):
+    if not html: return ""
+    return " ".join(BeautifulSoup(html, "html.parser").get_text(separator=" ", strip=True).split())
 
-    if not html:
-        return ""
-
-    try:
-        from bs4 import BeautifulSoup
-
-        soup = BeautifulSoup(html, "html.parser")
-        text = soup.get_text(separator=" ", strip=True)
-
-        return " ".join(text.split())
-
-    except Exception:
-        return " ".join(html.split())
-
-
-# =========================
-# HASH DE CONTEÚDO
-# =========================
-def generate_hash(content):
-    return hashlib.md5(content.encode("utf-8")).hexdigest()
-
-
-# =========================
-# DETECTOR DE MUDANÇA REAL (THREAD SAFE)
-# =========================
 async def is_new(url, html):
-
     global CONTENT_HASH
-
-    clean_content = normalize_html(html)
-    new_hash = generate_hash(clean_content)
-
+    new_hash = hashlib.md5(normalize_html(html).encode("utf-8")).hexdigest()
     async with CONTENT_LOCK:
-
-        old_hash = CONTENT_HASH.get(url)
-
-        # primeira vez vendo a URL
-        if not old_hash:
+        if CONTENT_HASH.get(url) != new_hash:
             CONTENT_HASH[url] = new_hash
-            await save_content_cache()
-            return False
-
-        # mudou de verdade
-        if old_hash != new_hash:
-            CONTENT_HASH[url] = new_hash
-            await save_content_cache()
-            print(f"[CHANGE DETECTED] {url}")
+            save_storage("content_hash_cache.json", CONTENT_HASH)
             return True
-
     return False
+
 
 # =========================
 # 6 LINKS (ÚNICO - NÃO DUPLICAR)
