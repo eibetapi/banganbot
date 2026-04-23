@@ -1097,7 +1097,6 @@ async def ticket_agenda(url, data):
     await send_alert("agenda", msg)
     await update_panel()
 
-
 async def buyticket_revenda(url, data, valor, setor, categoria):
     msg = f"""
 
