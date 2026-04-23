@@ -1743,8 +1743,8 @@ def extract_core_signatures(html):
 
     return {
         "text": text[:1500],
-        "links": links[:30],
-        "images": images[:15]
+        "links": links[:60],
+        "images": images[:60]
     }
 
 
@@ -1867,9 +1867,6 @@ async def safe_monitor_cycle(session):
         # [FIX] Cada check agora salva contadores internamente (Bloco 18)
         await throttle("ticket", 1)
         await check_ticketmaster(session)
-
-        await throttle("buy", 1)
-        await check_buyticket(session)
 
         await throttle("weverse", 1)
         await check_weverse(session)
