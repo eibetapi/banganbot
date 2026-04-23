@@ -1496,6 +1496,26 @@ import discord
 from datetime import datetime
 from bs4 import BeautifulSoup
 
+# =========================
+# FUNÇÃO DE STATUS (CORREÇÃO)
+# =========================
+def status_color(last_check_time):
+    """
+    Retorna o emoji de status baseado no tempo decorrido.
+    """
+    import time
+    
+    if not last_check_time or last_check_time == 0:
+        return "🔴"
+    
+    elapsed = time.time() - last_check_time
+    
+    if elapsed < 300:   # Menos de 5 minutos: Online
+        return "🟢"
+    elif elapsed < 900: # Entre 5 e 15 minutos: Alerta/Lento
+        return "🟡"
+    else:               # Mais de 15 minutos ou sem dados: Offline
+        return "🔴"
 
 # =========================
 # STATUS COUNTDOWN DATA (CORRIGIDO DUPLICAÇÃO)
