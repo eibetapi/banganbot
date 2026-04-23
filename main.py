@@ -1674,8 +1674,6 @@ async def check_social(session):
                 if is_real_change(f"social:{url}", html): await trigger_alert("social", url, None)
     except: pass
 
-
-
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
 # =========================
@@ -2276,7 +2274,6 @@ async def on_ready():
                 type=discord.ActivityType.listening,
                 name="🪭 Em tournê - Ouvindo Arirang🪭"
             )
-        )
         
         # Inicia o loop de atualização visual do painel
         await start_background_tasks()
