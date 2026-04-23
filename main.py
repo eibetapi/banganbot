@@ -665,6 +665,7 @@ def status_color(last_check):
 
 import aiohttp
 import asyncio
+import time
 
 http_session = None
 _session_lock = asyncio.Lock()
@@ -679,7 +680,6 @@ async def get_session():
 
     async with _session_lock:
 
-        # cria apenas 1 vez (ou se foi fechada)
         if http_session is None or http_session.closed:
 
             http_session = aiohttp.ClientSession(
@@ -698,23 +698,32 @@ async def get_session():
 
 
 # =========================
-# SAFE SESSION GET (PADRÃO ÚNICO)
+# FETCH COM RETRY
 # =========================
-async def fetch(url):
+async def fetch(url, retries=2):
 
-    try:
-        session = await get_session()
+    for attempt in range(retries + 1):
 
-        async with session.get(url) as resp:
+        try:
+            session = await get_session()
 
-            if resp.status != 200:
-                return None
+            async with session.get(url) as resp:
 
-            return await resp.text(errors="ignore")
+                if resp.status != 200:
+                    print(f"[HTTP WARNING] {url} status={resp.status}")
+                    return None
 
-    except Exception as e:
-        print(f"[FETCH ERROR] {url} -> {e}")
-        return None
+                return await resp.text()
+
+        except asyncio.TimeoutError:
+            print(f"[HTTP TIMEOUT] {url} tentativa {attempt+1}")
+
+        except Exception as e:
+            print(f"[FETCH ERROR] {url} -> {e}")
+
+        await asyncio.sleep(1)  # pequeno backoff
+
+    return None
 
 
 # =========================
