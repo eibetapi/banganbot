@@ -1622,16 +1622,32 @@ async def update_panel():
 
 @bot_discord.event
 async def on_ready():
-    if globals().get("PANEL_BOOT_DONE", False): return
+    if globals().get("PANEL_BOOT_DONE", False): 
+        return
+
     print(f"Discord conectado: {bot_discord.user}")
-    try: await bot_discord.tree.sync()
-    except: pass
-    await bot_discord.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="🪭 Em tournê - Ouvindo Arirang🪭"))
+
+    # --- FORÇAR ATUALIZAÇÃO DO STATUS ---
+    # Usamos o ActivityType.listening para aparecer "Ouvindo..."
+    activity = discord.Activity(
+        type=discord.ActivityType.listening, 
+        name="🪭 Em tournê - Ouvindo Arirang🪭"
+    )
+    
+    await bot_discord.change_presence(status=discord.Status.online, activity=activity)
+    # -------------------------------------
+
+    try:
+        await bot_discord.tree.sync()
+    except Exception as e:
+        print(f"[SYNC ERROR] {e}")
+
     try:
         await ensure_single_panel()
         await update_panel()
         globals()["PANEL_BOOT_DONE"] = True
-    except: pass
+    except Exception as e:
+        print(f"[PANEL INIT ERROR] {e}")
 
 # =========================
 # 18.3 MONITORAMENTO (CHECKERS)
