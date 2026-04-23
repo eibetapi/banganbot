@@ -182,17 +182,14 @@ import time
 # =========================
 
 total_tickets = 0
-total_buy = 0
 total_weverse = 0
 total_social = 0
 
 last_ticket_check = time.time()
-last_buy_check = time.time()
 last_weverse_check = time.time()
 last_social_check = time.time()
 
 SEEN_TICKET = set()
-SEEN_BUY = set()
 SEEN_WEVERSE = set()
 SEEN_SOCIAL = set()
 
@@ -210,12 +207,6 @@ async def increment_ticket():
     async with COUNTER_LOCK:
         total_tickets += 1
         return total_tickets
-
-async def increment_buy():
-    global total_buy
-    async with COUNTER_LOCK:
-        total_buy += 1
-        return total_buy
 
 async def increment_weverse():
     global total_weverse
@@ -433,12 +424,6 @@ TICKET_LINKS = [
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10",
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-30-10",
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-31-10"
-]
-
-BUY_LINKS = [
-    "https://bts.buyticketbrasil.com/ingressos?data=28-10-2026",
-    "https://bts.buyticketbrasil.com/ingressos?data=30-10-2026",
-    "https://bts.buyticketbrasil.com/ingressos?data=31-10-2026"
 ]
 
 WEVERSE_LINKS = [
@@ -1673,7 +1658,7 @@ async def youtube_live(url=None):
         await update_panel()
 
 # =========================
-# 15.1 TICKETMASTER & BUYTICKET (PRODUÇÃO SEGURA)
+# 15.1 TICKETMASTER (PRODUÇÃO SEGURA)
 # =========================
 
 import hashlib
@@ -1752,34 +1737,6 @@ async def ticket_agenda(url, data, cidade, pais):
     await send_alert("agenda", msg)
     await update_panel()
 
-
-# =========================
-# REVENDA BUYTICKET
-# =========================
-async def buyticket_revenda(url, data, valor, setor, categoria):
-    global total_buy, last_buy_check
-
-    key = f"{url}:{data}:{valor}:{setor}:{categoria}"
-
-    if not is_new_event("revenda", key):
-        return
-
-    msg = f"""
-
-🎫 REVENDA BUYTICKET 🎫
-📅 Data: {data}
-🔗 Link: {url}
-💰 Valor: {valor}
-
-🎫 Setor: {setor}
-🏷️ Categoria: {categoria}
-
-"""
-
-    await send_alert("buyticket_revenda", msg)
-    await update_panel()
-
-
 # =========================
 # 16 SISTEMA DE TESTE (ESTRUTURA FIXA E SEGURA)
 # =========================
@@ -1831,11 +1788,10 @@ async def run_full_test_discord():
     try:
 
         # =========================
-        # TICKET + BUY
+        # TICKET
         # =========================
         await test_ticket_reposicao()
         await test_ticket_agenda()
-        await test_buyticket_revenda()
         await asyncio.sleep(1)
 
         # =========================
@@ -1869,7 +1825,7 @@ async def run_full_test_discord():
 
 
 # =========================
-# TICKET + BUY TESTS
+# TICKET TESTS
 # =========================
 async def test_ticket_reposicao():
 
@@ -1901,24 +1857,6 @@ async def test_ticket_agenda():
 """
 
     await safe_send_alert("agenda", msg)
-
-
-async def test_buyticket_revenda():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🎫 REVENDA BUYTICKET 🎫
-📅 Data: 30/10/2026
-🔗 Link: https://www.buyticket.com.br/bts
-💰 Valor: TESTE
-🎫 Setor: TESTE
-🏷️ Categoria: TESTE
-
-"""
-
-    await safe_send_alert("buyticket_revenda", msg)
-
 
 # =========================
 # WEVERSE TESTS
