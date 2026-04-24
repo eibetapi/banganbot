@@ -306,52 +306,48 @@ AGENDA = [
 ]
 
 # =========================
-# 8 CONTROLE (VERSÃO PRODUÇÃO)
+# 8 RESOLVE STATUS & GESTÃO DE ESTADO
 # =========================
-from datetime import datetime
 import time
 
+# Variáveis de controle de estado para as bolinhas do painel
+is_checking_weverse = False
+is_checking_social = False
+is_checking_ticket = False
+
+def status_color(last_check_time, tipo):
+    """
+    Retorna o emoji de status baseado no tempo decorrido e estado atual.
+    Substitui a antiga 'resolve_status' para compatibilidade com o Bloco 16 e 18.
+    """
+    # 1. Prioridade: Se o motor estiver rodando a função agora, mostra VERDE
+    if globals().get(f"is_checking_{tipo}", False):
+        return "🟢"
+    
+    # 2. Se nunca checou ou tempo zerado, mostra VERMELHO
+    if not last_check_time or last_check_time == 0:
+        return "🔴"
+    
+    # 3. Cálculo de latência
+    elapsed = time.time() - last_check_time
+    
+    if elapsed < 600:    # Menos de 10 min: ATIVO (ROXO)
+        return "🟣"
+    elif elapsed < 1800: # Menos de 30 min: LENTO (AMARELO)
+        return "🟡"
+    else:                # Mais de 30 min: OFFLINE (VERMELHO)
+        return "🔴"
+
 def get_uptime():
-    try:
-        s = int(time.time() - start_time)
-        return f"{s//3600}h {(s%3600)//60}m {s%60}s"
-    except: return "0h 0m 0s"
-
-def resolve_status(last_check_time):
-    try:
-        diff = time.time() - last_check_time
-        if diff > 1800: return "🔴"
-        return "🟡" if diff > 600 else "🟢"
-    except: return "🔴"
-
-def clean(v): return v if v and str(v).strip() else "ESGOTADO"
-
-def days_left(date_str):
-    try:
-        target = datetime.strptime(date_str, "%d/%m/%Y").date()
-        return max((target - datetime.now().date()).days, 0)
-    except: return 0
-
-def minutes_since(ts):
-    try: return int((time.time() - ts) / 60)
-    except: return 0
-
-def get_countdown_data():
-    now_dt = datetime.now()
-    prox_data, prox_local, d_prox, d_br = "Continua…", "---", 0, 0
-    if not isinstance(globals().get("AGENDA"), list): return prox_data, prox_local, d_prox, d_br
-    for item in AGENDA:
-        try:
-            show_dt = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
-            if show_dt > now_dt and prox_data == "Continua…":
-                prox_data, prox_local = item[0], f"{item[1]}, {item[2]}"
-                d_prox = (show_dt.date() - now_dt.date()).days
-            if "Brasil" in str(item[2]) and d_br == 0:
-                br_date = datetime.strptime(item[0], "%d/%m/%Y").date()
-                if br_date >= now_dt.date(): d_br = (br_date - now_dt.date()).days
-        except: continue
-    return prox_data, prox_local, d_prox, d_br
-
+    """Calcula o tempo de atividade do bot"""
+    if 'start_time' not in globals():
+        return "N/A"
+    
+    total_seconds = int(time.time() - globals()["start_time"])
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    return f"{hours}h {minutes}m {seconds}s"
 # =========================
 # 9 SESSION HTTP
 # =========================
@@ -376,112 +372,145 @@ async def fetch(url, retries=2):
     return None
 
 # =========================
-# 10 EMOJIS & FORMATTER
+# 10 EMOJIS & FORMATTER (ATUALIZADO)
 # =========================
-MEMBER_EMOJI = {"rm":"🐨","jin":"🐹","suga":"🐱","jhope":"🐿️","jimin":"🐥","v":"🐻","jungkook":"🐰","bts":"💜","wootteo":"🛸"}
+import re
+
+MEMBER_EMOJI = {
+    "rm": "🐨", "jin": "🐹", "suga": "🐱", 
+    "jhope": "🐿️", "jimin": "🐥", "v": "🐻", 
+    "jungkook": "🐰", "bts": "💜", "wootteo": "🛸"
+}
 
 def get_member_emoji(name):
-    return MEMBER_EMOJI.get(re.sub(r"[^a-z0-9]", "", str(name).lower()), "💜")
+    """Retorna o emoji do membro com fallback para 💜"""
+    if not name: 
+        return "💜"
+    # Limpa caracteres especiais e espaços para bater com as chaves do dicionário
+    clean_name = re.sub(r"[^a-z0-9]", "", str(name).lower())
+    return MEMBER_EMOJI.get(clean_name, "💜")
 
 def format_member(name):
+    """Retorna dicionário formatado para uso nos alertas do Instagram/Weverse"""
+    if not name:
+        return {"emoji": "💜", "name": "BTS", "display": "💜 BTS"}
+    
     emoji = get_member_emoji(name)
-    return {"emoji": emoji, "name": str(name).upper(), "display": f"{emoji} {name.upper()}"}
+    u_name = str(name).upper()
+    return {
+        "emoji": emoji, 
+        "name": u_name, 
+        "display": f"{emoji} {u_name}"
+    }
+    
+# =========================
+# 11 ALERT DISPATCHER (ESTABILIZADO)
+# =========================
+import asyncio
 
-# =========================
-# 11 CORE ROUTER (FIX CONTADORES)
-# =========================
-async def send_alert(alert_type, message):
+async def send_alert(alert_type, message, increment=False):
+    """
+    Despachante central de alertas (Discord + Telegram).
+    increment=False: Evita somar o contador duas vezes (Erro do Bloco 14/15).
+    """
     try:
-        # Incremento automático baseado no tipo de alerta
-        if "ticket" in alert_type: await increment_ticket()
-        elif "weverse" in alert_type: await increment_weverse()
-        elif any(x in alert_type for x in ["instagram", "tiktok", "youtube"]): await increment_social()
-
-        if bot_ticket: await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=message)
-        
-        discord_map = {
-            "ticket": DISCORD_TICKETS_CHANNEL_ID, "weverse_post": DISCORD_WEVERSE_CHANNEL_ID,
-            "instagram_post": DISCORD_SOCIAL_CHANNEL_ID, "tiktok_post": DISCORD_SOCIAL_CHANNEL_ID
-        }
-        cid = discord_map.get(alert_type) or DISCORD_SOCIAL_CHANNEL_ID
-        ch = bot_discord.get_channel(cid) or await bot_discord.fetch_channel(cid)
-        if ch: await ch.send(embed=discord.Embed(description=message, color=0x8A2BE2))
-    except Exception as e: print(f"[ALERT ERROR] {e}")
-
-# =========================
-# 12 PAINEL (FIX OBRIGATÓRIO ANTI-DUPLICAÇÃO)
-# =========================
-panel_lock = asyncio.Lock()
-
-async def update_panel():
-    global panel_message_id, discord_panel_msg_id
-    async with panel_lock:
-        try:
-            data_show, city, d_prox, d_br = get_countdown_data()
-            texto = gerar_texto_painel(data_show, city, d_prox, d_br)
-            
-            # TELEGRAM (EDIT OU POST) #
-            
-            if bot_ticket:
-                try:
-                    if panel_message_id:
-                        await bot_ticket.edit_message_text(chat_id=PANEL_CHAT_ID, message_id=panel_message_id, text=texto)
-                    else:
-                        msg = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto)
-                        panel_message_id = msg.message_id
-                        await bot_ticket.pin_chat_message(chat_id=PANEL_CHAT_ID, message_id=panel_message_id)
-                        save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
-                except: panel_message_id = None
-
-            # DISCORD (EDIT OU POST) #
-            
-            ch = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
-            if ch:
-                embed = discord.Embed(description=texto, color=0x8A2BE2)
-                if discord_panel_msg_id:
+        # 1. Envio para o Discord
+        if DISCORD_ALERTA_CHANNELS:
+            for channel_id in DISCORD_ALERTA_CHANNELS:
+                canal = bot_discord.get_channel(channel_id)
+                if canal:
                     try:
-                        m = await ch.fetch_message(discord_panel_msg_id)
-                        await m.edit(embed=embed)
-                    except: discord_panel_msg_id = None
-                
-                if not discord_panel_msg_id:
-                    msg = await ch.send(embed=embed)
-                    discord_panel_msg_id = msg.id
-                    await msg.pin()
-                    save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
-        except Exception as e: print(f"[PANEL ERROR] {e}")
+                        await canal.send(message)
+                    except Exception as e:
+                        print(f"❌ [DISCORD ERR] Erro no canal {channel_id}: {e}")
 
-# # 12.1 RECOVERY (OBRIGATÓRIO) #
-async def ensure_single_panel():
-    global PANEL_BOOT_DONE, panel_message_id, discord_panel_msg_id
-    if PANEL_BOOT_DONE: return
+        # 2. Envio para o Telegram (Usa a função estável do Bloco 10)
+        if 'send_alert_telegram' in globals():
+            await send_alert_telegram(message)
+        
+        # 3. Incremento Controlado (Só roda se explicitamente pedido)
+        if increment:
+            if "weverse" in alert_type:
+                globals()["total_weverse"] += 1
+            elif "ticket" in alert_type or "reposicao" in alert_type:
+                globals()["total_tickets"] += 1
+            elif "instagram" in alert_type or "tiktok" in alert_type or "social" in alert_type:
+                globals()["total_social"] += 1
+            
+            # Salva após o incremento para manter o painel fiel
+            if 'save_counters' in globals():
+                await save_counters()
+
+    except Exception as e:
+        print(f"⚠️ [DISPATCH ERR] Falha crítica no envio: {e}")
+
+async def increment_only(alert_type):
+    """Apenas incrementa o contador sem enviar mensagem (Útil para logs silenciosos)"""
+    if "weverse" in alert_type:
+        globals()["total_weverse"] += 1
+    elif "ticket" in alert_type:
+        globals()["total_tickets"] += 1
+    elif "social" in alert_type:
+        globals()["total_social"] += 1
     
-    data = load_storage(PANEL_DATA_FILE, {"tg_msg_id": None, "dc_msg_id": None})
-    panel_message_id = data.get("tg_msg_id")
-    discord_panel_msg_id = data.get("dc_msg_id")
-    
-    PANEL_BOOT_DONE = True
-    print(f"[RECOVERY] IDs carregados: TG={panel_message_id} DC={discord_panel_msg_id}")
+    if 'save_counters' in globals():
+        await save_counters()
 
 # =========================
-# 13 SISTEMA DE PERSISTÊNCIA & WEVERSE ALERTS
+# 12 PERSISTÊNCIA & STORAGE (CORRIGIDO)
+# =========================
+import json
+import os
+
+# Unificação de nomes conforme Bloco 18 e 22
+# Resolve o erro de "amnésia" no reboot
+COUNTER_DATA_FILE = "counters.json"
+PANEL_DATA_FILE = "panel_ids.json"  # Alterado de panel_data para panel_ids
+
+def save_storage(filename, data):
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"❌ [STORAGE SAVE ERR] {e}")
+
+def load_storage(filename, default=None):
+    if not os.path.exists(filename):
+        return default
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"⚠️ [STORAGE LOAD ERR] {filename}: {e}")
+        return default
+
+# Chaves internas unificadas para evitar duplicidade de painel
+async def save_panel_ids():
+    """Salva os IDs usando as chaves definitivas: tg_msg_id e dc_msg_id"""
+    data = {
+        "tg_msg_id": globals().get("panel_message_id"),
+        "dc_msg_id": globals().get("discord_panel_msg_id")
+    }
+    save_storage(PANEL_DATA_FILE, data)
+
+# =========================
+# 13 SISTEMA DE PERSISTÊNCIA & WEVERSE ALERTS (COMPLETO)
 # =========================
 import hashlib
 import asyncio
 import json
 import os
-import time  # [FIX] Import necessário para o time.time()
+import time 
 
 # INICIALIZAÇÃO DE GLOBAIS (ANTI-ERROR) # 
-
 PANEL_BOOT_DONE = globals().get("PANEL_BOOT_DONE", False)
-COUNTERS_FILE = "counters_state.json"
+COUNTERS_FILE = "counters.json" 
 WEVERSE_CACHE = {}
 WEVERSE_LOCK = asyncio.Lock()
 
 # SISTEMA DE DISCO (RAILWAY SAFE) #
 async def save_counters():
-    """Salva os totais de acessos e timestamps no disco da Railway."""
+    """Salva totais e IDs das mensagens para evitar 'amnésia' e duplicatas."""
     try:
         data = {
             "total_weverse": globals().get("total_weverse", 0),
@@ -489,15 +518,18 @@ async def save_counters():
             "total_tickets": globals().get("total_tickets", 0),
             "last_weverse_check": globals().get("last_weverse_check", 0),
             "last_social_check": globals().get("last_social_check", 0),
-            "last_ticket_check": globals().get("last_ticket_check", 0)
+            "last_ticket_check": globals().get("last_ticket_check", 0),
+            # [FIX] Garante que o ID do painel seja persistido
+            "tg_msg_id": globals().get("panel_message_id"),
+            "dc_msg_id": globals().get("discord_panel_msg_id")
         }
         with open(COUNTERS_FILE, 'w') as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=4)
     except Exception as e:
-        print(f"[SAVE ERROR] Falha ao salvar contadores: {e}")
+        print(f"❌ [SAVE ERROR] Falha ao salvar estado: {e}")
 
 async def load_counters():
-    """Carrega os dados salvos para as globais no início do bot."""
+    """Carrega dados e IDs para garantir painel único no boot."""
     if os.path.exists(COUNTERS_FILE):
         try:
             with open(COUNTERS_FILE, 'r') as f:
@@ -509,14 +541,15 @@ async def load_counters():
             globals()["last_weverse_check"] = data.get("last_weverse_check", 0)
             globals()["last_social_check"] = data.get("last_social_check", 0)
             globals()["last_ticket_check"] = data.get("last_ticket_check", 0)
+            # [FIX] Recupera IDs para que o Motor edite em vez de criar novo
+            globals()["panel_message_id"] = data.get("tg_msg_id")
+            globals()["discord_panel_msg_id"] = data.get("dc_msg_id")
             
-            print("[SYSTEM] Contadores restaurados do disco.")
+            print("✅ [SYSTEM] Estado e IDs restaurados com sucesso.")
         except Exception as e:
-            print(f"[LOAD ERROR] Falha ao carregar contadores: {e}")
-    else:
-        print("[SYSTEM] Nenhum arquivo de contadores prévio encontrado.")
+            print(f"❌ [LOAD ERROR] Falha ao carregar estado: {e}")
 
-# LOGICA DE DUPLICAÇÃO # 
+# LÓGICA DE DUPLICAÇÃO # 
 def is_new_weverse_event(event_type, url, content=""):
     """Evita duplicação usando hash do conteúdo."""
     raw = f"{event_type}:{url}:{content}"
@@ -540,13 +573,10 @@ async def weverse_post(url, member_name, title, message_translated, found):
         await save_counters() 
 
         emoji = get_member_emoji(member_name)
-        msg = f"""🩷 WEVERSE POST 🩷
-{emoji} {member_name.upper()} fez uma publicação 
-📌 {title}
-📝 {message_translated}
-🔗 {url}"""
+        msg = f"🩷 WEVERSE POST 🩷\n{emoji} {member_name.upper()} fez uma publicação\n📌 {title}\n📝 {message_translated}\n🔗 {url}"
 
-        await send_alert("weverse_post", msg)
+        # [FIX] increment=False para não duplicar contagem no Bloco 11
+        await send_alert("weverse_post", msg, increment=False)
         await update_panel()
 
 async def weverse_live(url, member_name, found):
@@ -559,11 +589,9 @@ async def weverse_live(url, member_name, found):
         await save_counters()
 
         emoji = get_member_emoji(member_name)
-        msg = f"""📹 WEVERSE LIVE 📹
-{emoji} {member_name.upper()} está ao vivo
-🔗 {url}"""
+        msg = f"📹 WEVERSE LIVE 📹\n{emoji} {member_name.upper()} está ao vivo\n🔗 {url}"
 
-        await send_alert("weverse_live", msg)
+        await send_alert("weverse_live", msg, increment=False)
         await update_panel()
 
 async def weverse_news(url, member_name, message_translated, found):
@@ -576,12 +604,9 @@ async def weverse_news(url, member_name, message_translated, found):
         await save_counters()
 
         emoji = get_member_emoji(member_name)
-        msg = f"""🚨 WEVERSE NEWS 🚨
-{emoji} {member_name.upper()} fez uma publicação 
-📝 {message_translated}
-🔗 {url}"""
+        msg = f"🚨 WEVERSE NEWS 🚨\n{emoji} {member_name.upper()} fez uma publicação\n📝 {message_translated}\n🔗 {url}"
 
-        await send_alert("weverse_news", msg)
+        await send_alert("weverse_news", msg, increment=False)
         await update_panel()
 
 async def weverse_media(url, member_name, title, message_translated, found):
@@ -594,13 +619,9 @@ async def weverse_media(url, member_name, title, message_translated, found):
         await save_counters()
 
         emoji = get_member_emoji(member_name)
-        msg = f"""📀 WEVERSE MEDIA 📀
-{emoji} {member_name.upper()} fez uma publicação 
-⭐ {title}
-📝 {message_translated}
-🔗 {url}"""
+        msg = f"📀 WEVERSE MEDIA 📀\n{emoji} {member_name.upper()} fez uma publicação\n⭐ {title}\n📝 {message_translated}\n🔗 {url}"
 
-        await send_alert("weverse_media", msg)
+        await send_alert("weverse_media", msg, increment=False)
         await update_panel()
 
 # =========================
@@ -608,157 +629,84 @@ async def weverse_media(url, member_name, title, message_translated, found):
 # ========================= 
 import hashlib
 import asyncio
+import time
 
-# CACHE GLOBAL POR EVENTO #
-INSTAGRAM_CACHE = {
-    "post": None,
-    "reel": None,
-    "story": None,
-    "live": None
-}
-
-# 🔒 lock global para evitar race condition
+INSTAGRAM_CACHE = {"post": None, "reel": None, "story": None, "live": None}
 INSTAGRAM_LOCK = asyncio.Lock()
 
 def is_new_instagram(event_type, url, extra=""):
-
     raw = f"{event_type}:{url}:{extra}"
     new_hash = hashlib.md5(raw.encode("utf-8")).hexdigest()
-
     if INSTAGRAM_CACHE.get(event_type) == new_hash:
         return False
-
     INSTAGRAM_CACHE[event_type] = new_hash
     return True
 
-# POST # 
 async def instagram_post(url, member_name, title, found):
-
     async with INSTAGRAM_LOCK:
-
-        if not is_new_instagram("post", url, title):
-            return
-
+        if not is_new_instagram("post", url, title): return
+        
         global total_social, last_social_check
-
         total_social += 1
         last_social_check = time.time()
         await save_counters()
 
-        # FIX: format_member retorna dict, acessando chaves corretamente
         m_data = format_member(member_name)
-        emoji = m_data["emoji"]
-        name = m_data["name"]
+        msg = f"🌟 **INSTAGRAM POST** 🌟\n{m_data['emoji']} **{m_data['name']}** fez uma publicação\n🔗 {url}"
 
-        msg = f"""
-🌟 INSTAGRAM POST 🌟
-{emoji} {name} fez uma publicação 
-🔗 {url}
-"""
-
-        await send_alert("instagram_post", msg)
+        # FIX: increment=False para evitar contagem dupla no B11
+        await send_alert("instagram_post", msg, increment=False)
         await update_panel()
 
-# REELS #  
 async def instagram_reel(url, member_name, title, found):
-
     async with INSTAGRAM_LOCK:
-
-        if not is_new_instagram("reel", url, title):
-            return
-
+        if not is_new_instagram("reel", url, title): return
+        
         global total_social, last_social_check
-
         total_social += 1
         last_social_check = time.time()
         await save_counters()
 
         m_data = format_member(member_name)
-        emoji = m_data["emoji"]
-        name = m_data["name"]
-
-        msg = f"""
-🎬 INSTAGRAM REELS 🎬
-{emoji} {name} publicou um reels 
-🔗 {url}
-"""
-        await send_alert("instagram_reels", msg)
+        msg = f"🎬 **INSTAGRAM REELS** 🎬\n{m_data['emoji']} **{m_data['name']}** publicou um reels\n🔗 {url}"
+        
+        await send_alert("instagram_reels", msg, increment=False)
         await update_panel()
 
-# STORY #  
 async def instagram_story(url, member_name, title, found):
-
     async with INSTAGRAM_LOCK:
-
-        if not is_new_instagram("story", url, title):
-            return
-
+        if not is_new_instagram("story", url, title): return
+        
         global total_social, last_social_check
-
         total_social += 1
         last_social_check = time.time()
         await save_counters()
 
         m_data = format_member(member_name)
-        emoji = m_data["emoji"]
-        name = m_data["name"]
-
-        msg = f"""
-🫧 INSTAGRAM STORY 🫧
-{emoji} {name} publicou stories
-🔗 {url}
-"""
-        await send_alert("instagram_stories", msg)
+        msg = f"🫧 **INSTAGRAM STORY** 🫧\n{m_data['emoji']} **{m_data['name']}** publicou stories\n🔗 {url}"
+        
+        await send_alert("instagram_stories", msg, increment=False)
         await update_panel()
 
-# LIVE (CACHE CORRIGIDO) # 
 async def instagram_live(url, member_name, title, found):
-
     async with INSTAGRAM_LOCK:
-
-        if not is_new_instagram("live", url):
-            return
-
+        if not is_new_instagram("live", url): return
+        
         global total_social, last_social_check
-
         total_social += 1
         last_social_check = time.time()
         await save_counters()
 
         m_data = format_member(member_name)
-        emoji = m_data["emoji"]
-        name = m_data["name"]
-
-        msg = f"""
-🎥 INSTAGRAM LIVE 🎥
-{emoji} {name} está ao vivo
-🔗 {url}
-"""
-        await send_alert("instagram_live", msg)
+        msg = f"🎥 **INSTAGRAM LIVE** 🎥\n{m_data['emoji']} **{m_data['name']}** está ao vivo\n🔗 {url}"
+        
+        await send_alert("instagram_live", msg, increment=False)
         await update_panel()
-
+        
 # =========================================================
-# 15 ALERTAS TIKTOK, YOUTUBE E TICKETMASTER (PRODUÇÃO ESTÁVEL)
+# 15 ALERTAS TIKTOK, YOUTUBE E TICKETMASTER
 # =========================================================
-import asyncio
-import hashlib
-import time
 
-# CACHE GLOBAL (Persistente durante a sessão)
-LAST_TIKTOK = {}
-LAST_YOUTUBE = {}
-EVENT_CACHE = {"reposicao": {}, "agenda": {}, "revenda": {}}
-
-SOCIAL_LOCK = asyncio.Lock()
-
-def is_new_social(cache, key):
-    # Se o bot acabou de ligar, o warm-up (Bloco 19) deve impedir o disparo
-    if cache.get(key):
-        return False
-    cache[key] = True
-    return True
-
-# --- TIKTOK POST ---
 async def tiktok_post(url, member_name, title, found):
     async with SOCIAL_LOCK:
         key = f"post:{member_name}:{url}"
@@ -772,27 +720,9 @@ async def tiktok_post(url, member_name, title, found):
         emoji = get_member_emoji(member_name)
         msg = f"🎵 **TIKTOK POST** 🎵\n{emoji} **{member_name.upper()}** publicou um vídeo\n🔗 {url}"
         
-        await send_alert("tiktok_post", msg)
+        await send_alert("tiktok_post", msg, increment=False)
         await update_panel()
 
-# --- TIKTOK LIVE ---
-async def tiktok_live(url, member_name, title, found):
-    async with SOCIAL_LOCK:
-        key = f"live:{member_name}:{url}"
-        if not is_new_social(LAST_TIKTOK, key): return
-
-        global total_social, last_social_check
-        total_social += 1
-        last_social_check = time.time()
-        await save_counters()
-
-        emoji = get_member_emoji(member_name)
-        msg = f"🎥 **TIKTOK LIVE** 🎥\n{emoji} **{member_name.upper()}** está ao vivo!\n🔗 {url}"
-        
-        await send_alert("tiktok_live", msg)
-        await update_panel()
-
-# --- YOUTUBE POST ---
 async def youtube_post(url, final_url=None):
     async with SOCIAL_LOCK:
         key = f"post:{url}"
@@ -806,73 +736,36 @@ async def youtube_post(url, final_url=None):
         link = final_url or "https://www.youtube.com/@BTS"
         msg = f"🎞️ **YOUTUBE POST** 🎞️\n💜 **BTS** publicou vídeo novo\n🔗 {link}"
         
-        await send_alert("youtube_post", msg)
+        await send_alert("youtube_post", msg, increment=False)
         await update_panel()
 
-# =========================================================
-# 15.1 TICKETMASTER (CORREÇÃO DE FALSO POSITIVO)
-# =========================================================
-
-def is_new_event(event_type, key):
-    new_hash = hashlib.md5(key.encode("utf-8")).hexdigest()
-    if EVENT_CACHE[event_type].get(key) == new_hash:
-        return False
-    EVENT_CACHE[event_type][key] = new_hash
-    return True
-
-# --- REPOSIÇÃO TICKETMASTER ---
 async def ticket_reposicao(url, data, setor, categoria):
     global total_tickets, last_ticket_check
-    # A chave agora inclui todos os detalhes para evitar alertas duplicados se nada mudou
     key = f"{url}:{data}:{setor}:{categoria}"
-    
     if not is_new_event("reposicao", key): return
 
     total_tickets += 1
     last_ticket_check = time.time()
     await save_counters()
 
-    msg = (
-        f"🔥 **ALERTA DE REPOSIÇÃO** 🔥\n"
-        f"📅 **Data:** {data}\n"
-        f"🎫 **Setor:** {setor}\n"
-        f"🏷️ **Cat:** {categoria}\n"
-        f"🔗 {url}"
-    )
-    await send_alert("reposicao", msg)
-    await update_panel()
-
-# --- NOVAS DATAS (AGENDA) ---
-async def ticket_agenda(url, data, cidade, pais):
-    global total_tickets, last_ticket_check
-    key = f"{url}:{data}:{cidade}:{pais}"
+    msg = f"🔥 **ALERTA DE REPOSIÇÃO** 🔥\n📅 **Data:** {data}\n🎫 **Setor:** {setor}\n🏷️ **Cat:** {categoria}\n🔗 {url}"
     
-    if not is_new_event("agenda", key): return
-
-    total_tickets += 1
-    last_ticket_check = time.time()
-    await save_counters()
-
-    msg = (
-        f"💜 **AGENDA - NOVAS DATAS** 💜\n"
-        f"📅 **Data:** {data}\n"
-        f"🏙️ **Cidade:** {cidade} | 🌎 **País:** {pais}\n"
-        f"🔗 {url}"
-    )
-    await send_alert("agenda", msg)
+    await send_alert("reposicao", msg, increment=False)
     await update_panel()
-# =================== 
-# 16 TESTE DE SISTEMA
-# ====================
+    
+# =========================
+# 16 TESTE DE SISTEMA (CORRIGIDO)
+# =========================
 @bot_discord.tree.command(name="teste", description="Valida o funcionamento do bot")
 async def teste(interaction: discord.Interaction):
     """Diagnóstico consolidado enviado diretamente ao canal do usuário."""
+    # Garante que o Discord não dê timeout enquanto o bot processa
     await interaction.response.defer(thinking=True)
     
     # Extração de dados (Fallback para 0 se não existir)
     uptime = get_uptime() if 'get_uptime' in globals() else "N/A"
     
-    # Status e Contadores
+    # Estrutura de dados para o relatório
     stats = {
         "Weverse": (globals().get("last_weverse_check", 0), "weverse", "total_weverse"),
         "Social": (globals().get("last_social_check", 0), "social", "total_social"),
@@ -883,16 +776,21 @@ async def teste(interaction: discord.Interaction):
     report += f"✅ **Status:** Online | ⏳ **Uptime:** {uptime}\n\n"
 
     for label, (t_last, t_key, count_key) in stats.items():
-        color = status_color(t_last, t_key) if 'status_color' in globals() else "⚪"
+        # [FIX] Agora chama status_color, que foi corrigido no Bloco 8
+        if 'status_color' in globals():
+            color = status_color(t_last, t_key)
+        else:
+            color = "⚪"
+            
         count = globals().get(count_key, 0)
         report += f"{color} **{label}:** `{count}` acessos\n"
 
-    report += "\n---\n*Monitoramento ativo e operando em ciclos de 1min.*"
+    report += "\n---\n*Monitoramento ativo e operando em ciclos de segurança.*"
 
     try:
         await interaction.followup.send(content=report)
     except Exception as e:
-        print(f"[TEST ERR] {e}")
+        print(f"❌ [TEST ERR] {e}")
 
 # =============================
 # 17 COMMAND ENGINE FRAMEWORK - FINAL (COM FORÇA BRUTA)
@@ -1061,22 +959,15 @@ import time
 import discord
 from datetime import datetime
 
-COUNTER_DATA_FILE = "counters.json"
-PANEL_DATA_FILE = "panel_ids.json"
+# --- VARIÁVEIS GLOBAIS DE ESTADO (PAINEL 🟢) ---
+# Mantém os indicadores de checagem para as bolinhas funcionarem
+is_checking_weverse = False
+is_checking_social = False
+is_checking_ticket = False
 
-# --- INICIALIZAÇÃO DE VARIÁVEIS GLOBAIS ---
-for var in ["total_weverse", "total_social", "total_tickets", "total_tickets_found"]:
-    if var not in globals(): globals()[var] = 0
-
-for check in ["last_weverse_check", "last_social_check", "last_ticket_check"]:
-    if check not in globals(): globals()[check] = 0
-
-if "panel_message_id" not in globals(): globals()["panel_message_id"] = None
-if "discord_panel_msg_id" not in globals(): globals()["discord_panel_msg_id"] = None
-
-# --- PERSISTÊNCIA ---
+# --- PERSISTÊNCIA (NOMES UNIFICADOS COM BLOCO 13) ---
 async def save_counters():
-    """Salva contadores e IDs das mensagens de forma persistente"""
+    """Salva estado garantindo que os IDs batam com o Recovery do Bloco 13"""
     data_counters = {
         "total_weverse": globals().get("total_weverse", 0),
         "total_social": globals().get("total_social", 0),
@@ -1084,30 +975,29 @@ async def save_counters():
         "total_tickets_found": globals().get("total_tickets_found", 0),
         "last_weverse_check": globals().get("last_weverse_check", 0),
         "last_social_check": globals().get("last_social_check", 0),
-        "last_ticket_check": globals().get("last_ticket_check", 0)
-    }
-    save_storage(COUNTER_DATA_FILE, data_counters)
-    save_storage(PANEL_DATA_FILE, {
+        "last_ticket_check": globals().get("last_ticket_check", 0),
+        # [PONTE FIXA] Salva com os nomes que o seu Bloco 13 busca no reboot
         "tg_msg_id": globals().get("panel_message_id"),
         "dc_msg_id": globals().get("discord_panel_msg_id")
-    })
+    }
+    save_storage(COUNTER_DATA_FILE, data_counters)
 
 async def load_counters():
     """Carrega os dados e resgata os IDs das mensagens do disco"""
     try:
         c_data = load_storage(COUNTER_DATA_FILE, {})
         if c_data:
-            for k, v in c_data.items(): globals()[k] = v
-        
-        p_data = load_storage(PANEL_DATA_FILE, {})
-        if p_data:
-            globals()["panel_message_id"] = p_data.get("tg_msg_id")
-            globals()["discord_panel_msg_id"] = p_data.get("dc_msg_id")
+            for k, v in c_data.items(): 
+                globals()[k] = v
+            # [FIX] Garante que as variáveis de ID recebam os valores do arquivo
+            globals()["panel_message_id"] = c_data.get("tg_msg_id")
+            globals()["discord_panel_msg_id"] = c_data.get("dc_msg_id")
     except Exception as e:
         print(f"[MEMÓRIA ERR] {e}")
 
-# --- LÓGICA DO PAINEL (CORES E DATAS) ---
+# --- LÓGICA DO PAINEL (MANTIDO SEU PADRÃO VISUAL) ---
 def status_color(last_check_time, tipo):
+    # Regra: Se estiver checando agora, fica verde. Senão, calcula por tempo.
     if globals().get(f"is_checking_{tipo}", False): return "🟢"
     if not last_check_time or last_check_time == 0: return "🔴"
     elapsed = time.time() - last_check_time
@@ -1141,6 +1031,7 @@ def get_countdown_data():
     return next_show, next_local, d_prox, d_br
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
+    # SEU DESIGN VISUAL FOI 100% PRESERVADO AQUI
     lwc = globals().get("last_weverse_check", 0)
     lsc = globals().get("last_social_check", 0)
     ltc = globals().get("last_ticket_check", 0)
@@ -1176,7 +1067,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 🔴 Offline
 """
 
-# --- MOTOR DE ATUALIZAÇÃO COM FAXINA (ENGINE) ---
+# --- MOTOR DE ATUALIZAÇÃO (ENGINE) ---
 panel_lock = asyncio.Lock()
 last_panel_update = 0
 
@@ -1191,18 +1082,13 @@ async def update_panel():
             d_show, city, d_prox, d_br = get_countdown_data()
             texto = gerar_texto_painel(d_show, city, d_prox, d_br)
 
+            # --- DISCORD ---
             if DISCORD_PANEL_CHANNEL_ID:
-                chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
+                chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
                 if chan:
                     dc_id = globals().get("discord_panel_msg_id")
                     emb = discord.Embed(description=texto, color=0x8A2BE2)
                     
-                    async for message in chan.history(limit=20):
-                        if message.author == bot_discord.user and message.id != dc_id:
-                            if "ARIRANG TOUR" in (message.embeds[0].description if message.embeds else ""):
-                                try: await message.delete()
-                                except: pass
-
                     success_dc = False
                     if dc_id:
                         try:
@@ -1217,42 +1103,49 @@ async def update_panel():
                         try: await m.pin()
                         except: pass
 
+            # --- TELEGRAM ---
             if bot_ticket and PANEL_CHAT_ID:
                 tg_id = globals().get("panel_message_id")
                 success_tg = False
-                
                 if tg_id:
                     try:
                         await bot_ticket.edit_message_text(chat_id=PANEL_CHAT_ID, message_id=tg_id, text=texto)
                         success_tg = True
-                    except:
-                        try: await bot_ticket.delete_message(chat_id=PANEL_CHAT_ID, message_id=tg_id)
-                        except: pass
-                        globals()["panel_message_id"] = None
+                    except: globals()["panel_message_id"] = None
 
                 if not success_tg:
                     m = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto)
                     globals()["panel_message_id"] = m.message_id
-                    try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, m.message_id)
-                    except: pass
             
             await save_counters()
         except Exception as e:
             print(f"[PANEL ENGINE ERR] {e}")
 
-# --- EVENTOS DE STARTUP ---
+# --- EVENTOS DE STARTUP (RESTAURADO) ---
+
 @bot_discord.event
 async def on_ready():
-    # Presença restaurada exatamente como solicitado
-    act = discord.Activity(type=discord.ActivityType.listening, name="🪭Em tournê - Ouvindo: Arirang")
+    """Configura o status visual e restaura o painel no boot."""
+    
+    # [ESTRITAMENTE COMO SOLICITADO] - Define a atividade "Ouvindo"
+    act = discord.Activity(
+        type=discord.ActivityType.listening, 
+        name="🪭Em tournê - Ouvindo: Arirang"
+    )
     await bot_discord.change_presence(status=discord.Status.online, activity=act)
     
-    if globals().get("PANEL_BOOT_DONE", False): return
-    print(f"BOT ONLINE: {bot_discord.user}")
+    # Evita que o boot rode duas vezes se o bot reconectar
+    if globals().get("PANEL_BOOT_DONE", False): 
+        return
+        
+    print(f"✅ BOT ONLINE: {bot_discord.user}")
+    
+    # Restaura memória e sincroniza painel inicial
     await load_counters()
     await update_panel()
+    
     globals()["PANEL_BOOT_DONE"] = True
- 
+    
 # =========================================================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
 # =========================================================
@@ -1262,174 +1155,111 @@ import hashlib
 import aiohttp
 from bs4 import BeautifulSoup
 
-# GLOBAL LOCKS
+# GLOBAL LOCKS & CACHE
 MONITOR_LOCK = asyncio.Lock()
-GLOBAL_LOCK = asyncio.Lock()
-THROTTLE_LOCK = asyncio.Lock()
 _PANEL_SYNC_LOCK = asyncio.Lock()
-
-# CACHE SYSTEM
 CONTENT_CACHE = {}
-ALERT_CACHE = {}
-LAST_REQUEST_TIME = {}
 _INITIAL_WARMUP_DONE = False 
 _LAST_SOCIAL_RUN = 0          
 _WARMUP_STEPS = 0  
-_ENGINE_STARTED = False
-_ENGINE_TASKS_STARTED = False
-_last_panel_sync = 0
 
-# PRIORIDADE DE ALERTAS 
-PRIORITY = {
-    "ticket": 3, "reposicao": 3, "weverse_live": 3, "youtube_live": 3,
-    "agenda": 2, "weverse_post": 2, "youtube_post": 2,
-    "instagram_post": 1, "instagram_reels": 1, "tiktok_post": 1, "social": 1
-}
+# --- AUXILIARES DE MONITORAMENTO ---
 
-# --- FUNÇÕES DE APOIO ---
-def extract_core_signatures(html):
-    soup = BeautifulSoup(html or "", "html.parser")
-    text = soup.get_text(" ", strip=True)
-    links = sorted(set(a.get("href") for a in soup.find_all("a") if a.get("href")))
-    return {"text": text[:1500], "links": links[:60]}
-
-def is_real_change(key, content):
-    signature = extract_core_signatures(content)
-    new_hash = hashlib.md5(str(signature).encode("utf-8")).hexdigest()
-    old = CONTENT_CACHE.get(key)
-    if old == new_hash: return False
-    CONTENT_CACHE[key] = new_hash
-    return True
-
-def is_duplicate_alert(alert_type, message):
-    raw = f"{alert_type}:{message}"
-    h = hashlib.md5(raw.encode("utf-8")).hexdigest()
-    if ALERT_CACHE.get(alert_type) == h: return True
-    ALERT_CACHE[alert_type] = h
-    return False
-
-async def throttle(key, delay=2):
-    async with THROTTLE_LOCK:
-        now = time.time()
-        last = LAST_REQUEST_TIME.get(key, 0)
-        if now - last < delay:
-            await asyncio.sleep(delay - (now - last))
-        LAST_REQUEST_TIME[key] = time.time()
-
-# --- GERENCIAMENTO DE PAINEL (EDITA SE EXISTE, CRIA SE TG/DC = NONE) ---
 async def locked_update_panel():
-    global _last_panel_sync
+    """Garante que o painel atualize de forma segura e sem spam."""
     async with _PANEL_SYNC_LOCK:
-        now = time.time()
-        # Se os IDs forem None (como no seu log), força a criação sem esperar 10s
-        tg_id = globals().get("tg_panel_msg_id")
-        dc_id = globals().get("discord_panel_msg_id")
-        
-        if (now - _last_panel_sync < 10) and (tg_id and dc_id): 
-            return
-            
-        _last_panel_sync = now
         if 'update_panel' in globals():
             await update_panel()
 
-async def trigger_alert(alert_type, url, message):
-    key = f"{alert_type}:{url}"
-    await priority_send(alert_type, message, key=key)
+# --- MONITOR CYCLE (CONTADORES E STATUS 🟢) ---
 
-async def priority_send(alert_type, message, key=None):
-    global _INITIAL_WARMUP_DONE
-    if not _INITIAL_WARMUP_DONE: return
-    level = PRIORITY.get(alert_type, 1)
-    if is_duplicate_alert(alert_type, message): return
-    try:
-        if level == 3:
-            await send_alert(alert_type, message)
-            await locked_update_panel()
-        else:
-            await asyncio.sleep(1.2)
-            await send_alert(alert_type, message)
-    except Exception as e:
-        print(f"[ALERT ERR] {e}")
-
-# --- MONITOR CYCLE (CONTADORES REATIVADOS) ---
 async def safe_monitor_cycle(session):
     global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _WARMUP_STEPS
-    global last_ticket_check, last_weverse_check, last_social_check
-    global total_weverse, total_social, total_tickets, total_tickets_found 
+    # Globais para ativar as bolinhas verdes no painel
+    global is_checking_ticket, is_checking_weverse, is_checking_social
     
-    now = time.time()
-    funcs = ['check_ticketmaster', 'check_weverse', 'check_social']
-    if not all(k in globals() for k in funcs):
-        return 
-
     try:
-        # 1. Críticos
-        await throttle("ticket", 3)
-        await check_ticketmaster(session)
-        globals()["last_ticket_check"] = time.time()
+        # 1. TICKETMASTER (CRÍTICO)
+        globals()["is_checking_ticket"] = True
+        if 'check_ticketmaster' in globals():
+            await check_ticketmaster(session)
+            globals()["last_ticket_check"] = time.time()
+        globals()["is_checking_ticket"] = False
 
-        await throttle("weverse", 2)
-        await check_weverse(session)
-        globals()["last_weverse_check"] = time.time()
+        # 2. WEVERSE (CRÍTICO)
+        globals()["is_checking_weverse"] = True
+        if 'check_weverse' in globals():
+            await check_weverse(session)
+            globals()["last_weverse_check"] = time.time()
+        globals()["is_checking_weverse"] = False
 
-        # 2. Sociais
+        # 3. SOCIAIS (INTERVALO DE 120s)
+        now = time.time()
         if now - _LAST_SOCIAL_RUN >= 120:
-            await throttle("social", 10) 
-            await check_social(session)
-            globals()["last_social_check"] = time.time()
-            _LAST_SOCIAL_RUN = now
+            globals()["is_checking_social"] = True
+            if 'check_social' in globals():
+                await check_social(session)
+                globals()["last_social_check"] = time.time()
+                _LAST_SOCIAL_RUN = now
+            globals()["is_checking_social"] = False
         
-        # 3. Warmup
+        # LÓGICA DE WARMUP (EVITA ALERTAS FALSOS NO BOOT)
         if not _INITIAL_WARMUP_DONE:
             if _WARMUP_STEPS < 2:
                 _WARMUP_STEPS += 1
-                print(f"[WARMUP] Passo {_WARMUP_STEPS}/2: Mapeando...")
+                print(f"⚙️ [WARMUP] Passo {_WARMUP_STEPS}/2...")
             else:
                 _INITIAL_WARMUP_DONE = True
-                print("✅ [ENGINE] Sistema Blindado. Alertas liberados!")
+                print("✅ [ENGINE] Monitoramento Ativo!")
 
+        # Atualiza o painel ao fim de cada ciclo
         await locked_update_panel()
+
     except Exception as e:
-        print(f"[MONITOR ERROR] {e}")
+        # Emergency Reset: Garante que as bolinhas não fiquem presas no verde
+        globals()["is_checking_ticket"] = False
+        globals()["is_checking_weverse"] = False
+        globals()["is_checking_social"] = False
+        print(f"⚠️ [MONITOR ERROR] {e}")
 
 # --- MOTORES E VIGIA ---
+
 async def watchdog():
+    """Verifica se o painel existe. Se cair, recria."""
     await bot_discord.wait_until_ready()
     while True:
-        # Se os IDs no RECOVERY forem None, o watchdog chama a criação
-        if not globals().get("tg_panel_msg_id") or not globals().get("discord_panel_msg_id"):
+        # Busca os IDs unificados do Bloco 18
+        tg_id = globals().get("panel_message_id")
+        dc_id = globals().get("discord_panel_msg_id")
+        
+        if not tg_id or not dc_id:
             await locked_update_panel()
-        await asyncio.sleep(30)
+        await asyncio.sleep(60)
 
 async def monitor_loop():
-    global _ENGINE_STARTED
+    """Loop principal de checagem."""
     await bot_discord.wait_until_ready()
-    await asyncio.sleep(5) 
-    if _ENGINE_STARTED: return
-    _ENGINE_STARTED = True
-    print("[MONITOR] Motor Unificado Iniciado.")
+    print("🚀 [MONITOR] Motor Unificado Iniciado.")
+    
     async with aiohttp.ClientSession() as session:
         while True:
-            await safe_monitor_cycle(session)
+            async with MONITOR_LOCK:
+                await safe_monitor_cycle(session)
             await asyncio.sleep(60)
 
 async def start_engine():
-    if globals().get("_ENGINE_TASKS_STARTED", False): return
+    """Inicia as tarefas em paralelo."""
+    if globals().get("_ENGINE_TASKS_STARTED", False): 
+        return
     globals()["_ENGINE_TASKS_STARTED"] = True
-    tasks = [
-        asyncio.create_task(monitor_loop()),
-        asyncio.create_task(watchdog())
-    ]
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(start_engine())
-    except KeyboardInterrupt:
-        pass
+    
+    await asyncio.gather(
+        monitor_loop(),
+        watchdog()
+    )
         
 # =========================
-# 20 STARTUP FINAL (RAILWAY SAFE / SINGLE INSTANCE)
+# 20 STARTUP FINAL (RAILWAY SAFE)
 # =========================
 import asyncio
 
@@ -1439,360 +1269,229 @@ _BOOT_STARTED = False
 _ENGINE_TASK = None
 _TELEGRAM_TASK = None
 
-# STARTUP PRINCIPAL #
 async def main():
+    global _BOOT_STARTED, _ENGINE_TASK, _TELEGRAM_TASK
 
-    global _BOOT_STARTED
-    global _ENGINE_TASK
-    global _TELEGRAM_TASK
-
-    print("[SYSTEM] Inicializando sistema completo...")
+    print("🚀 [SYSTEM] Inicializando sistema completo...")
 
     async with _BOOT_LOCK:
-
-        # 🔒 evita double boot no Railway
+        # 🔒 Proteção contra double boot no Railway/Render
         if _BOOT_STARTED:
-            print("[SYSTEM] Boot já executado (ignorado)")
+            print("⚠️ [SYSTEM] Boot já executado (ignorado)")
             return
-
         _BOOT_STARTED = True
 
         try:
-            # Carrega contadores e IDs persistentes antes de qualquer outra coisa
+            # 1. Carrega memória (Contadores e IDs) antes de tudo
             await load_counters()
-            await ensure_single_panel()
+            
+            # 2. Garante que o painel antigo seja limpo ou recuperado
+            # se 'ensure_single_panel' existir no seu Bloco 18/22
+            if 'ensure_single_panel' in globals():
+                await ensure_single_panel()
 
-            # WEB SERVER
-            keep_alive()
+            # 3. WEB SERVER (Monitoramento de Saúde)
+            if 'keep_alive' in globals():
+                keep_alive()
 
-            # TELEGRAM (IDEMPOTENTE) #
-            if _TELEGRAM_TASK is None:
-             _TELEGRAM_TASK = asyncio.create_task(start_telegram())
+            # 4. TELEGRAM (Inicia como Task Independente)
+            if _TELEGRAM_TASK is None and 'start_telegram' in globals():
+                print("📨 [BOOT] Iniciando Telegram...")
+                _TELEGRAM_TASK = asyncio.create_task(start_telegram())
 
-            # ENGINE PRINCIPAL (CONTROLADO) #
-            if _ENGINE_TASK is None:
-                # O start_engine já contém monitor_loop, watchdog e health_watcher
+            # 5. ENGINE PRINCIPAL (Monitoramento)
+            if _ENGINE_TASK is None and 'start_engine' in globals():
+                print("⚙️ [BOOT] Iniciando Motor de Monitoramento...")
                 _ENGINE_TASK = asyncio.create_task(start_engine())
 
-            # DISCORD BOT (ENTRYPOINT ÚNICO) #
-            # O start() bloqueia a execução, então deve ser o último
+            # 6. DISCORD BOT (Entrypoint bloqueante)
+            # Deve ser o último pois o .start() trava o loop
+            print("👾 [BOOT] Conectando ao Discord...")
             await bot_discord.start(DISCORD_TOKEN)
 
         except Exception as e:
-            print(f"[SYSTEM ERROR] {e}")
+            print(f"❌ [SYSTEM ERROR] Falha no startup: {e}")
 
-# ENTRYPOINT SEGURO #
 if __name__ == "__main__":
-
     try:
         asyncio.run(main())
-
     except KeyboardInterrupt:
-        print("[SYSTEM] Encerrado manualmente")
-
+        print("🛑 [SYSTEM] Encerrado manualmente")
     except Exception as e:
-        print(f"[SYSTEM CRASH] {e}")
+        print(f"💀 [SYSTEM CRASH] {e}")
 
 # =========================
-# 21 PANEL LOOP (PRODUÇÃO SEGURA – BLINDADO)
+# 21 PANEL LOOP (ANTI-SPAM)
 # =========================
 import asyncio
 
-# CONTROLE GLOBAL SEGURO #
 PANEL_LOOP_RUNNING = False
 PANEL_LOOP_LOCK = asyncio.Lock()
 PANEL_LOOP_TASK = None
 
-# PANEL LOOP PRINCIPAL #
 async def panel_loop():
-
+    """
+    Atualização passiva para garantir que o Uptime e os 
+    contadores estejam sempre frescos, mesmo sem alertas.
+    """
     global PANEL_LOOP_RUNNING
-
     async with PANEL_LOOP_LOCK:
-
-        # proteção real contra duplicação (async safe)
-        if PANEL_LOOP_RUNNING:
-            return
-
+        if PANEL_LOOP_RUNNING: return
         PANEL_LOOP_RUNNING = True
 
-    print("[PANEL LOOP] iniciado")
+    print("📊 [PANEL LOOP] Iniciado (Ciclo de 60s)")
 
     try:
-
         while True:
-
             try:
-                # FIX: Garante que os contadores salvos no disco reflitam no painel
+                # [FIX] Aumentado para 60s para evitar Erro 429 (Spam)
+                # O motor (B19) já atualiza o painel quando há posts.
+                # Este loop serve apenas para o relógio de Uptime.
                 await update_panel()
-
             except Exception as e:
-                print(f"[PANEL LOOP ERROR] {e}")
+                print(f"⚠️ [PANEL LOOP ERR] {e}")
 
-            # Intervalo de 20s para evitar rate-limit agressivo
-            await asyncio.sleep(20)
-
+            await asyncio.sleep(60) 
     finally:
         PANEL_LOOP_RUNNING = False
-        print("[PANEL LOOP] finalizado")
 
-# STARTER CONTROLADO (ANTI DUPLICAÇÃO REAL) #
 async def start_background_tasks():
-
+    """Starter controlado para as tasks de fundo."""
     global PANEL_LOOP_TASK
-
     async with PANEL_LOOP_LOCK:
-
-        # impede múltiplas tasks reais
         if PANEL_LOOP_TASK and not PANEL_LOOP_TASK.done():
             return
-
         PANEL_LOOP_TASK = asyncio.create_task(panel_loop())
-
+        
 # =========================
 # 22 BOOT MASTER SAFE (ABSOLUTE MODE)
 # =========================
 import asyncio
 import hashlib
 
-# GLOBAL BOOT GUARDS (ANTI DUPLICAÇÃO REAL) #
 BOOT_LOCK = asyncio.Lock()
 BOOT_DONE = False
-
 PANEL_BOOT_DONE = False
 PANEL_BOOT_LOCK = asyncio.Lock()
 
-BOOT_FINGERPRINT = None
-BOOT_FINGERPRINT_LOCK = asyncio.Lock()
-
 # FINGERPRINT DO ESTADO (ANTI MULTI INSTANCE) #
 def get_boot_fingerprint():
-
-    raw = f"{DISCORD_PANEL_CHANNEL_ID}:{PANEL_CHAT_ID}"
+    # Usa as variáveis globais de configuração para criar uma assinatura única da instância
+    raw = f"{globals().get('DISCORD_PANEL_CHANNEL_ID')}:{globals().get('PANEL_CHAT_ID')}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 # RECOVERY UNIFICADO (TELEGRAM + DISCORD) #
 async def recover_panels():
-
     global panel_message_id, discord_panel_msg_id
 
     # Prioridade 1: Recuperar do Arquivo (Mais seguro contra resets)
-    ids_disco = carregar_storage(PANEL_DATA_FILE)
-    if ids_disco:
-        panel_message_id = ids_disco.get("tg_msg_id", panel_message_id)
-        discord_panel_msg_id = ids_disco.get("dc_msg_id", discord_panel_msg_id)
+    # [FIX] Chamando a função correta de leitura do Bloco 18
+    await load_counters() 
 
-    # Prioridade 2: Busca ativa no histórico do Discord se o disco falhar
+    # Prioridade 2: Busca ativa no histórico do Discord se o ID no disco for inválido
     if not discord_panel_msg_id:
         try:
             channel = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID)
-            if not channel: channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
+            if not channel: 
+                channel = await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
             
             if channel:
-                async for msg in channel.history(limit=30):
-                    if msg.author == bot_discord.user and "ARIRANG TOUR" in (msg.content or ""):
-                        discord_panel_msg_id = msg.id
-                        break
+                async for msg in channel.history(limit=50):
+                    # [CORREÇÃO CRÍTICA]: O painel é um Embed, então buscamos dentro da descrição do Embed
+                    if msg.author == bot_discord.user and msg.embeds:
+                        embed_desc = msg.embeds[0].description or ""
+                        if "ARIRANG TOUR" in embed_desc:
+                            discord_panel_msg_id = msg.id
+                            print(f"✅ [RECOVERY] Painel Discord localizado: {msg.id}")
+                            break
         except Exception as e:
-            print(f"[RECOVERY DISCORD ERROR] {e}")
+            print(f"⚠️ [RECOVERY DISCORD ERR] {e}")
 
 # SINGLE PANEL GUARD (IDEMPOTENTE) #
 async def ensure_single_panel():
-
     global PANEL_BOOT_DONE
-
     async with PANEL_BOOT_LOCK:
-
-        if PANEL_BOOT_DONE:
-            return
-
+        if PANEL_BOOT_DONE: return
         await recover_panels()
-
         PANEL_BOOT_DONE = True
-
-        print("[BOOT] painel único garantido")
 
 # BOOT SEQUENCE FINAL (MASTER SAFE) #
 async def safe_boot():
-
-    global BOOT_DONE, BOOT_FINGERPRINT
-
+    global BOOT_DONE
     async with BOOT_LOCK:
-
-        if BOOT_DONE:
-            return
-
-        current_fp = get_boot_fingerprint()
-
-        async with BOOT_FINGERPRINT_LOCK:
-
-            if BOOT_FINGERPRINT == current_fp:
-                return
-
-            BOOT_FINGERPRINT = current_fp
-
-        print("[BOOT] iniciando sequência master...")
-
+        if BOOT_DONE: return
+        print("🛠️ [BOOT] Iniciando sequência master...")
         await ensure_single_panel()
         await asyncio.sleep(1)
-
         BOOT_DONE = True
+        print("🏁 [BOOT] Sistema liberado com segurança total!")
 
-        print("[BOOT] sistema liberado com segurança total")
-
-# HEALTH CHECK (SAFE + RAILWAY FRIENDLY) #
-def system_health():
-
-    try:
-        return {
-            "panel_ok": bool(
-                globals().get("panel_message_id") or
-                globals().get("discord_panel_msg_id")
-            ),
-            "boot_done": globals().get("BOOT_DONE", False),
-            "panel_loop": globals().get("PANEL_LOOP_RUNNING", False)
-        }
-
-    except Exception as e:
-        print(f"[HEALTH ERROR] {e}")
-
-        return {
-            "panel_ok": False,
-            "boot_done": False,
-            "panel_loop": False
-        }
-
-# =========================
-# 23 BOOT SEQUENCE MAP (ORDER CONTROL + ANTI LOOP + RAILWAY SAFE)
-# =========================
+# =========================================================
+# 23 BOOT SEQUENCE MAP (ORDER CONTROL & RAILWAY SAFE)
+# =========================================================
 import asyncio
 import time
-
-BOOT_SEQUENCE_READY = False
 
 # ESTADO GLOBAL DE EXECUÇÃO #
 ENGINE_STARTED = False
 WATCHDOG_STARTED = False
-HEALTH_STARTED = False
-
-# VERIFICAÇÃO DE CONSISTÊNCIA DO SISTEMA #
 
 def system_integrity_check():
+    """Verifica se o boot foi concluído e os IDs existem."""
+    return {
+        "boot_done": globals().get("BOOT_DONE", False),
+        "panel_ok": bool(globals().get("panel_message_id") or globals().get("discord_panel_msg_id"))
+    }
 
-    try:
-        # Puxa os estados reais definidos nos blocos de BOOT e ENGINE
-        return {
-            "boot_done": globals().get("BOOT_DONE", False),
-            "panel_ok": bool(
-                globals().get("panel_message_id") or
-                globals().get("discord_panel_msg_id")
-            ),
-            "engine": globals().get("ENGINE_STARTED", False),
-            "watchdog": globals().get("WATCHDOG_STARTED", False),
-            "health": globals().get("HEALTH_STARTED", False)
-        }
-
-    except Exception as e:
-        print(f"[INTEGRITY ERROR] {e}")
-
-        return {
-            "boot_done": False,
-            "panel_ok": False,
-            "engine": False,
-            "watchdog": False,
-            "health": False
-        }
-
-# GATE DE SEGURANÇA (BLOQUEIA EXECUÇÃO PRECOCE) #
 async def wait_system_ready():
-
-    global BOOT_SEQUENCE_READY
-
-    timeout = 60
+    """Gate de segurança que aguarda o Bloco 22 terminar."""
+    timeout = 45 # Reduzido para ser mais ágil no Railway
     start = time.time()
 
     while True:
-
         status = system_integrity_check()
-
-        # sistema pronto (Boot concluído e pelo menos um painel localizado)
-        if status["boot_done"] and status["panel_ok"]:
-            BOOT_SEQUENCE_READY = True
-            print("[BOOT MAP] sistema pronto para engine")
+        # Se o boot terminou (Bloco 22) ou se o timeout bateu, liberamos a engine
+        if status["boot_done"]:
+            print("🚀 [BOOT MAP] Sistema pronto!")
             return True
 
-        # timeout de segurança (evita travar infinito no Railway se as APIs demorarem)
         if time.time() - start > timeout:
-            print("[BOOT MAP] timeout de boot, liberando com fallback para evitar travamento")
-            BOOT_SEQUENCE_READY = True
+            print("⚠️ [BOOT MAP] Timeout atingido. Forçando liberação para evitar travamento.")
             return False
 
         await asyncio.sleep(2)
 
-# ENGINE GUARD (ANTI DUPLICAÇÃO) #
-async def start_engine_guard():
-
-    global ENGINE_STARTED
-
-    if ENGINE_STARTED:
-        return
-
-    # FIX: Aciona a inicialização real da engine se ainda não subiu
-    if not globals().get("_ENGINE_TASKS_STARTED", False):
-        asyncio.create_task(start_engine())
-
-    ENGINE_STARTED = True
-    print("[BOOT MAP] engine liberado")
-
-# WATCHDOG GUARD (ANTI LOOP DUPLO) #
-async def start_watchdog_guard():
-
-    global WATCHDOG_STARTED
-
-    if WATCHDOG_STARTED:
-        return
-
-    WATCHDOG_STARTED = True
-    print("[BOOT MAP] watchdog liberado")
-
-# HEALTH GUARD (ANTI REPAIR LOOP) #
-async def start_health_guard():
-
-    global HEALTH_STARTED
-
-    if HEALTH_STARTED:
-        return
-
-    HEALTH_STARTED = True
-    print("[BOOT MAP] health monitor liberado")
-
-# BOOT MAP ORQUESTRADOR #
 async def boot_sequence_map():
+    """Orquestrador final que amarra todos os blocos."""
+    global ENGINE_STARTED, WATCHDOG_STARTED
+    
+    print("🛰️ [BOOT MAP] Sincronizando camadas...")
 
-    print("[BOOT MAP] iniciando controle de sequência...")
-
-    # 1. espera sistema estabilizar (carregamento de disco + recovery de painel)
+    # 1. Espera o Bloco 22 (Recuperação de IDs e Arquivos)
     await wait_system_ready()
 
-    # 2. libera camadas em ordem segura para evitar race conditions
-    await start_engine_guard()
-    await start_watchdog_guard()
-    await start_health_guard()
+    # 2. Inicia o Motor de Monitoramento (Bloco 19)
+    if not ENGINE_STARTED:
+        if 'start_engine' in globals():
+            asyncio.create_task(start_engine())
+            ENGINE_STARTED = True
+            print("✅ [BOOT MAP] Engine monitor liberado.")
 
-    print("[BOOT MAP] todas as camadas liberadas com segurança")
+    # 3. Inicia o Loop do Painel (Bloco 21)
+    if 'start_background_tasks' in globals():
+        await start_background_tasks()
+        print("✅ [BOOT MAP] Sync loop liberado.")
 
-# ANTI REPAIR LOOP COOLDOWN (EVITA WATCHDOG SPAM) #
+    print("🌟 [BOOT MAP] Wootteo operando em 100%!")
+
+# Variáveis de Cooldown para o Watchdog do Bloco 19 não flodar as APIs
 LAST_REPAIR_TIME = 0
-REPAIR_COOLDOWN = 60  # segundos (Janela de segurança contra flood)
+REPAIR_COOLDOWN = 60 
 
 def can_run_repair():
-
     global LAST_REPAIR_TIME
-
     now = time.time()
-
     if now - LAST_REPAIR_TIME < REPAIR_COOLDOWN:
         return False
-
     LAST_REPAIR_TIME = now
     return True
