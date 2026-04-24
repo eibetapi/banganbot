@@ -1184,10 +1184,7 @@ async def safe_monitor_cycle(session):
                 # 1. TICKETMASTER (1 MINUTO)
         stats['total_tickets'] += 1
         globals()['total_tickets'] = stats['total_tickets']
-        
-        # --- A LINHA QUE CURA A BOLINHA VERMELHA ---
         globals()['last_check_ticket'] = time.time() 
-        # ------------------------------------------
 
         globals()["is_checking_ticket"] = True
         if 'check_ticketmaster' in globals():
