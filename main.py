@@ -1394,9 +1394,9 @@ async def update_panel():
         except Exception as e: 
             print(f"[ENGINE 18.1 ERR] {e}")
  
-# ======================
+# =========================================================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
-# ======================
+# =========================================================
 import asyncio
 import time
 import hashlib
@@ -1412,6 +1412,7 @@ CONTENT_CACHE = {}
 ALERT_CACHE = {}
 LAST_REQUEST_TIME = {}
 _INITIAL_WARMUP_DONE = False  # Proteção vital contra alertas retroativos
+_LAST_SOCIAL_RUN = 0          # Controle do ciclo de 2 min das redes sociais
 
 # SINGLE INSTANCE CONTROL
 _ENGINE_STARTED = False
@@ -1504,22 +1505,28 @@ async def trigger_alert(alert_type, url, message):
     key = f"{alert_type}:{url}"
     await priority_send(alert_type, message, key=key)
 
-# MONITOR SEGURO
+# MONITOR SEGURO (COM ESCALONAMENTO 1MIN/2MIN)
 async def safe_monitor_cycle(session):
-    global _INITIAL_WARMUP_DONE
+    global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN
+    now = time.time()
     try:
-        # Varredura dos motores do Bloco 18
-        await throttle("ticket", 1.5)
+        # --- CICLO 1 MINUTO: Ticket e Weverse ---
+        await throttle("ticket", 3)
         await check_ticketmaster(session)
-        await throttle("weverse", 1.5)
+        
+        await throttle("weverse", 2)
         await check_weverse(session)
-        await throttle("social", 1.5)
-        await check_social(session)
 
-        # Após a primeira volta completa, libera os alertas reais
-        if not _INITIAL_WARMUP_DONE:
+        # --- CICLO 2 MINUTOS: Redes Sociais ---
+        if now - _LAST_SOCIAL_RUN >= 120:
+            await throttle("social", 8) # Delay alto anti-block
+            await check_social(session)
+            _LAST_SOCIAL_RUN = now
+        
+        # Após a primeira volta completa (incluindo social), libera os alertas reais
+        if not _INITIAL_WARMUP_DONE and _LAST_SOCIAL_RUN > 0:
             _INITIAL_WARMUP_DONE = True
-            print("[ENGINE] Warm-up concluído. Monitoramento em tempo real liberado.")
+            print("[ENGINE] Warm-up concluído. Monitoramento liberado.")
 
         await locked_update_panel()
     except Exception as e:
@@ -1531,11 +1538,12 @@ async def monitor_loop():
     await bot_discord.wait_until_ready()
     if _ENGINE_STARTED: return
     _ENGINE_STARTED = True
-    print("[MONITOR] MOTOR UNIFICADO INICIADO")
+    print("[MONITOR] MOTOR UNIFICADO INICIADO - CICLO BASE 60S")
 
     async with aiohttp.ClientSession() as session:
         while True:
             await safe_monitor_cycle(session)
+            # Espera 1 minuto antes da próxima volta
             await asyncio.sleep(60)
 
 # WATCHDOG (VIGIA DO PAINEL)
@@ -1544,7 +1552,6 @@ async def watchdog():
     print("[WATCHDOG] Ativo")
     while True:
         await asyncio.sleep(60)
-        # Se os IDs sumirem por qualquer erro, o 18.1 entra em ação
         if not globals().get("panel_message_id") or not globals().get("discord_panel_msg_id"):
             await update_panel()
 
@@ -1567,7 +1574,7 @@ async def safe_boot():
         await update_panel() 
         await asyncio.sleep(2)
         print("[BOOT] Pronto para operação.")
-
+        
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE / SINGLE INSTANCE)
 # =========================
