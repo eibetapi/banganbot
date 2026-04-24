@@ -1478,319 +1478,9 @@ async def update_panel():
         except Exception as e: 
             print(f"[ENGINE 18.1 ERR] {e}")
  
-# =========================
+# ==========================================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
-# =========================
-
-import asyncio
-import time
-import hashlib
-from bs4 import BeautifulSoup
-
-# =========================
-# GLOBAL LOCKS (UNIFICADOS)
-# =========================
-
-MONITOR_LOCK = asyncio.Lock()
-GLOBAL_LOCK = asyncio.Lock()
-THROTTLE_LOCK = asyncio.Lock()
-
-# =========================
-# CACHE SYSTEM (UNIFICADO)
-# =========================
-
-CONTENT_CACHE = {}
-ALERT_CACHE = {}
-LAST_REQUEST_TIME = {}
-
-# =========================
-# SINGLE INSTANCE CONTROL (CRÍTICO RAILWAY)
-# =========================
-
-_ENGINE_STARTED = False
-_PANEL_STARTED = False
-
-# =========================
-# PRIORIDADE DE ALERTAS
-# =========================
-
-PRIORITY = {
-    "ticket": 3,
-    "reposicao": 3,
-    "agenda": 2,
-    "weverse_post": 2,
-    "weverse_live": 3,
-    "instagram_post": 1,
-    "instagram_reels": 1,
-    "tiktok_post": 1,
-    "youtube_live": 3,
-    "youtube_post": 2,
-    "social": 1
-}
-
-# =========================
-# DETECÇÃO INTELIGENTE DE MUDANÇA
-# =========================
-
-def extract_core_signatures(html):
-
-    soup = BeautifulSoup(html or "", "html.parser")
-
-    text = soup.get_text(" ", strip=True)
-    links = sorted(set(a.get("href") for a in soup.find_all("a") if a.get("href")))
-    images = sorted(set(img.get("src") for img in soup.find_all("img") if img.get("src")))
-
-    return {
-        "text": text[:1500],
-        "links": links[:60],
-        "images": images[:60]
-    }
-
-
-def is_real_change(key, content):
-
-    signature = extract_core_signatures(content)
-    new_hash = hashlib.md5(str(signature).encode("utf-8")).hexdigest()
-
-    old = CONTENT_CACHE.get(key)
-
-    if old == new_hash:
-        return False
-
-    CONTENT_CACHE[key] = new_hash
-    return True
-
-# =========================
-# BLOQUEIO DE ALERTA DUPLICADO
-# =========================
-
-def is_duplicate_alert(alert_type, message):
-
-    raw = f"{alert_type}:{message}"
-    h = hashlib.md5(raw.encode("utf-8")).hexdigest()
-
-    if ALERT_CACHE.get(alert_type) == h:
-        return True
-
-    ALERT_CACHE[alert_type] = h
-    return False
-
-# =========================
-# THROTTLE SEGURO
-# =========================
-
-async def throttle(key, delay=2):
-
-    async with THROTTLE_LOCK:
-
-        now = time.time()
-        last = LAST_REQUEST_TIME.get(key, 0)
-
-        if now - last < delay:
-            await asyncio.sleep(delay - (now - last))
-
-        LAST_REQUEST_TIME[key] = time.time()
-
-# =========================
-# PANEL SYNC (SINGLE SOURCE OF TRUTH)
-# =========================
-
-_PANEL_SYNC_LOCK = asyncio.Lock()
-_last_panel_sync = 0
-
-async def locked_update_panel():
-
-    global _last_panel_sync
-
-    async with _PANEL_SYNC_LOCK:
-
-        now = time.time()
-
-        # [FIX] Respeita o cooldown mas garante que o estado final seja salvo
-        if now - _last_panel_sync < 2:
-            return
-
-        _last_panel_sync = now
-
-        # [FIX] Garante que contadores e IDs de mensagem estejam em disco antes do update visual
-        await save_counters()
-        await update_panel()
-
-# =========================
-# ALERT ROUTER (UNIFICADO)
-# =========================
-
-async def priority_send(alert_type, message, key=None):
-
-    level = PRIORITY.get(alert_type, 1)
-
-    if is_duplicate_alert(alert_type, message):
-        return
-
-    if key and not is_real_change(key, message):
-        return
-
-    if level == 3:
-        await send_alert(alert_type, message)
-        # Sincronia imediata para eventos críticos
-        await locked_update_panel()
-        return
-
-    if level == 2:
-        await asyncio.sleep(0.8)
-        await send_alert(alert_type, message)
-        await locked_update_panel()
-        return
-
-    if level == 1:
-        await asyncio.sleep(1.5)
-        await send_alert(alert_type, message)
-        # Nível 1 não força update de painel para economizar API
-
-# =========================
-# ALERT ENTRYPOINT
-# =========================
-
-async def trigger_alert(alert_type, url, message):
-
-    key = f"{alert_type}:{url}"
-    await priority_send(alert_type, message, key=key)
-
-# =========================
-# MONITOR SEGURO
-# =========================
-
-async def safe_monitor_cycle(session):
-
-    try:
-        # [FIX] Cada check agora salva contadores internamente (Bloco 18)
-        await throttle("ticket", 1)
-        await check_ticketmaster(session)
-
-        await throttle("weverse", 1)
-        await check_weverse(session)
-
-        await throttle("social", 1)
-        await check_social(session)
-
-        # Update final do ciclo para garantir paridade
-        await locked_update_panel()
-
-    except Exception as e:
-        print(f"[MONITOR ERROR] {e}")
-
-# =========================
-# MONITOR LOOP (SINGLE INSTANCE)
-# =========================
-
-async def monitor_loop():
-
-    global _ENGINE_STARTED
-
-    await bot_discord.wait_until_ready()
-
-    # Prevenção de race condition no boot
-    if _ENGINE_STARTED:
-        return
-
-    _ENGINE_STARTED = True
-
-    print("[MONITOR] RUNNING (SINGLE INSTANCE)")
-
-    # [FIX] Reaproveitamento de sessão para evitar overhead de handshake
-    async with aiohttp.ClientSession() as session:
-
-        while True:
-            await safe_monitor_cycle(session)
-            # Sleep balanceado para não ser banido pelos servidores (Weverse/IG)
-            await asyncio.sleep(20)
-
-# =========================
-# WATCHDOG
-# =========================
-
-async def watchdog():
-
-    await bot_discord.wait_until_ready()
-
-    print("[WATCHDOG] ativo")
-
-    while True:
-
-        await asyncio.sleep(60)
-
-        # [FIX] Recuperação automática se o ID sumir da memória
-        if not globals().get("panel_message_id") or not globals().get("discord_panel_msg_id"):
-            print("[WATCHDOG] painel perdido ou IDs desincronizados -> reparando via disco")
-            await ensure_single_panel()
-            await update_panel()
-
-# =========================
-# HEALTH WATCHER
-# =========================
-
-async def health_watcher():
-
-    await bot_discord.wait_until_ready()
-
-    while True:
-
-        try:
-            # system_health() deve retornar um dicionário com o estado dos serviços
-            health = system_health()
-
-            if not health["panel_ok"]:
-                print("[HEALTH] repair triggered")
-                await auto_repair_panel()
-
-        except Exception as e:
-            print(f"[HEALTH ERROR] {e}")
-
-        await asyncio.sleep(60)
-
-# =========================
-# ENGINE START (SINGLE INSTANCE)
-# =========================
-
-async def start_engine():
-
-    # A trava global impede que tasks duplicadas rodem após reconexões
-    if globals().get("_ENGINE_TASKS_STARTED", False):
-        return
-
-    globals()["_ENGINE_TASKS_STARTED"] = True
-
-    print("[ENGINE] FINAL MODE STARTED (UNIFIED PRODUCTION)")
-
-    tasks = [
-        asyncio.create_task(monitor_loop()),
-        asyncio.create_task(watchdog()),
-        asyncio.create_task(health_watcher()),
-    ]
-
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-# =========================
-# SAFE BOOT (NO OVERWRITE)
-# =========================
-
-async def safe_boot():
-
-    async with GLOBAL_LOCK:
-
-        print("[BOOT] iniciando sistema")
-
-        # [FIX] Carregamento obrigatório de estado persistente antes de ligar motores
-        await ensure_single_panel()
-        await load_counters()
-
-        await asyncio.sleep(2)
-
-        print("[BOOT] sistema liberado")
-
-# =========================================================
-# 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
-# =========================================================
+# ==========================================
 
 import asyncio
 import time
@@ -1806,7 +1496,7 @@ THROTTLE_LOCK = asyncio.Lock()
 CONTENT_CACHE = {}
 ALERT_CACHE = {}
 LAST_REQUEST_TIME = {}
-_INITIAL_WARMUP_DONE = False # Impede alertas retroativos no boot
+_INITIAL_WARMUP_DONE = False  # Proteção vital contra alertas retroativos
 
 # --- SINGLE INSTANCE CONTROL ---
 _ENGINE_STARTED = False
@@ -1821,6 +1511,7 @@ PRIORITY = {
 
 # --- DETECÇÃO INTELIGENTE DE MUDANÇA ---
 def extract_core_signatures(html):
+    """Extrai a estrutura essencial do HTML para evitar falsos positivos"""
     soup = BeautifulSoup(html or "", "html.parser")
     text = soup.get_text(" ", strip=True)
     links = sorted(set(a.get("href") for a in soup.find_all("a") if a.get("href")))
@@ -1828,6 +1519,7 @@ def extract_core_signatures(html):
     return {"text": text[:1500], "links": links[:60], "images": images[:60]}
 
 def is_real_change(key, content):
+    """Valida se houve mudança real comparando o hash do conteúdo"""
     signature = extract_core_signatures(content)
     new_hash = hashlib.md5(str(signature).encode("utf-8")).hexdigest()
     old = CONTENT_CACHE.get(key)
@@ -1837,6 +1529,7 @@ def is_real_change(key, content):
 
 # --- BLOQUEIO DE ALERTA DUPLICADO ---
 def is_duplicate_alert(alert_type, message):
+    """Evita o envio da mesma mensagem em sequência"""
     raw = f"{alert_type}:{message}"
     h = hashlib.md5(raw.encode("utf-8")).hexdigest()
     if ALERT_CACHE.get(alert_type) == h: return True
@@ -1845,6 +1538,7 @@ def is_duplicate_alert(alert_type, message):
 
 # --- THROTTLE SEGURO ---
 async def throttle(key, delay=2):
+    """Controla o fluxo de requisições para evitar bans"""
     async with THROTTLE_LOCK:
         now = time.time()
         last = LAST_REQUEST_TIME.get(key, 0)
@@ -1852,39 +1546,44 @@ async def throttle(key, delay=2):
             await asyncio.sleep(delay - (now - last))
         LAST_REQUEST_TIME[key] = time.time()
 
-# --- PANEL SYNC (TRAVADO PARA ESTABILIDADE) ---
+# --- PANEL SYNC (ESTABILIDADE TOTAL) ---
 _PANEL_SYNC_LOCK = asyncio.Lock()
 _last_panel_sync = 0
 
 async def locked_update_panel():
+    """Sincroniza o painel respeitando o bloqueio de edição de 30s"""
     global _last_panel_sync
     async with _PANEL_SYNC_LOCK:
         now = time.time()
-        # Bloqueia edições se o painel foi atualizado há menos de 30s
         if now - _last_panel_sync < 30: return
         _last_panel_sync = now
-        await update_panel()
+        await update_panel()  # Chama o motor 18.1 (Repost/Cleanup)
 
-# --- ALERT ROUTER ---
+# --- ALERT ROUTER (PRESERVAÇÃO DE LAYOUT) ---
 async def priority_send(alert_type, message, key=None):
     global _INITIAL_WARMUP_DONE
-    # Se ainda estiver no warmup, não envia nada para as salas
+    
+    # [WARMUP] Silencia o bot durante o boot para não puxar lixo antigo
     if not _INITIAL_WARMUP_DONE: return
 
     level = PRIORITY.get(alert_type, 1)
     if is_duplicate_alert(alert_type, message): return
     if key and not is_real_change(key, message): return
 
-    if level == 3:
-        await send_alert(alert_type, message)
-        await locked_update_panel()
-    elif level == 2:
-        await asyncio.sleep(0.8)
-        await send_alert(alert_type, message)
-        await locked_update_panel()
-    else:
-        await asyncio.sleep(1.5)
-        await send_alert(alert_type, message)
+    # Dispara usando SEU layout original (Bloco 15)
+    try:
+        if level == 3:
+            await send_alert(alert_type, message)
+            await locked_update_panel()
+        elif level == 2:
+            await asyncio.sleep(0.8)
+            await send_alert(alert_type, message)
+            await locked_update_panel()
+        else:
+            await asyncio.sleep(1.5)
+            await send_alert(alert_type, message)
+    except Exception as e:
+        print(f"[ALERT ERR] Erro no router: {e}")
 
 async def trigger_alert(alert_type, url, message):
     key = f"{alert_type}:{url}"
@@ -1894,18 +1593,18 @@ async def trigger_alert(alert_type, url, message):
 async def safe_monitor_cycle(session):
     global _INITIAL_WARMUP_DONE
     try:
-        # MOTORES (Rodam em silêncio se for o primeiro ciclo)
-        await throttle("ticket", 1)
+        # Varredura dos motores do Bloco 18
+        await throttle("ticket", 1.5)
         await check_ticketmaster(session)
-        await throttle("weverse", 1)
+        await throttle("weverse", 1.5)
         await check_weverse(session)
-        await throttle("social", 1)
+        await throttle("social", 1.5)
         await check_social(session)
 
-        # Libera alertas reais após a primeira varredura completa
+        # Após a primeira volta completa, libera os alertas reais
         if not _INITIAL_WARMUP_DONE:
             _INITIAL_WARMUP_DONE = True
-            print("[ENGINE] Warm-up finalizado. Alertas em tempo real ativados.")
+            print("[ENGINE] Warm-up concluído. Monitoramento em tempo real liberado.")
 
         await locked_update_panel()
     except Exception as e:
@@ -1917,41 +1616,42 @@ async def monitor_loop():
     await bot_discord.wait_until_ready()
     if _ENGINE_STARTED: return
     _ENGINE_STARTED = True
-    print("[MONITOR] RUNNING (SINGLE INSTANCE)")
+    print("[MONITOR] MOTOR UNIFICADO INICIADO")
 
     async with aiohttp.ClientSession() as session:
         while True:
             await safe_monitor_cycle(session)
             await asyncio.sleep(20)
 
-# --- WATCHDOG ---
+# --- WATCHDOG (VIGIA DO PAINEL) ---
 async def watchdog():
     await bot_discord.wait_until_ready()
-    print("[WATCHDOG] ativo")
+    print("[WATCHDOG] Ativo")
     while True:
         await asyncio.sleep(60)
-        # Recuperação via 18.1 se IDs sumirem
+        # Se os IDs sumirem por qualquer erro, o 18.1 entra em ação
         if not globals().get("panel_message_id") or not globals().get("discord_panel_msg_id"):
             await update_panel()
 
-# --- START & BOOT ---
+# --- START ENGINE ---
 async def start_engine():
     if globals().get("_ENGINE_TASKS_STARTED", False): return
     globals()["_ENGINE_TASKS_STARTED"] = True
-    print("[ENGINE] FINAL MODE STARTED")
+    
     tasks = [
         asyncio.create_task(monitor_loop()),
         asyncio.create_task(watchdog())
     ]
     await asyncio.gather(*tasks, return_exceptions=True)
 
+# --- SAFE BOOT ---
 async def safe_boot():
     async with GLOBAL_LOCK:
-        print("[BOOT] iniciando sistema")
+        print("[BOOT] Sincronizando Memória e Painel...")
         await load_counters()
-        await update_panel() # 18.1 garante o Repost/Cleanup aqui
+        await update_panel() 
         await asyncio.sleep(2)
-        print("[BOOT] sistema liberado")
+        print("[BOOT] Pronto para operação.")
 
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE / SINGLE INSTANCE)
