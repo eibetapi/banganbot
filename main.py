@@ -985,308 +985,58 @@ async def ticket_agenda(url, data, cidade, pais):
     await send_alert("agenda", msg)
     await update_panel()
 
-# =========================
-# 16 SISTEMA DE TESTE (ESTRUTURA FIXA E SEGURA)
-# =========================
+# =========================================================
+# 16 SISTEMA DE TESTE (DIRETO E CONSOLIDADO)
+# =========================================================
 
 import os
 import asyncio
+import discord
 
-# =========================
-# AMBIENTE ISOLADO (PRODUÇÃO VS TESTE REAL)
-# =========================
+async def run_full_test_discord(interaction: discord.Interaction):
+    """
+    Executa um teste de integridade e responde diretamente 
+    no canal onde o comando foi invocado.
+    """
+    await interaction.response.defer(ephemeral=True) # Evita timeout e mantém privado se quiser
+    
+    print(f"[TESTE] Executado por {interaction.user} no canal {interaction.channel}")
 
-ENV_MODE = os.getenv("ENV_MODE", "production")
-TEST_MODE = ENV_MODE == "test"
-PROD_MODE = ENV_MODE == "production"
+    # Coleta de dados para o relatório de teste
+    uptime = get_uptime() if 'get_uptime' in globals() else "N/A"
+    lwc = globals().get("last_weverse_check", 0)
+    lsc = globals().get("last_social_check", 0)
+    ltc = globals().get("last_ticket_check", 0)
 
-
-# =========================
-# ROUTER SEGURO (NUNCA VAZA PARA PRODUÇÃO)
-# =========================
-
-async def safe_send_alert(alert_type, message):
-
-    # TEST MODE: apenas log (Não incrementa contadores reais)
-    if TEST_MODE:
-        print(f"[TEST MODE ALERT] {alert_type}")
-        print(message)
-        return
-
-    # PRODUÇÃO REAL
-    await send_alert(alert_type, message)
-
-
-async def safe_update_panel():
-
-    if TEST_MODE:
-        print("[TEST MODE] painel ignorado")
-        return
-
-    # Em produção, usa a lógica de EDIT vs SEND protegida no Bloco 12
-    await update_panel()
-
-
-# =========================
-# RUN TEST DISCORD (BATERIA COMPLETA)
-# =========================
-async def run_full_test_discord():
-
-    print("[TESTE DC] iniciando bateria completa...")
+    # Formatação do Relatório de Diagnóstico
+    report = (
+        "## 🛠️ Relatório de Teste Wootteo\n"
+        f"✅ **Status do Bot:** Online\n"
+        f"⏳ **Uptime:** {uptime}\n\n"
+        "### 📡 Últimas Varreduras:\n"
+        f"🟣 **Weverse:** {status_color(lwc, 'weverse') if 'status_color' in globals() else 'Check'}\n"
+        f"🟠 **Social:** {status_color(lsc, 'social') if 'status_color' in globals() else 'Check'}\n"
+        f"💷 **Ticketmaster:** {status_color(ltc, 'ticket') if 'status_color' in globals() else 'Check'}\n\n"
+        "### 📊 Contadores Atuais:\n"
+        f"🎯 Acessos TM: `{globals().get('total_tickets', 0)}` \n"
+        f"🎯 Acessos WV: `{globals().get('total_weverse', 0)}` \n"
+        f"🎯 Acessos Sociais: `{globals().get('total_social', 0)}` \n\n"
+        "--- \n"
+        "*Teste finalizado. Se os contadores estiverem subindo, o motor está operando corretamente.*"
+    )
 
     try:
-
-        # =========================
-        # TICKET
-        # =========================
-        await test_ticket_reposicao()
-        await test_ticket_agenda()
-        await asyncio.sleep(1)
-
-        # =========================
-        # WEVERSE
-        # =========================
-        await test_weverse_post()
-        await test_weverse_live()
-        await test_weverse_news()
-        await test_weverse_media()
-        await asyncio.sleep(1)
-
-        # =========================
-        # INSTAGRAM
-        # =========================
-        await test_instagram_post()
-        await test_instagram_reel()
-        await test_instagram_story()
-        await test_instagram_live()
-        await asyncio.sleep(1)
-
-        # =========================
-        # TIKTOK + YOUTUBE
-        # =========================
-        await test_tiktok_post()
-        await test_tiktok_live()
-        await test_youtube_post()
-        await test_youtube_live()
-
-    finally:
-        print("[TESTE DC] finalizado")
-
-
-# =========================
-# TICKET TESTS
-# =========================
-async def test_ticket_reposicao():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🔥 ALERTA DE REPOSIÇÃO 🔥
-📅 Data: 28/10/2026
-🔗 Link: https://www.ticketmaster.com.br/event/venda-geral-bts
-🎫 Setor: TESTE
-🏷️ Categoria: TESTE
-
-"""
-
-    await safe_send_alert("reposicao", msg)
-
-
-async def test_ticket_agenda():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-💜 AGENDA - NOVAS DATAS 💜
-📅 Data: 29/10/2026
-🏙️ Cidade: São Paulo
-🌎 País: Brasil
-🔗 Link: https://www.bts-official.com/agenda
-
-"""
-
-    await safe_send_alert("agenda", msg)
-
-# =========================
-# WEVERSE TESTS
-# =========================
-async def test_weverse_post():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🩷 WEVERSE POST 🩷
-💜 BTS publicou uma mensagem
-📌 Título Teste
-📝 Conteúdo teste
-🔗 https://weverse.io/bts
-
-"""
-
-    await safe_send_alert("weverse_post", msg)
-
-
-async def test_weverse_live():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-📹 WEVERSE LIVE 📹
-💜 BTS está ao vivo
-🔗 https://weverse.io/bts/live
-
-"""
-
-    await safe_send_alert("weverse_live", msg)
-
-
-async def test_weverse_news():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🚨 WEVERSE NEWS 🚨
-💜 BTS publicou notícia
-📝 Teste de notícia
-🔗 https://weverse.io/bts/news
-
-"""
-
-    await safe_send_alert("weverse_news", msg)
-
-
-async def test_weverse_media():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-📀 WEVERSE MEDIA 📀
-💜 BTS publicou mídia
-⭐ Teste mídia
-📝 Descrição teste
-🔗 https://weverse.io/bts/media
-
-"""
-
-    await safe_send_alert("weverse_media", msg)
-
-
-# =========================
-# INSTAGRAM TESTS
-# =========================
-async def test_instagram_post():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🌟 INSTAGRAM POST 🌟
-💜 BTS postou uma foto
-🔗 https://instagram.com/bts
-
-"""
-
-    await safe_send_alert("instagram_post", msg)
-
-
-async def test_instagram_reel():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🎬 INSTAGRAM REELS 🎬
-💜 BTS postou um reels
-🔗 https://instagram.com/bts/reels
-
-"""
-
-    await safe_send_alert("instagram_reels", msg)
-
-
-async def test_instagram_story():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🫧 INSTAGRAM STORIES 🫧
-💜 BTS atualizou stories
-🔗 https://instagram.com/bts
-
-"""
-
-    await safe_send_alert("instagram_stories", msg)
-
-
-async def test_instagram_live():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🎥 INSTAGRAM LIVE 🎥
-💜 BTS está ao vivo
-🔗 https://instagram.com/bts/live
-
-"""
-
-    await safe_send_alert("instagram_live", msg)
-
-
-# =========================
-# TIKTOK + YOUTUBE TESTS
-# =========================
-async def test_tiktok_post():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🎵 TIKTOK POST 🎵
-💜 BTS postou vídeo
-🔗 https://tiktok.com/@bts
-
-"""
-
-    await safe_send_alert("tiktok_post", msg)
-
-
-async def test_tiktok_live():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🎥 TIKTOK LIVE 🎥
-💜 BTS ao vivo
-🔗 https://tiktok.com/@bts/live
-
-"""
-
-    await safe_send_alert("tiktok_live", msg)
-
-
-async def test_youtube_post():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-🎞️ YOUTUBE POST 🎞️
-💜 BTS vídeo novo
-🔗 https://youtube.com/@BTS
-
-"""
-
-    await safe_send_alert("youtube_post", msg)
-
-
-async def test_youtube_live():
-
-    msg = f"""
-
-⚠️ TESTE ⚠️
-📹 YOUTUBE LIVE 📹
-🚨 BTS ao vivo
-🔗 https://youtube.com/@BTS/live
-
-"""
-
-    await safe_send_alert("youtube_live", msg)
+        # Envia a resposta diretamente no canal do comando
+        await interaction.followup.send(content=report)
+    except Exception as e:
+        print(f"[TEST ERR] Erro ao responder no canal: {e}")
+
+# =========================================================
+# EXEMPLO DE CHAMADA NO COMANDO SLASH
+# =========================================================
+# @bot_discord.tree.command(name="teste", description="Valida o funcionamento do bot")
+# async def teste(interaction: discord.Interaction):
+#     await run_full_test_discord(interaction)
 
 # =========================================================
 # 17 COMMAND ENGINE FRAMEWORK - FINAL (COM FORÇA BRUTA)
