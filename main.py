@@ -60,7 +60,7 @@ stored_counters = load_storage(COUNTERS_FILE, {"tickets": 0, "weverse": 0, "soci
 stored_panel = load_storage(PANEL_DATA_FILE, {"tg_msg_id": None, "dc_msg_id": None})
 
 # Variáveis globais sincronizadas
-total_tickets = stored_counters["tickets"]
+total_tickets = stored_counters["total_tickets"]
 total_weverse = stored_counters["weverse"]
 total_social = stored_counters["social"]
 panel_message_id = stored_panel["tg_msg_id"] # ID do Telegram
