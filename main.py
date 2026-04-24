@@ -1147,59 +1147,54 @@ async def on_ready():
     globals()["PANEL_BOOT_DONE"] = True
     
 # =========================================================
-# 19 MONITOR ENGINE (CONTROLE OBRIGATÓRIO DE CONTADORES)
+# 19 MOTOR UNIFICADO (INTERVALOS: TM 1M | WV/SOC 2M)
 # =========================================================
 import asyncio
 import time
 import aiohttp
 
-# --- INICIALIZAÇÃO DE SEGURANÇA ---
+# --- VARIÁVEIS DE CONTROLE ---
 _LAST_SOCIAL_RUN = 0
+_LAST_WEVERSE_RUN = 0 
 _INITIAL_WARMUP_DONE = False
 _WARMUP_STEPS = 0
-is_checking_ticket = False
-is_checking_weverse = False
-is_checking_social = False
-
-# GLOBAL LOCKS
-MONITOR_LOCK = asyncio.Lock()
 
 async def safe_monitor_cycle(session):
-    global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _WARMUP_STEPS
+    global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _LAST_WEVERSE_RUN, _WARMUP_STEPS
     global is_checking_ticket, is_checking_weverse, is_checking_social
     
+    now = time.time()
+    
     try:
-        # 1. TICKETMASTER (REGISTRO OBRIGATÓRIO)
+        # 1. TICKETMASTER - 1 MINUTO
         globals()["is_checking_ticket"] = True
         if 'check_ticketmaster' in globals():
             await check_ticketmaster(session)
-            # Força o incremento garantindo que a variável exista
             globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
-            globals()["last_ticket_check"] = time.time()
+            globals()["last_ticket_check"] = now
         globals()["is_checking_ticket"] = False
 
-        # 2. WEVERSE (REGISTRO OBRIGATÓRIO)
-        globals()["is_checking_weverse"] = True
-        if 'check_weverse' in globals():
-            await check_weverse(session)
-            # Força o incremento garantindo que a variável exista
-            globals()["total_weverse"] = globals().get("total_weverse", 0) + 1
-            globals()["last_weverse_check"] = time.time()
-        globals()["is_checking_weverse"] = False
+        # 2. WEVERSE - 2 MINUTOS
+        if now - _LAST_WEVERSE_RUN >= 120:
+            globals()["is_checking_weverse"] = True
+            if 'check_weverse' in globals():
+                await check_weverse(session)
+                globals()["total_weverse"] = globals().get("total_weverse", 0) + 1
+                globals()["last_weverse_check"] = now
+                _LAST_WEVERSE_RUN = now
+            globals()["is_checking_weverse"] = False
 
-        # 3. SOCIAIS (REGISTRO OBRIGATÓRIO A CADA 120S)
-        now = time.time()
+        # 3. SOCIAIS - 2 MINUTOS
         if now - _LAST_SOCIAL_RUN >= 120:
             globals()["is_checking_social"] = True
             if 'check_social' in globals():
                 await check_social(session)
-                # Força o incremento garantindo que a variável exista
                 globals()["total_social"] = globals().get("total_social", 0) + 1
-                globals()["last_social_check"] = time.time()
+                globals()["last_social_check"] = now
                 _LAST_SOCIAL_RUN = now
             globals()["is_checking_social"] = False
         
-        # 4. GESTÃO DE WARMUP
+        # WARMUP
         if not _INITIAL_WARMUP_DONE:
             if _WARMUP_STEPS < 2:
                 _WARMUP_STEPS += 1
@@ -1208,43 +1203,29 @@ async def safe_monitor_cycle(session):
                 _INITIAL_WARMUP_DONE = True
                 print("✅ [ENGINE] Monitoramento Ativo!")
 
-        # 5. ATUALIZAÇÃO OBRIGATÓRIA DO PAINEL
-        # Executa o update para que o contador mude visualmente na hora
+        # ATUALIZAÇÃO OBRIGATÓRIA
         if 'update_panel' in globals():
             await update_panel()
 
     except Exception as e:
-        # Reset de segurança para evitar bolinhas verdes travadas em erro
-        globals()["is_checking_ticket"] = False
-        globals()["is_checking_weverse"] = False
-        globals()["is_checking_social"] = False
-        print(f"⚠️ [MONITOR ERROR] Falha no Ciclo: {e}")
+        print(f"⚠️ [MONITOR ERROR] {e}")
 
 async def monitor_loop():
-    """Mantém a engine em execução constante."""
     await bot_discord.wait_until_ready()
-    print("🚀 [MONITOR] Motor Unificado Iniciado com Registro Obrigatório.")
+    print("🚀 [MONITOR] Motor Iniciado (TM: 1min | WV/SOC: 2min)")
     
     async with aiohttp.ClientSession() as session:
         while True:
-            async with MONITOR_LOCK:
-                await safe_monitor_cycle(session)
-            # Ciclo de 60 segundos entre checagens
+            await safe_monitor_cycle(session)
             await asyncio.sleep(60)
 
 async def start_engine():
-    """Dispara os processos de monitoramento e vigilância."""
-    if globals().get("_ENGINE_TASKS_STARTED", False): 
-        return
+    if globals().get("_ENGINE_TASKS_STARTED", False): return
     globals()["_ENGINE_TASKS_STARTED"] = True
-    
-    # Task 1: Checagem de Conteúdo
     asyncio.create_task(monitor_loop())
-    
-    # Task 2: Vigilância do Painel (se definido no Bloco 22/23)
     if 'watchdog' in globals():
         asyncio.create_task(watchdog())
-        
+
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE)
 # =========================
