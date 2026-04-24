@@ -1,5 +1,5 @@
 # =========================
-# 0 HEALTH CHECK (MUST BE FIRST LEVEL)
+# 0 HEALTH CHECK  
 # ========================= 
 def system_health():
     try:
@@ -12,9 +12,7 @@ def system_health():
         print(f"[HEALTH ERROR] {e}")
         return {"panel_ok": False, "boot_done": False, "panel_loop": False}
 
-# =========================
-# AUTO REPAIR SAFE
-# =========================
+# AUTO REPAIR SAFE #
 async def auto_repair_panel():
     try:
         await update_panel()
@@ -80,9 +78,7 @@ async def setup_hook():
         print("[SYNC] Slash commands sincronizados")
     except Exception as e: print(f"[SYNC ERROR] {e}")
 
-# =========================
-# 2.1 TELEGRAM START
-# =========================
+# 2.1 TELEGRAM START #
 bot_ticket = Bot(token=TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
 
 async def start_telegram():
@@ -166,12 +162,9 @@ async def is_new(url, html):
             save_storage("content_hash_cache.json", CONTENT_HASH)
             return True
     return False
-
-
 # =========================
 # 6 LINKS (ÚNICO - NÃO DUPLICAR)
 # =========================
-
 TICKET_LINKS = [
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-28-10",
     "https://www.ticketmaster.com.br/event/venda-geral-bts-world-tour-arirang-30-10",
@@ -208,7 +201,6 @@ YOUTUBE_LINKS = [
     "https://www.youtube.com/@BTS"
 ]
 
-
 def get_next_show():
     """Calcula dias para 28/10/2026"""
     data_alvo = datetime(2026, 10, 28)
@@ -219,7 +211,6 @@ def get_next_show():
 # =========================
 # 7 AGENDA FIXA
 # =========================
-
 AGENDA = [
     ("25/04/2026", "Tampa", "EUA", "20:00"),
     ("26/04/2026", "Tampa", "EUA", "20:00"),
@@ -404,7 +395,8 @@ async def update_panel():
             data_show, city, d_prox, d_br = get_countdown_data()
             texto = gerar_texto_painel(data_show, city, d_prox, d_br)
             
-            # --- TELEGRAM (EDIT OU POST) ---
+            # TELEGRAM (EDIT OU POST) #
+            
             if bot_ticket:
                 try:
                     if panel_message_id:
@@ -416,7 +408,8 @@ async def update_panel():
                         save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
                 except: panel_message_id = None
 
-            # --- DISCORD (EDIT OU POST) ---
+            # DISCORD (EDIT OU POST) #
+            
             ch = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
             if ch:
                 embed = discord.Embed(description=texto, color=0x8A2BE2)
@@ -433,9 +426,7 @@ async def update_panel():
                     save_storage(PANEL_DATA_FILE, {"tg_msg_id": panel_message_id, "dc_msg_id": discord_panel_msg_id})
         except Exception as e: print(f"[PANEL ERROR] {e}")
 
-# =========================
-# 12.1 RECOVERY (OBRIGATÓRIO)
-# =========================
+# # 12.1 RECOVERY (OBRIGATÓRIO) #
 async def ensure_single_panel():
     global PANEL_BOOT_DONE, panel_message_id, discord_panel_msg_id
     if PANEL_BOOT_DONE: return
@@ -450,25 +441,20 @@ async def ensure_single_panel():
 # =========================
 # 13 SISTEMA DE PERSISTÊNCIA & WEVERSE ALERTS
 # =========================
-
 import hashlib
 import asyncio
 import json
 import os
 import time  # [FIX] Import necessário para o time.time()
 
-# =========================
-# INICIALIZAÇÃO DE GLOBAIS (ANTI-ERROR)
-# =========================
+# INICIALIZAÇÃO DE GLOBAIS (ANTI-ERROR) # 
+
 PANEL_BOOT_DONE = globals().get("PANEL_BOOT_DONE", False)
 COUNTERS_FILE = "counters_state.json"
 WEVERSE_CACHE = {}
 WEVERSE_LOCK = asyncio.Lock()
 
-# =========================
-# SISTEMA DE DISCO (RAILWAY SAFE)
-# =========================
-
+# SISTEMA DE DISCO (RAILWAY SAFE) #
 async def save_counters():
     """Salva os totais de acessos e timestamps no disco da Railway."""
     try:
@@ -505,10 +491,7 @@ async def load_counters():
     else:
         print("[SYSTEM] Nenhum arquivo de contadores prévio encontrado.")
 
-# =========================
-# LOGICA DE DUPLICAÇÃO
-# =========================
-
+# LOGICA DE DUPLICAÇÃO # 
 def is_new_weverse_event(event_type, url, content=""):
     """Evita duplicação usando hash do conteúdo."""
     raw = f"{event_type}:{url}:{content}"
@@ -520,9 +503,7 @@ def is_new_weverse_event(event_type, url, content=""):
     WEVERSE_CACHE[event_type] = new_hash
     return True
 
-# =========================
-# FUNÇÕES DE ALERTA (WEVERSE)
-# =========================
+# FUNÇÕES DE ALERTA (WEVERSE) # 
 
 async def weverse_post(url, member_name, title, message_translated, found):
     async with WEVERSE_LOCK:
@@ -597,17 +578,13 @@ async def weverse_media(url, member_name, title, message_translated, found):
         await send_alert("weverse_media", msg)
         await update_panel()
 
-
 # =========================
 # 14 INSTAGRAM ALERTS (PRODUÇÃO SEGURA)
-# =========================
-
+# ========================= 
 import hashlib
 import asyncio
 
-# =========================
-# CACHE GLOBAL POR EVENTO
-# =========================
+# CACHE GLOBAL POR EVENTO #
 INSTAGRAM_CACHE = {
     "post": None,
     "reel": None,
@@ -617,7 +594,6 @@ INSTAGRAM_CACHE = {
 
 # 🔒 lock global para evitar race condition
 INSTAGRAM_LOCK = asyncio.Lock()
-
 
 def is_new_instagram(event_type, url, extra=""):
 
@@ -630,10 +606,7 @@ def is_new_instagram(event_type, url, extra=""):
     INSTAGRAM_CACHE[event_type] = new_hash
     return True
 
-
-# =========================
-# POST
-# =========================
+# POST # 
 async def instagram_post(url, member_name, title, found):
 
     async with INSTAGRAM_LOCK:
@@ -661,10 +634,7 @@ async def instagram_post(url, member_name, title, found):
         await send_alert("instagram_post", msg)
         await update_panel()
 
-
-# =========================
-# REEL
-# =========================
+# REELS #  
 async def instagram_reel(url, member_name, title, found):
 
     async with INSTAGRAM_LOCK:
@@ -687,14 +657,10 @@ async def instagram_reel(url, member_name, title, found):
 {emoji} {name} publicou um reels 
 🔗 {url}
 """
-
         await send_alert("instagram_reels", msg)
         await update_panel()
 
-
-# =========================
-# STORY
-# =========================
+# STORY #  
 async def instagram_story(url, member_name, title, found):
 
     async with INSTAGRAM_LOCK:
@@ -717,14 +683,10 @@ async def instagram_story(url, member_name, title, found):
 {emoji} {name} publicou stories
 🔗 {url}
 """
-
         await send_alert("instagram_stories", msg)
         await update_panel()
 
-
-# =========================
-# LIVE (CACHE CORRIGIDO)
-# =========================
+# LIVE (CACHE CORRIGIDO) # 
 async def instagram_live(url, member_name, title, found):
 
     async with INSTAGRAM_LOCK:
@@ -747,37 +709,29 @@ async def instagram_live(url, member_name, title, found):
 {emoji} {name} está ao vivo
 🔗 {url}
 """
-
         await send_alert("instagram_live", msg)
         await update_panel()
 
 # =========================
 # 15 ALERTAS TIKTOK E YOUTUBE (PRODUÇÃO SEGURA)
 # =========================
-
 import asyncio
 import hashlib
 
-# =========================
-# CACHE GLOBAL
-# =========================
+# CACHE GLOBAL #
 LAST_TIKTOK = {}
 LAST_YOUTUBE = {}
 
 # 🔒 lock global para evitar concorrência
 SOCIAL_LOCK = asyncio.Lock()
 
-
 def is_new_social(cache, key):
     if cache.get(key):
         return False
     cache[key] = True
     return True
-
-
-# =========================
-# TIKTOK POST
-# =========================
+    
+# TIKTOK POST #
 async def tiktok_post(url, member_name, title, found):
 
     async with SOCIAL_LOCK:
@@ -801,14 +755,10 @@ async def tiktok_post(url, member_name, title, found):
 🔗 {url}
 
 """
-
-        await send_alert("tiktok_post", msg)
+       await send_alert("tiktok_post", msg)
         await update_panel()
 
-
-# =========================
-# TIKTOK LIVE
-# =========================
+# TIKTOK LIVE #
 async def tiktok_live(url, member_name, title, found):
 
     async with SOCIAL_LOCK:
@@ -831,14 +781,10 @@ async def tiktok_live(url, member_name, title, found):
 🔗 {url}
 
 """
-
         await send_alert("tiktok_live", msg)
         await update_panel()
 
-
-# =========================
-# YOUTUBE POST
-# =========================
+# YOUTUBE POST #
 async def youtube_post(url, final_url=None):
 
     async with SOCIAL_LOCK:
@@ -861,14 +807,10 @@ async def youtube_post(url, final_url=None):
 🔗 {link}
 
 """
-
         await send_alert("youtube_post", msg)
         await update_panel()
 
-
-# =========================
-# YOUTUBE LIVE
-# =========================
+# YOUTUBE LIVE #
 async def youtube_live(url=None):
 
     async with SOCIAL_LOCK:
@@ -891,22 +833,16 @@ async def youtube_live(url=None):
 🔗 {live_url}
 
 """
-
         await send_alert("youtube_live", msg)
         await update_panel()
 
-# =========================
-# 15.1 TICKETMASTER (PRODUÇÃO SEGURA)
-# =========================
-
+# 15.1 TICKETMASTER (PRODUÇÃO SEGURA) #
 import hashlib
-
 EVENT_CACHE = {
     "reposicao": {},
     "agenda": {},
     "revenda": {}
 }
-
 
 def is_new_event(event_type, key):
 
@@ -922,10 +858,7 @@ def is_new_event(event_type, key):
     EVENT_CACHE[event_type][key] = new_hash
     return True
 
-
-# =========================
-# REPOSIÇÃO TICKETMASTER
-# =========================
+# REPOSIÇÃO TICKETMASTER # 
 async def ticket_reposicao(url, data, setor, categoria):
     global total_tickets, last_ticket_check
 
@@ -949,14 +882,10 @@ async def ticket_reposicao(url, data, setor, categoria):
 🏷️ Categoria: {categoria}
 
 """
-
     await send_alert("reposicao", msg)
     await update_panel()
 
-
-# =========================
-# NOVAS DATAS (AGENDA OFICIAL BTS)
-# =========================
+# NOVAS DATAS (AGENDA OFICIAL BTS) #
 async def ticket_agenda(url, data, cidade, pais):
     global total_tickets, last_ticket_check
 
@@ -981,11 +910,12 @@ async def ticket_agenda(url, data, cidade, pais):
 ℹ️ Mais informações em breve
 
 """
-
     await send_alert("agenda", msg)
     await update_panel()
 
-# ======= 16 TESTE DE SISTEMA =======
+# =================== 
+# 16 TESTE DE SISTEMA
+# ====================
 @bot_discord.tree.command(name="teste", description="Valida o funcionamento do bot")
 async def teste(interaction: discord.Interaction):
     """Diagnóstico consolidado enviado diretamente ao canal do usuário."""
@@ -1016,10 +946,9 @@ async def teste(interaction: discord.Interaction):
     except Exception as e:
         print(f"[TEST ERR] {e}")
 
-# ==========================================
+# =============================
 # 17 COMMAND ENGINE FRAMEWORK - FINAL (COM FORÇA BRUTA)
-# ==========================================
-
+# ============================
 COMMANDS = {}
 
 def command(name):
@@ -1050,10 +979,7 @@ async def send(ctx, text):
         try: await bot_ticket.send_message(chat_id=ctx.chat_id, text=text)
         except: pass
 
-# ========================================
-# COMANDOS BLOQUEADOS (LAYOUT ORIGINAL)
-# ========================================
-
+# COMANDOS BLOQUEADOS (LAYOUT ORIGINAL) # 
 @command("ping")
 async def ping(ctx):
     await send(ctx, f"🏓 Pong! | {get_uptime()}")
@@ -1080,9 +1006,7 @@ async def bts(ctx):
         texto = "\n".join(membros) + "\n\n🪭Ouça Arirang no Spotify🪭\nhttps://open.spotify.com/intl-pt/album/3ukkRHDHbN8tNRPKsGZR1h"
         await send(ctx, texto)
 
-# =========================================================
-# /TESTE - AGORA FORÇANDO ALERTA NAS SALAS
-# =========================================================
+# /TESTE - AGORA FORÇANDO ALERTA NAS SALAS #
 @command("teste")
 async def teste(ctx):
     if ctx.is_discord:
@@ -1112,9 +1036,7 @@ async def teste(ctx):
         await run_full_test_discord()
         await send(ctx, "✅ Teste concluído.")
 
-# =========================
-# PONTES DE EXECUÇÃO
-# =========================
+# PONTES DE EXECUÇÃO #
 async def executar_discord(cmd, interaction):
     ctx = CommandContext(origin="discord", interaction=interaction)
     handler = COMMANDS.get(cmd)
@@ -1136,10 +1058,7 @@ async def slash_bts(i: discord.Interaction): await executar_discord("bts", i)
 @bot_discord.tree.command(name="comandos")
 async def slash_comandos(i: discord.Interaction): await executar_discord("comandos", i)
 
-# ============================================
-# 17.1 UTILS: MOTOR DE REQUISIÇÃO ASSÍNCRONA
-# =============================================
-
+# 17.1 UTILS: MOTOR DE REQUISIÇÃO ASSÍNCRONA #
 async def fetch_html(session, url):
     """Realiza a busca segura do HTML para os motores do Bloco 18"""
     headers = {
@@ -1160,11 +1079,9 @@ async def fetch_html(session, url):
         print(f"[FETCH ERR] Falha ao acessar {url}: {e}")
         return None
 
-
-# ============================================
+# =====================
 # 18 SISTEMA INTEGRADO: ESTADO, PERSISTÊNCIA E MONITORAMENTO
-# ============================================
-
+# =====================
 COUNTER_DATA_FILE = "counters.json"
 PANEL_DATA_FILE = "panel_ids.json"
 
@@ -1351,8 +1268,7 @@ async def on_ready():
     await update_panel()
     globals()["PANEL_BOOT_DONE"] = True
 
-# --- MOTORES DE MONITORAMENTO (CONTADORES E INTERVALO) ---
-
+# MOTORES DE MONITORAMENTO (CONTADORES E INTERVALO) #
 async def check_ticketmaster(session):
     try:
         globals()["is_checking_ticket"] = True
@@ -1419,10 +1335,7 @@ async def check_social(session):
     except:
         globals()["is_checking_social"] = False
 
-# =========================================================
-# 18.1 ENGINE: AUTO-RECUPERAÇÃO (REPOST & CLEANUP)
-# =========================================================
-
+# ENGINE: AUTO-RECUPERAÇÃO (REPOST & CLEANUP) #
 async def update_panel():
     """Atualiza o painel existente ou recria do zero se houver erro"""
     global last_panel_update
@@ -1435,7 +1348,7 @@ async def update_panel():
             d_show, city, d_prox, d_br = get_countdown_data()
             texto = gerar_texto_painel(d_show, city, d_prox, d_br)
             
-            # --- FLUXO TELEGRAM ---
+            # FLUXO TELEGRAM 
             if bot_ticket and PANEL_CHAT_ID:
                 tg_id = globals().get("panel_message_id")
                 success_tg = False
@@ -1456,7 +1369,7 @@ async def update_panel():
                     try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, m.message_id)
                     except: pass
 
-            # --- FLUXO DISCORD ---
+            # FLUXO DISCORD
             if DISCORD_PANEL_CHANNEL_ID:
                 chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
                 if chan:
@@ -1485,38 +1398,37 @@ async def update_panel():
         except Exception as e: 
             print(f"[ENGINE 18.1 ERR] {e}")
  
-# ==========================================
+# ======================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
-# ==========================================
-
+# ======================
 import asyncio
 import time
 import hashlib
 from bs4 import BeautifulSoup
 
-# --- GLOBAL LOCKS (UNIFICADOS) ---
+# GLOBAL LOCKS (UNIFICADOS)
 MONITOR_LOCK = asyncio.Lock()
 GLOBAL_LOCK = asyncio.Lock()
 THROTTLE_LOCK = asyncio.Lock()
 
-# --- CACHE SYSTEM (UNIFICADO) ---
+# CACHE SYSTEM (UNIFICADO)
 CONTENT_CACHE = {}
 ALERT_CACHE = {}
 LAST_REQUEST_TIME = {}
 _INITIAL_WARMUP_DONE = False  # Proteção vital contra alertas retroativos
 
-# --- SINGLE INSTANCE CONTROL ---
+# SINGLE INSTANCE CONTROL
 _ENGINE_STARTED = False
 _PANEL_STARTED = False
 
-# --- PRIORIDADE DE ALERTAS ---
+# PRIORIDADE DE ALERTAS 
 PRIORITY = {
     "ticket": 3, "reposicao": 3, "weverse_live": 3, "youtube_live": 3,
     "agenda": 2, "weverse_post": 2, "youtube_post": 2,
     "instagram_post": 1, "instagram_reels": 1, "tiktok_post": 1, "social": 1
 }
 
-# --- DETECÇÃO INTELIGENTE DE MUDANÇA ---
+# DETECÇÃO INTELIGENTE DE MUDANÇA
 def extract_core_signatures(html):
     """Extrai a estrutura essencial do HTML para evitar falsos positivos"""
     soup = BeautifulSoup(html or "", "html.parser")
@@ -1534,7 +1446,7 @@ def is_real_change(key, content):
     CONTENT_CACHE[key] = new_hash
     return True
 
-# --- BLOQUEIO DE ALERTA DUPLICADO ---
+# BLOQUEIO DE ALERTA DUPLICADO
 def is_duplicate_alert(alert_type, message):
     """Evita o envio da mesma mensagem em sequência"""
     raw = f"{alert_type}:{message}"
@@ -1543,7 +1455,7 @@ def is_duplicate_alert(alert_type, message):
     ALERT_CACHE[alert_type] = h
     return False
 
-# --- THROTTLE SEGURO ---
+# THROTTLE SEGURO
 async def throttle(key, delay=2):
     """Controla o fluxo de requisições para evitar bans"""
     async with THROTTLE_LOCK:
@@ -1553,7 +1465,7 @@ async def throttle(key, delay=2):
             await asyncio.sleep(delay - (now - last))
         LAST_REQUEST_TIME[key] = time.time()
 
-# --- PANEL SYNC (ESTABILIDADE TOTAL) ---
+# PANEL SYNC (ESTABILIDADE TOTAL)
 _PANEL_SYNC_LOCK = asyncio.Lock()
 _last_panel_sync = 0
 
@@ -1564,9 +1476,9 @@ async def locked_update_panel():
         now = time.time()
         if now - _last_panel_sync < 30: return
         _last_panel_sync = now
-        await update_panel()  # Chama o motor 18.1 (Repost/Cleanup)
+        await update_panel()  # Chama o motor (Repost/Cleanup)
 
-# --- ALERT ROUTER (PRESERVAÇÃO DE LAYOUT) ---
+# ALERT ROUTER (PRESERVAÇÃO DE LAYOUT)
 async def priority_send(alert_type, message, key=None):
     global _INITIAL_WARMUP_DONE
     
@@ -1596,7 +1508,7 @@ async def trigger_alert(alert_type, url, message):
     key = f"{alert_type}:{url}"
     await priority_send(alert_type, message, key=key)
 
-# --- MONITOR SEGURO ---
+# MONITOR SEGURO
 async def safe_monitor_cycle(session):
     global _INITIAL_WARMUP_DONE
     try:
@@ -1617,7 +1529,7 @@ async def safe_monitor_cycle(session):
     except Exception as e:
         print(f"[MONITOR ERROR] {e}")
 
-# --- MONITOR LOOP ---
+# MONITOR LOOP
 async def monitor_loop():
     global _ENGINE_STARTED
     await bot_discord.wait_until_ready()
@@ -1630,7 +1542,7 @@ async def monitor_loop():
             await safe_monitor_cycle(session)
             await asyncio.sleep(60)
 
-# --- WATCHDOG (VIGIA DO PAINEL) ---
+# WATCHDOG (VIGIA DO PAINEL)
 async def watchdog():
     await bot_discord.wait_until_ready()
     print("[WATCHDOG] Ativo")
@@ -1640,7 +1552,7 @@ async def watchdog():
         if not globals().get("panel_message_id") or not globals().get("discord_panel_msg_id"):
             await update_panel()
 
-# --- START ENGINE ---
+# START ENGINE
 async def start_engine():
     if globals().get("_ENGINE_TASKS_STARTED", False): return
     globals()["_ENGINE_TASKS_STARTED"] = True
@@ -1651,7 +1563,7 @@ async def start_engine():
     ]
     await asyncio.gather(*tasks, return_exceptions=True)
 
-# --- SAFE BOOT ---
+# SAFE BOOT
 async def safe_boot():
     async with GLOBAL_LOCK:
         print("[BOOT] Sincronizando Memória e Painel...")
@@ -1663,23 +1575,15 @@ async def safe_boot():
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE / SINGLE INSTANCE)
 # =========================
-
 import asyncio
 
-# =========================
-# BOOT GUARDS (EVITA DUPLICAÇÃO EM RESTART)
-# =========================
-
+# BOOT GUARDS (EVITA DUPLICAÇÃO EM RESTART) # 
 _BOOT_LOCK = asyncio.Lock()
 _BOOT_STARTED = False
 _ENGINE_TASK = None
 _TELEGRAM_TASK = None
 
-
-# =========================
-# STARTUP PRINCIPAL
-# =========================
-
+# STARTUP PRINCIPAL #
 async def main():
 
     global _BOOT_STARTED
@@ -1702,38 +1606,26 @@ async def main():
             await load_counters()
             await ensure_single_panel()
 
-            # =========================
             # WEB SERVER
-            # =========================
             keep_alive()
 
-            # =========================
-            # TELEGRAM (IDEMPOTENTE)
-            # =========================
+            # TELEGRAM (IDEMPOTENTE) #
             if _TELEGRAM_TASK is None:
-                _TELEGRAM_TASK = asyncio.create_task(start_telegram())
+             _TELEGRAM_TASK = asyncio.create_task(start_telegram())
 
-            # =========================
-            # ENGINE PRINCIPAL (CONTROLADO)
-            # =========================
+            # ENGINE PRINCIPAL (CONTROLADO) #
             if _ENGINE_TASK is None:
                 # O start_engine já contém monitor_loop, watchdog e health_watcher
                 _ENGINE_TASK = asyncio.create_task(start_engine())
 
-            # =========================
-            # DISCORD BOT (ENTRYPOINT ÚNICO)
-            # =========================
+            # DISCORD BOT (ENTRYPOINT ÚNICO) #
             # O start() bloqueia a execução, então deve ser o último
             await bot_discord.start(DISCORD_TOKEN)
 
         except Exception as e:
             print(f"[SYSTEM ERROR] {e}")
 
-
-# =========================
-# ENTRYPOINT SEGURO
-# =========================
-
+# ENTRYPOINT SEGURO #
 if __name__ == "__main__":
 
     try:
@@ -1748,20 +1640,14 @@ if __name__ == "__main__":
 # =========================
 # 21 PANEL LOOP (PRODUÇÃO SEGURA – BLINDADO)
 # =========================
-
 import asyncio
 
-# =========================
-# CONTROLE GLOBAL SEGURO
-# =========================
+# CONTROLE GLOBAL SEGURO #
 PANEL_LOOP_RUNNING = False
 PANEL_LOOP_LOCK = asyncio.Lock()
 PANEL_LOOP_TASK = None
 
-
-# =========================
-# PANEL LOOP PRINCIPAL
-# =========================
+# PANEL LOOP PRINCIPAL #
 async def panel_loop():
 
     global PANEL_LOOP_RUNNING
@@ -1794,10 +1680,7 @@ async def panel_loop():
         PANEL_LOOP_RUNNING = False
         print("[PANEL LOOP] finalizado")
 
-
-# =========================
-# STARTER CONTROLADO (ANTI DUPLICAÇÃO REAL)
-# =========================
+# STARTER CONTROLADO (ANTI DUPLICAÇÃO REAL) #
 async def start_background_tasks():
 
     global PANEL_LOOP_TASK
@@ -1810,18 +1693,13 @@ async def start_background_tasks():
 
         PANEL_LOOP_TASK = asyncio.create_task(panel_loop())
 
-
 # =========================
 # 22 BOOT MASTER SAFE (ABSOLUTE MODE)
 # =========================
-
 import asyncio
 import hashlib
 
-# =========================
-# GLOBAL BOOT GUARDS (ANTI DUPLICAÇÃO REAL)
-# =========================
-
+# GLOBAL BOOT GUARDS (ANTI DUPLICAÇÃO REAL) #
 BOOT_LOCK = asyncio.Lock()
 BOOT_DONE = False
 
@@ -1831,21 +1709,13 @@ PANEL_BOOT_LOCK = asyncio.Lock()
 BOOT_FINGERPRINT = None
 BOOT_FINGERPRINT_LOCK = asyncio.Lock()
 
-
-# =========================
-# FINGERPRINT DO ESTADO (ANTI MULTI INSTANCE)
-# =========================
-
+# FINGERPRINT DO ESTADO (ANTI MULTI INSTANCE) #
 def get_boot_fingerprint():
 
     raw = f"{DISCORD_PANEL_CHANNEL_ID}:{PANEL_CHAT_ID}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
-
-# =========================
-# RECOVERY UNIFICADO (TELEGRAM + DISCORD)
-# =========================
-
+# RECOVERY UNIFICADO (TELEGRAM + DISCORD) #
 async def recover_panels():
 
     global panel_message_id, discord_panel_msg_id
@@ -1870,11 +1740,7 @@ async def recover_panels():
         except Exception as e:
             print(f"[RECOVERY DISCORD ERROR] {e}")
 
-
-# =========================
-# SINGLE PANEL GUARD (IDEMPOTENTE)
-# =========================
-
+# SINGLE PANEL GUARD (IDEMPOTENTE) #
 async def ensure_single_panel():
 
     global PANEL_BOOT_DONE
@@ -1890,11 +1756,7 @@ async def ensure_single_panel():
 
         print("[BOOT] painel único garantido")
 
-
-# =========================
-# BOOT SEQUENCE FINAL (MASTER SAFE)
-# =========================
-
+# BOOT SEQUENCE FINAL (MASTER SAFE) #
 async def safe_boot():
 
     global BOOT_DONE, BOOT_FINGERPRINT
@@ -1922,10 +1784,7 @@ async def safe_boot():
 
         print("[BOOT] sistema liberado com segurança total")
 
-# =========================
-# HEALTH CHECK (SAFE + RAILWAY FRIENDLY)
-# =========================
-
+# HEALTH CHECK (SAFE + RAILWAY FRIENDLY) #
 def system_health():
 
     try:
@@ -1950,25 +1809,17 @@ def system_health():
 # =========================
 # 23 BOOT SEQUENCE MAP (ORDER CONTROL + ANTI LOOP + RAILWAY SAFE)
 # =========================
-
 import asyncio
 import time
 
 BOOT_SEQUENCE_READY = False
 
-
-# =========================
-# ESTADO GLOBAL DE EXECUÇÃO
-# =========================
-
+# ESTADO GLOBAL DE EXECUÇÃO #
 ENGINE_STARTED = False
 WATCHDOG_STARTED = False
 HEALTH_STARTED = False
 
-
-# =========================
-# VERIFICAÇÃO DE CONSISTÊNCIA DO SISTEMA
-# =========================
+# VERIFICAÇÃO DE CONSISTÊNCIA DO SISTEMA #
 
 def system_integrity_check():
 
@@ -1996,10 +1847,7 @@ def system_integrity_check():
             "health": False
         }
 
-# =========================
-# GATE DE SEGURANÇA (BLOQUEIA EXECUÇÃO PRECOCE)
-# =========================
-
+# GATE DE SEGURANÇA (BLOQUEIA EXECUÇÃO PRECOCE) #
 async def wait_system_ready():
 
     global BOOT_SEQUENCE_READY
@@ -2025,10 +1873,7 @@ async def wait_system_ready():
 
         await asyncio.sleep(2)
 
-# =========================
-# ENGINE GUARD (ANTI DUPLICAÇÃO)
-# =========================
-
+# ENGINE GUARD (ANTI DUPLICAÇÃO) #
 async def start_engine_guard():
 
     global ENGINE_STARTED
@@ -2043,11 +1888,7 @@ async def start_engine_guard():
     ENGINE_STARTED = True
     print("[BOOT MAP] engine liberado")
 
-
-# =========================
-# WATCHDOG GUARD (ANTI LOOP DUPLO)
-# =========================
-
+# WATCHDOG GUARD (ANTI LOOP DUPLO) #
 async def start_watchdog_guard():
 
     global WATCHDOG_STARTED
@@ -2058,11 +1899,7 @@ async def start_watchdog_guard():
     WATCHDOG_STARTED = True
     print("[BOOT MAP] watchdog liberado")
 
-
-# =========================
-# HEALTH GUARD (ANTI REPAIR LOOP)
-# =========================
-
+# HEALTH GUARD (ANTI REPAIR LOOP) #
 async def start_health_guard():
 
     global HEALTH_STARTED
@@ -2073,11 +1910,7 @@ async def start_health_guard():
     HEALTH_STARTED = True
     print("[BOOT MAP] health monitor liberado")
 
-
-# =========================
-# BOOT MAP ORQUESTRADOR
-# =========================
-
+# BOOT MAP ORQUESTRADOR #
 async def boot_sequence_map():
 
     print("[BOOT MAP] iniciando controle de sequência...")
@@ -2092,13 +1925,9 @@ async def boot_sequence_map():
 
     print("[BOOT MAP] todas as camadas liberadas com segurança")
 
-# =========================
-# ANTI REPAIR LOOP COOLDOWN (EVITA WATCHDOG SPAM)
-# =========================
-
+# ANTI REPAIR LOOP COOLDOWN (EVITA WATCHDOG SPAM) #
 LAST_REPAIR_TIME = 0
 REPAIR_COOLDOWN = 60  # segundos (Janela de segurança contra flood)
-
 
 def can_run_repair():
 
