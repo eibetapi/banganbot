@@ -1147,70 +1147,73 @@ async def on_ready():
     globals()["PANEL_BOOT_DONE"] = True
     
 # =========================================================
-# 19 MOTOR UNIFICADO (FIX: ESCOPO DE VARIÁVEIS GLOBAIS)
+# 19 MOTOR UNIFICADO (TM: 1M | WV/SOC: 2M | FIX CONTADORES)
 # =========================================================
 import asyncio
 import time
 import aiohttp
 
-# Inicialização de segurança no topo do bloco
+# --- REFERÊNCIA DE MEMÓRIA COMPARTILHADA ---
+if 'contadores_globais' not in globals():
+    globals()['contadores_globais'] = {
+        'total_tickets': 0,
+        'total_weverse': 0,
+        'total_social': 0
+    }
+
 _LAST_SOCIAL_RUN = 0
 _LAST_WEVERSE_RUN = 0 
 _INITIAL_WARMUP_DONE = False
 _WARMUP_STEPS = 0
 
 async def safe_monitor_cycle(session):
-    # Declarando explicitamente as globais que o Bloco 18 (Painel) lê
-    global total_tickets, total_weverse, total_social
     global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _LAST_WEVERSE_RUN, _WARMUP_STEPS
     global is_checking_ticket, is_checking_weverse, is_checking_social
     
-    # Garantindo que as variáveis existam antes de somar
-    if 'total_tickets' not in globals(): globals()['total_tickets'] = 0
-    if 'total_weverse' not in globals(): globals()['total_weverse'] = 0
-    if 'total_social' not in globals(): globals()['total_social'] = 0
-
     now = time.time()
+    stats = globals()['contadores_globais']
     
     try:
-        # 1. TICKETMASTER (1 MINUTO)
+        # 1. TICKETMASTER - RODA SEMPRE (A cada 1 min via loop)
         globals()["is_checking_ticket"] = True
         if 'check_ticketmaster' in globals():
             await check_ticketmaster(session)
-            globals()["total_tickets"] += 1
+            stats['total_tickets'] += 1
+            globals()['total_tickets'] = stats['total_tickets']
             globals()["last_ticket_check"] = now
         globals()["is_checking_ticket"] = False
 
-        # 2. WEVERSE (2 MINUTOS)
+        # 2. WEVERSE - TRAVA DE 2 MINUTOS (120s)
         if now - _LAST_WEVERSE_RUN >= 120:
             globals()["is_checking_weverse"] = True
             if 'check_weverse' in globals():
                 await check_weverse(session)
-                globals()["total_weverse"] += 1
+                stats['total_weverse'] += 1
+                globals()['total_weverse'] = stats['total_weverse']
                 globals()["last_weverse_check"] = now
                 _LAST_WEVERSE_RUN = now
             globals()["is_checking_weverse"] = False
 
-        # 3. SOCIAIS (2 MINUTOS)
+        # 3. SOCIAIS - TRAVA DE 2 MINUTOS (120s)
         if now - _LAST_SOCIAL_RUN >= 120:
             globals()["is_checking_social"] = True
             if 'check_social' in globals():
                 await check_social(session)
-                globals()["total_social"] += 1
+                stats['total_social'] += 1
+                globals()['total_social'] = stats['total_social']
                 globals()["last_social_check"] = now
                 _LAST_SOCIAL_RUN = now
             globals()["is_checking_social"] = False
         
-        # LÓGICA DE WARMUP
+        # GESTÃO DE WARMUP
         if not _INITIAL_WARMUP_DONE:
             if _WARMUP_STEPS < 2:
                 _WARMUP_STEPS += 1
                 print(f"⚙️ [WARMUP] Passo {_WARMUP_STEPS}/2...")
             else:
                 _INITIAL_WARMUP_DONE = True
-                print("✅ [ENGINE] Monitoramento Ativo!")
+                print(f"✅ [ENGINE] Monitoramento Ativo! Stats: {stats}")
 
-        # ATUALIZAÇÃO DO PAINEL
         if 'update_panel' in globals():
             await update_panel()
 
@@ -1219,11 +1222,10 @@ async def safe_monitor_cycle(session):
 
 async def monitor_loop():
     await bot_discord.wait_until_ready()
-    print("🚀 [MONITOR] Motor Iniciado (TM: 1min | WV/SOC: 2min)")
-    
     async with aiohttp.ClientSession() as session:
         while True:
             await safe_monitor_cycle(session)
+            # Batida principal de 1 minuto
             await asyncio.sleep(60)
 
 async def start_engine():
