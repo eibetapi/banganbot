@@ -1277,7 +1277,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 🎯 Acessos realizados: {tt}
 🎟️ Ingressos rastreados: {ttf}
 
-•°•👾 Wootteo em rota há: {uptime} ✨"""
+•°•👾 Wootteo em rota há: {uptime} ✨
 
 Status: 
 🟢 Verificando agora
