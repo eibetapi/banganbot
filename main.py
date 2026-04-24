@@ -737,56 +737,49 @@ async def instagram_live(url, member_name, title, found):
         await send_alert("instagram_live", msg)
         await update_panel()
 
-# =========================
-# 15 ALERTAS TIKTOK E YOUTUBE (PRODUÇÃO SEGURA)
-# =========================
+# =========================================================
+# 15 ALERTAS TIKTOK, YOUTUBE E TICKETMASTER (PRODUÇÃO ESTÁVEL)
+# =========================================================
 import asyncio
 import hashlib
+import time
 
-# CACHE GLOBAL #
+# CACHE GLOBAL (Persistente durante a sessão)
 LAST_TIKTOK = {}
 LAST_YOUTUBE = {}
+EVENT_CACHE = {"reposicao": {}, "agenda": {}, "revenda": {}}
 
-# 🔒 lock global para evitar concorrência
 SOCIAL_LOCK = asyncio.Lock()
 
 def is_new_social(cache, key):
+    # Se o bot acabou de ligar, o warm-up (Bloco 19) deve impedir o disparo
     if cache.get(key):
         return False
     cache[key] = True
     return True
-    
-# TIKTOK POST #
+
+# --- TIKTOK POST ---
 async def tiktok_post(url, member_name, title, found):
     async with SOCIAL_LOCK:
         key = f"post:{member_name}:{url}"
-        if not is_new_social(LAST_TIKTOK, key):
-            return
+        if not is_new_social(LAST_TIKTOK, key): return
 
-        # FIX: Incremento e persistência
         global total_social, last_social_check
         total_social += 1
         last_social_check = time.time()
         await save_counters()
 
         emoji = get_member_emoji(member_name)
-
-        msg = f"""
-🎵 TIKTOK POST 🎵
-{emoji} {member_name.upper()} publicou um vídeo
-🔗 {url}
-"""
+        msg = f"🎵 **TIKTOK POST** 🎵\n{emoji} **{member_name.upper()}** publicou um vídeo\n🔗 {url}"
+        
         await send_alert("tiktok_post", msg)
         await update_panel()
 
-# TIKTOK LIVE #
+# --- TIKTOK LIVE ---
 async def tiktok_live(url, member_name, title, found):
-
     async with SOCIAL_LOCK:
-
         key = f"live:{member_name}:{url}"
-        if not is_new_social(LAST_TIKTOK, key):
-            return
+        if not is_new_social(LAST_TIKTOK, key): return
 
         global total_social, last_social_check
         total_social += 1
@@ -794,25 +787,16 @@ async def tiktok_live(url, member_name, title, found):
         await save_counters()
 
         emoji = get_member_emoji(member_name)
-
-        msg = f"""
-
-🎥 TIKTOK LIVE 🎥
-{emoji} {member_name.upper()} está ao vivo
-🔗 {url}
-
-"""
+        msg = f"🎥 **TIKTOK LIVE** 🎥\n{emoji} **{member_name.upper()}** está ao vivo!\n🔗 {url}"
+        
         await send_alert("tiktok_live", msg)
         await update_panel()
 
-# YOUTUBE POST #
+# --- YOUTUBE POST ---
 async def youtube_post(url, final_url=None):
-
     async with SOCIAL_LOCK:
-
         key = f"post:{url}"
-        if not is_new_social(LAST_YOUTUBE, key):
-            return
+        if not is_new_social(LAST_YOUTUBE, key): return
 
         global total_social, last_social_check
         total_social += 1
@@ -820,120 +804,63 @@ async def youtube_post(url, final_url=None):
         await save_counters()
 
         link = final_url or "https://www.youtube.com/@BTS"
-
-        msg = f"""
-
-🎞️ YOUTUBE POST 🎞️
-💜 BTS publicou vídeo novo
-🔗 {link}
-
-"""
+        msg = f"🎞️ **YOUTUBE POST** 🎞️\n💜 **BTS** publicou vídeo novo\n🔗 {link}"
+        
         await send_alert("youtube_post", msg)
         await update_panel()
 
-# YOUTUBE LIVE #
-async def youtube_live(url=None):
-
-    async with SOCIAL_LOCK:
-
-        key = "live:youtube"
-        if not is_new_social(LAST_YOUTUBE, key):
-            return
-
-        global total_social, last_social_check
-        total_social += 1
-        last_social_check = time.time()
-        await save_counters()
-
-        live_url = "https://www.youtube.com/@BTS/live"
-
-        msg = f"""
-
-📹 YOUTUBE LIVE 📹
-🚨 BTS está ao vivo agora
-🔗 {live_url}
-
-"""
-        await send_alert("youtube_live", msg)
-        await update_panel()
-
-# 15.1 TICKETMASTER (PRODUÇÃO SEGURA) #
-import hashlib
-EVENT_CACHE = {
-    "reposicao": {},
-    "agenda": {},
-    "revenda": {}
-}
+# =========================================================
+# 15.1 TICKETMASTER (CORREÇÃO DE FALSO POSITIVO)
+# =========================================================
 
 def is_new_event(event_type, key):
-
-    """
-    key = assinatura única do evento (url + data + setor etc)
-    """
-
     new_hash = hashlib.md5(key.encode("utf-8")).hexdigest()
-
     if EVENT_CACHE[event_type].get(key) == new_hash:
         return False
-
     EVENT_CACHE[event_type][key] = new_hash
     return True
 
-# REPOSIÇÃO TICKETMASTER # 
+# --- REPOSIÇÃO TICKETMASTER ---
 async def ticket_reposicao(url, data, setor, categoria):
     global total_tickets, last_ticket_check
-
+    # A chave agora inclui todos os detalhes para evitar alertas duplicados se nada mudou
     key = f"{url}:{data}:{setor}:{categoria}"
+    
+    if not is_new_event("reposicao", key): return
 
-    if not is_new_event("reposicao", key):
-        return
-
-    # FIX: Incremento e persistência
     total_tickets += 1
     last_ticket_check = time.time()
     await save_counters()
 
-    msg = f"""
-
-🔥 ALERTA DE REPOSIÇÃO 🔥
-📅 Data: {data}
-🔗 Link: {url}
-
-🎫 Setor: {setor}
-🏷️ Categoria: {categoria}
-
-"""
+    msg = (
+        f"🔥 **ALERTA DE REPOSIÇÃO** 🔥\n"
+        f"📅 **Data:** {data}\n"
+        f"🎫 **Setor:** {setor}\n"
+        f"🏷️ **Cat:** {categoria}\n"
+        f"🔗 {url}"
+    )
     await send_alert("reposicao", msg)
     await update_panel()
 
-# NOVAS DATAS (AGENDA OFICIAL BTS) #
+# --- NOVAS DATAS (AGENDA) ---
 async def ticket_agenda(url, data, cidade, pais):
     global total_tickets, last_ticket_check
-
     key = f"{url}:{data}:{cidade}:{pais}"
+    
+    if not is_new_event("agenda", key): return
 
-    if not is_new_event("agenda", key):
-        return
-
-    # FIX: Incremento e persistência
     total_tickets += 1
     last_ticket_check = time.time()
     await save_counters()
 
-    msg = f"""
-
-💜 AGENDA - NOVAS DATAS 💜
-📅 Data: {data}
-🏙️ Cidade: {cidade}
-🌎 País: {pais}
-🔗 Link: {url}
-
-ℹ️ Mais informações em breve
-
-"""
+    msg = (
+        f"💜 **AGENDA - NOVAS DATAS** 💜\n"
+        f"📅 **Data:** {data}\n"
+        f"🏙️ **Cidade:** {cidade} | 🌎 **País:** {pais}\n"
+        f"🔗 {url}"
+    )
     await send_alert("agenda", msg)
     await update_panel()
-
 # =================== 
 # 16 TESTE DE SISTEMA
 # ====================
@@ -1125,20 +1052,29 @@ async def fetch_html(session, url):
     except Exception as e:
         print(f"[FETCH ERR] Falha crítica em {url}: {e}")
         return None
-# =====================
-# 18 SISTEMA INTEGRADO: ESTADO, PERSISTÊNCIA E MONITORAMENTO
-# =====================
+        
+# =========================================================
+# 18 SISTEMA INTEGRADO: ESTADO, PERSISTÊNCIA E FAXINA (COMPLETO)
+# =========================================================
+import asyncio
+import time
+import discord
+from datetime import datetime
+
 COUNTER_DATA_FILE = "counters.json"
 PANEL_DATA_FILE = "panel_ids.json"
 
-# Inicialização definitiva das globais
-if "total_weverse" not in globals(): globals()["total_weverse"] = 0
-if "total_social" not in globals(): globals()["total_social"] = 0
-if "total_tickets" not in globals(): globals()["total_tickets"] = 0
-if "total_tickets_found" not in globals(): globals()["total_tickets_found"] = 0
+# --- INICIALIZAÇÃO DE VARIÁVEIS GLOBAIS ---
+for var in ["total_weverse", "total_social", "total_tickets", "total_tickets_found"]:
+    if var not in globals(): globals()[var] = 0
+
+for check in ["last_weverse_check", "last_social_check", "last_ticket_check"]:
+    if check not in globals(): globals()[check] = 0
+
 if "panel_message_id" not in globals(): globals()["panel_message_id"] = None
 if "discord_panel_msg_id" not in globals(): globals()["discord_panel_msg_id"] = None
 
+# --- PERSISTÊNCIA ---
 async def save_counters():
     """Salva contadores e IDs das mensagens de forma persistente"""
     data_counters = {
@@ -1151,84 +1087,75 @@ async def save_counters():
         "last_ticket_check": globals().get("last_ticket_check", 0)
     }
     save_storage(COUNTER_DATA_FILE, data_counters)
-    
-    # Salva os IDs atuais para garantir que na próxima volta ele edite estes
-    data_panel = {
+    save_storage(PANEL_DATA_FILE, {
         "tg_msg_id": globals().get("panel_message_id"),
         "dc_msg_id": globals().get("discord_panel_msg_id")
-    }
-    save_storage(PANEL_DATA_FILE, data_panel)
+    })
 
 async def load_counters():
     """Carrega os dados e resgata os IDs das mensagens do disco"""
     try:
-        # Recupera Contadores
-        c_data = load_storage(COUNTER_DATA_FILE)
+        c_data = load_storage(COUNTER_DATA_FILE, {})
         if c_data:
-            globals()["total_weverse"] = c_data.get("total_weverse", 0)
-            globals()["total_social"] = c_data.get("total_social", 0)
-            globals()["total_tickets"] = c_data.get("total_tickets", 0)
-            globals()["total_tickets_found"] = c_data.get("total_tickets_found", 0)
-            globals()["last_weverse_check"] = c_data.get("last_weverse_check", 0)
-            globals()["last_social_check"] = c_data.get("last_social_check", 0)
-            globals()["last_ticket_check"] = c_data.get("last_ticket_check", 0)
-
-        # Recupera IDs das Mensagens (Crucial para EDITAR em vez de CRIAR)
-        p_data = load_storage(PANEL_DATA_FILE)
+            for k, v in c_data.items(): globals()[k] = v
+        
+        p_data = load_storage(PANEL_DATA_FILE, {})
         if p_data:
             globals()["panel_message_id"] = p_data.get("tg_msg_id")
             globals()["discord_panel_msg_id"] = p_data.get("dc_msg_id")
-            print(f"[MEMÓRIA] IDs Recuperados -> TG: {globals()['panel_message_id']} | DC: {globals()['discord_panel_msg_id']}")
-        else:
-            print("[MEMÓRIA] Nenhum ID de painel encontrado no arquivo.")
     except Exception as e:
-        print(f"[MEMÓRIA ERR] Falha ao carregar IDs: {e}")
+        print(f"[MEMÓRIA ERR] {e}")
 
+# --- LÓGICA DO PAINEL (CORES E DATAS) ---
 def status_color(last_check_time, tipo):
     if globals().get(f"is_checking_{tipo}", False): return "🟢"
     if not last_check_time or last_check_time == 0: return "🔴"
     elapsed = time.time() - last_check_time
-    if elapsed < 600: return "🟣"
-    elif elapsed < 1800: return "🟡"
-    else: return "🔴"
+    if elapsed < 600: return "🟣" # Online e Ativo
+    elif elapsed < 1800: return "🟡" # Lento
+    else: return "🔴" # Offline
 
 def get_countdown_data():
     now_dt = datetime.now()
-    next_global_date, next_global_local = "Continua…", "---"
-    days_to_next_global, days_to_brazil = 0, 0
+    next_show, next_local = "Continua…", "---"
+    d_prox, d_br = 0, 0
     agenda_data = globals().get("AGENDA", [])
+    
     for item in agenda_data:
         try:
             show_dt = datetime.strptime(f"{item[0]} {item[3]}", "%d/%m/%Y %H:%M")
             if show_dt > now_dt:
-                next_global_date, next_global_local = item[0], f"{item[1]}, {item[2]}"
-                days_to_next_global = (show_dt.date() - now_dt.date()).days
+                next_show, next_local = item[0], f"{item[1]}, {item[2]}"
+                d_prox = (show_dt.date() - now_dt.date()).days
                 break
         except: continue
+    
     for item in agenda_data:
         try:
             if "Brasil" in item[2]:
                 br_date = datetime.strptime(item[0], "%d/%m/%Y").date()
                 if br_date >= now_dt.date():
-                    days_to_brazil = (br_date - now_dt.date()).days
+                    d_br = (br_date - now_dt.date()).days
                     break
         except: continue
-    return next_global_date, next_global_local, days_to_next_global, days_to_brazil
+    return next_show, next_local, d_prox, d_br
 
 def gerar_texto_painel(data_show, city, d_prox, d_br):
-    lwc, lsc, ltc = globals().get("last_weverse_check", 0), globals().get("last_social_check", 0), globals().get("last_ticket_check", 0)
+    lwc = globals().get("last_weverse_check", 0)
+    lsc = globals().get("last_social_check", 0)
+    ltc = globals().get("last_ticket_check", 0)
     tw, ts, tt, ttf = globals().get("total_weverse", 0), globals().get("total_social", 0), globals().get("total_tickets", 0), globals().get("total_tickets_found", 0)
-    uptime = get_uptime()
-    return f"""🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
+    uptime = get_uptime() if 'get_uptime' in globals() else "Calculando..."
+
+    return f"""🪭⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜🪭
 
 ✈️ PRÓXIMAS DATAS
-
 🎫 Data: {data_show}
 📍 Local: {city}
 🔔 Faltam {d_prox} dias.
 🩷 Faltam {d_br} dias para o BTS no Brasil!
 
-•°•🌙.•°ATUALIZAÇÕES •°.💫 * . * •°•°🛸
+•°•🌙.•°ATUALIZAÇÕES •°.💫
 
 🟣 Weverse {status_color(lwc, "weverse")}
 🎯 Acessos realizados: {tw}
@@ -1243,12 +1170,13 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 •°•👾 Wootteo em rota há: {uptime} ✨
 
 🛰️ Status: 
-🟢 Verificando agora
-🟣 Online e Ativo
-🟡 Instabilidade/Lento
-🔴 Offline/Erro
+🟢 Verificando
+🟣 Ativo
+🟡 Lento
+🔴 Offline
 """
 
+# --- MOTOR DE ATUALIZAÇÃO COM FAXINA (ENGINE) ---
 panel_lock = asyncio.Lock()
 last_panel_update = 0
 
@@ -1257,144 +1185,43 @@ async def update_panel():
     async with panel_lock:
         try:
             now = time.time()
-            if (now - last_panel_update) < 3: return
+            if (now - last_panel_update) < 5: return 
             last_panel_update = now
+            
             d_show, city, d_prox, d_br = get_countdown_data()
             texto = gerar_texto_painel(d_show, city, d_prox, d_br)
-            
-            # TELEGRAM
-            tg_id = globals().get("panel_message_id")
-            if bot_ticket and PANEL_CHAT_ID:
-                if tg_id:
-                    try: 
-                        await bot_ticket.edit_message_text(chat_id=PANEL_CHAT_ID, message_id=tg_id, text=texto)
-                    except Exception: 
-                        globals()["panel_message_id"] = None
-                
-                if not globals().get("panel_message_id"):
-                    m = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto)
-                    globals()["panel_message_id"] = m.message_id
-                    try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, m.message_id)
-                    except: pass
 
-            # DISCORD
-            dc_id = globals().get("discord_panel_msg_id")
+            # --- DISCORD: FAXINA E UPDATE ---
             if DISCORD_PANEL_CHANNEL_ID:
                 chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
                 if chan:
+                    dc_id = globals().get("discord_panel_msg_id")
                     emb = discord.Embed(description=texto, color=0x8A2BE2)
+                    
+                    # FAXINA: Localiza e deleta painéis antigos que não são o ID oficial
+                    async for message in chan.history(limit=20):
+                        if message.author == bot_discord.user and message.id != dc_id:
+                            if "ARIRANG TOUR" in (message.embeds[0].description if message.embeds else ""):
+                                try: await message.delete()
+                                except: pass
+
+                    # TENTA EDITAR
+                    success_dc = False
                     if dc_id:
                         try:
                             msg = await chan.fetch_message(dc_id)
                             await msg.edit(embed=emb)
-                        except Exception: 
-                            globals()["discord_panel_msg_id"] = None
-                    
-                    if not globals().get("discord_panel_msg_id"):
+                            success_dc = True
+                        except: globals()["discord_panel_msg_id"] = None
+
+                    # SE NÃO EDITOU, CRIA NOVO E FIXA
+                    if not success_dc:
                         m = await chan.send(embed=emb)
                         globals()["discord_panel_msg_id"] = m.id
                         try: await m.pin()
                         except: pass
-            
-            await save_counters()
-        except Exception as e: 
-            print(f"[PANEL ERR] {e}")
 
-@bot_discord.event
-async def on_ready():
-    act = discord.Activity(type=discord.ActivityType.listening, name="🪭 Em tournê - Ouvindo Arirang🪭")
-    await bot_discord.change_presence(status=discord.Status.online, activity=act)
-    try: await bot_discord.tree.sync()
-    except: pass
-    
-    if globals().get("PANEL_BOOT_DONE", False): return
-    print(f"SISTEMA ONLINE: {bot_discord.user}")
-    
-    await load_counters()
-    await update_panel()
-    globals()["PANEL_BOOT_DONE"] = True
-
-# MOTORES DE MONITORAMENTO (CONTADORES E INTERVALO) #
-async def check_ticketmaster(session):
-    try:
-        globals()["is_checking_ticket"] = True
-        # Usa o lock do bloco 19 para sincronizar a bolinha verde
-        if 'locked_update_panel' in globals(): await locked_update_panel()
-        else: await update_panel()
-
-        for url in TICKET_LINKS:
-            await asyncio.sleep(1)
-            html = await fetch_html(session, url)
-            # Incremento INDEPENDENTE de mudança (registra o acesso ao link)
-            globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
-            globals()["last_ticket_check"] = time.time()
-            
-            # Se houver mudança real, o trigger_alert do bloco 19 decide se manda alerta
-            if html and 'trigger_alert' in globals():
-                if is_real_change(f"tm:{url}", html):
-                    await trigger_alert("reposicao", url, f"🎟️ Mudança detectada em: {url}")
-
-        globals()["is_checking_ticket"] = False
-        await save_counters()
-    except Exception as e:
-        print(f"[TM ERR] {e}")
-        globals()["is_checking_ticket"] = False
-
-async def check_weverse(session):
-    try:
-        globals()["is_checking_weverse"] = True
-        if 'locked_update_panel' in globals(): await locked_update_panel()
-        else: await update_panel()
-
-        for url in WEVERSE_LINKS:
-            html = await fetch_html(session, url)
-            globals()["total_weverse"] = globals().get("total_weverse", 0) + 1
-            globals()["last_weverse_check"] = time.time()
-
-            if html and 'trigger_alert' in globals():
-                if is_real_change(f"wv:{url}", html):
-                    await trigger_alert("weverse_post", url, f"🩷 Nova atualização Weverse: {url}")
-
-        globals()["is_checking_weverse"] = False
-        await save_counters()
-    except:
-        globals()["is_checking_weverse"] = False
-
-async def check_social(session):
-    try:
-        globals()["is_checking_social"] = True
-        if 'locked_update_panel' in globals(): await locked_update_panel()
-        else: await update_panel()
-
-        all_links = list(INSTAGRAM_LINKS.values()) + YOUTUBE_LINKS
-        for url in all_links:
-            html = await fetch_html(session, url)
-            globals()["total_social"] = globals().get("total_social", 0) + 1
-            globals()["last_social_check"] = time.time()
-
-            if html and 'trigger_alert' in globals():
-                if is_real_change(f"soc:{url}", html):
-                    await trigger_alert("social", url, f"📱 Atividade social: {url}")
-
-        globals()["is_checking_social"] = False
-        await save_counters()
-    except:
-        globals()["is_checking_social"] = False
-
-# ENGINE: AUTO-RECUPERAÇÃO (REPOST & CLEANUP) #
-async def update_panel():
-    """Atualiza o painel existente ou recria do zero se houver erro"""
-    global last_panel_update
-    async with panel_lock:
-        try:
-            now = time.time()
-            if (now - last_panel_update) < 10: return 
-            last_panel_update = now
-            
-            d_show, city, d_prox, d_br = get_countdown_data()
-            texto = gerar_texto_painel(d_show, city, d_prox, d_br)
-            
-            # FLUXO TELEGRAM 
+            # --- TELEGRAM: FAXINA E UPDATE ---
             if bot_ticket and PANEL_CHAT_ID:
                 tg_id = globals().get("panel_message_id")
                 success_tg = False
@@ -1403,8 +1230,7 @@ async def update_panel():
                     try:
                         await bot_ticket.edit_message_text(chat_id=PANEL_CHAT_ID, message_id=tg_id, text=texto)
                         success_tg = True
-                    except Exception:
-                        # Falhou? O ID é inválido. Tentamos deletar por segurança e resetamos.
+                    except:
                         try: await bot_ticket.delete_message(chat_id=PANEL_CHAT_ID, message_id=tg_id)
                         except: pass
                         globals()["panel_message_id"] = None
@@ -1414,35 +1240,21 @@ async def update_panel():
                     globals()["panel_message_id"] = m.message_id
                     try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, m.message_id)
                     except: pass
-
-            # FLUXO DISCORD
-            if DISCORD_PANEL_CHANNEL_ID:
-                chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
-                if chan:
-                    dc_id = globals().get("discord_panel_msg_id")
-                    emb = discord.Embed(description=texto, color=0x8A2BE2)
-                    success_dc = False
-                    
-                    if dc_id:
-                        try:
-                            msg = await chan.fetch_message(dc_id)
-                            await msg.edit(embed=emb)
-                            success_dc = True
-                        except Exception:
-                            # ID órfão detectado. Resetamos para postar um novo.
-                            globals()["discord_panel_msg_id"] = None
-
-                    if not success_dc:
-                        m = await chan.send(embed=emb)
-                        globals()["discord_panel_msg_id"] = m.id
-                        try: await m.pin()
-                        except: pass
             
-            # Persistência imediata dos novos IDs
             await save_counters()
-            
-        except Exception as e: 
-            print(f"[ENGINE 18.1 ERR] {e}")
+        except Exception as e:
+            print(f"[PANEL ENGINE ERR] {e}")
+
+# --- EVENTOS DE STARTUP ---
+@bot_discord.event
+async def on_ready():
+    act = discord.Activity(type=discord.ActivityType.listening, name="🪭 Arirang Tour")
+    await bot_discord.change_presence(status=discord.Status.online, activity=act)
+    if globals().get("PANEL_BOOT_DONE", False): return
+    print(f"BOT ONLINE: {bot_discord.user}")
+    await load_counters()
+    await update_panel()
+    globals()["PANEL_BOOT_DONE"] = True
  
 # =========================================================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
@@ -1452,40 +1264,34 @@ import time
 import hashlib
 from bs4 import BeautifulSoup
 
-# GLOBAL LOCKS (UNIFICADOS)
+# GLOBAL LOCKS
 MONITOR_LOCK = asyncio.Lock()
 GLOBAL_LOCK = asyncio.Lock()
 THROTTLE_LOCK = asyncio.Lock()
 
-# CACHE SYSTEM (UNIFICADO)
+# CACHE SYSTEM
 CONTENT_CACHE = {}
 ALERT_CACHE = {}
 LAST_REQUEST_TIME = {}
-_INITIAL_WARMUP_DONE = False  # Proteção vital contra alertas retroativos
-_LAST_SOCIAL_RUN = 0          # Controle do ciclo de 2 min das redes sociais
+_INITIAL_WARMUP_DONE = False 
+_LAST_SOCIAL_RUN = 0         
+_WARMUP_STEPS = 0  # <--- NOVA VARIÁVEL DE CONTROLE
 
-# SINGLE INSTANCE CONTROL
-_ENGINE_STARTED = False
-_PANEL_STARTED = False
-
-# PRIORIDADE DE ALERTAS 
+# PRIORIDADE DE ALERTAS (Não altere os níveis)
 PRIORITY = {
     "ticket": 3, "reposicao": 3, "weverse_live": 3, "youtube_live": 3,
     "agenda": 2, "weverse_post": 2, "youtube_post": 2,
     "instagram_post": 1, "instagram_reels": 1, "tiktok_post": 1, "social": 1
 }
 
-# DETECÇÃO INTELIGENTE DE MUDANÇA
+# --- FUNÇÕES DE APOIO (Mantenha como estão) ---
 def extract_core_signatures(html):
-    """Extrai a estrutura essencial do HTML para evitar falsos positivos"""
     soup = BeautifulSoup(html or "", "html.parser")
     text = soup.get_text(" ", strip=True)
     links = sorted(set(a.get("href") for a in soup.find_all("a") if a.get("href")))
-    images = sorted(set(img.get("src") for img in soup.find_all("img") if img.get("src")))
-    return {"text": text[:1500], "links": links[:60], "images": images[:60]}
+    return {"text": text[:1500], "links": links[:60]}
 
 def is_real_change(key, content):
-    """Valida se houve mudança real comparando o hash do conteúdo"""
     signature = extract_core_signatures(content)
     new_hash = hashlib.md5(str(signature).encode("utf-8")).hexdigest()
     old = CONTENT_CACHE.get(key)
@@ -1493,138 +1299,81 @@ def is_real_change(key, content):
     CONTENT_CACHE[key] = new_hash
     return True
 
-# BLOQUEIO DE ALERTA DUPLICADO
 def is_duplicate_alert(alert_type, message):
-    """Evita o envio da mesma mensagem em sequência"""
     raw = f"{alert_type}:{message}"
     h = hashlib.md5(raw.encode("utf-8")).hexdigest()
     if ALERT_CACHE.get(alert_type) == h: return True
     ALERT_CACHE[alert_type] = h
     return False
 
-# THROTTLE SEGURO
-async def throttle(key, delay=2):
-    """Controla o fluxo de requisições para evitar bans"""
-    async with THROTTLE_LOCK:
-        now = time.time()
-        last = LAST_REQUEST_TIME.get(key, 0)
-        if now - last < delay:
-            await asyncio.sleep(delay - (now - last))
-        LAST_REQUEST_TIME[key] = time.time()
-
-# PANEL SYNC (ESTABILIDADE TOTAL)
-_PANEL_SYNC_LOCK = asyncio.Lock()
-_last_panel_sync = 0
-
-async def locked_update_panel():
-    """Sincroniza o painel respeitando o bloqueio de edição de 30s"""
-    global _last_panel_sync
-    async with _PANEL_SYNC_LOCK:
-        now = time.time()
-        if now - _last_panel_sync < 30: return
-        _last_panel_sync = now
-        await update_panel()  # Chama o motor (Repost/Cleanup)
-
-# ALERT ROUTER (PRESERVAÇÃO DE LAYOUT)
+# --- MONITOR SEGURO COM TRAVA DE RETROATIVO ---
 async def priority_send(alert_type, message, key=None):
     global _INITIAL_WARMUP_DONE
     
-    # [WARMUP] Silencia o bot durante o boot para não puxar lixo antigo
-    if not _INITIAL_WARMUP_DONE: return
+    # BLOQUEIO CRÍTICO: Se não terminou o aquecimento, mata o envio aqui.
+    if not _INITIAL_WARMUP_DONE: 
+        return
 
     level = PRIORITY.get(alert_type, 1)
     if is_duplicate_alert(alert_type, message): return
     if key and not is_real_change(key, message): return
 
-    # Dispara usando SEU layout original (Bloco 15)
     try:
         if level == 3:
-            await send_alert(alert_type, message)
-            await locked_update_panel()
-        elif level == 2:
-            await asyncio.sleep(0.8)
             await send_alert(alert_type, message)
             await locked_update_panel()
         else:
             await asyncio.sleep(1.5)
             await send_alert(alert_type, message)
     except Exception as e:
-        print(f"[ALERT ERR] Erro no router: {e}")
+        print(f"[ALERT ERR] {e}")
 
-async def trigger_alert(alert_type, url, message):
-    key = f"{alert_type}:{url}"
-    await priority_send(alert_type, message, key=key)
-
-# MONITOR SEGURO (COM ESCALONAMENTO 1MIN/2MIN)
 async def safe_monitor_cycle(session):
-    global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN
+    global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _WARMUP_STEPS
     now = time.time()
     try:
-        # --- CICLO 1 MINUTO: Ticket e Weverse ---
+        # 1. Ticketmaster e Weverse (Toda volta - 1 min)
         await throttle("ticket", 3)
         await check_ticketmaster(session)
         
         await throttle("weverse", 2)
         await check_weverse(session)
 
-        # --- CICLO 2 MINUTOS: Redes Sociais ---
+        # 2. Redes Sociais (A cada 2 voltas - 2 min)
         if now - _LAST_SOCIAL_RUN >= 120:
-            await throttle("social", 8) # Delay alto anti-block
+            await throttle("social", 10) 
             await check_social(session)
             _LAST_SOCIAL_RUN = now
         
-        # Após a primeira volta completa (incluindo social), libera os alertas reais
-        if not _INITIAL_WARMUP_DONE and _LAST_SOCIAL_RUN > 0:
-            _INITIAL_WARMUP_DONE = True
-            print("[ENGINE] Warm-up concluído. Monitoramento liberado.")
+        # 3. LÓGICA DE ESCALONAMENTO DO WARMUP
+        if not _INITIAL_WARMUP_DONE:
+            if _WARMUP_STEPS < 2: # Espera 2 ciclos completos de redes sociais
+                _WARMUP_STEPS += 1
+                print(f"[WARMUP] Passo {_WARMUP_STEPS}/2: Mapeando conteúdo em silêncio...")
+            else:
+                _INITIAL_WARMUP_DONE = True
+                print("✅ [ENGINE] Sistema Blindado. Alertas liberados sem retroativos!")
 
         await locked_update_panel()
     except Exception as e:
         print(f"[MONITOR ERROR] {e}")
 
-# MONITOR LOOP
+# --- RESTANTE DO MOTOR (Mantenha igual) ---
 async def monitor_loop():
     global _ENGINE_STARTED
     await bot_discord.wait_until_ready()
     if _ENGINE_STARTED: return
     _ENGINE_STARTED = True
-    print("[MONITOR] MOTOR UNIFICADO INICIADO - CICLO BASE 60S")
-
     async with aiohttp.ClientSession() as session:
         while True:
             await safe_monitor_cycle(session)
-            # Espera 1 minuto antes da próxima volta
             await asyncio.sleep(60)
 
-# WATCHDOG (VIGIA DO PAINEL)
-async def watchdog():
-    await bot_discord.wait_until_ready()
-    print("[WATCHDOG] Ativo")
-    while True:
-        await asyncio.sleep(60)
-        if not globals().get("panel_message_id") or not globals().get("discord_panel_msg_id"):
-            await update_panel()
-
-# START ENGINE
 async def start_engine():
     if globals().get("_ENGINE_TASKS_STARTED", False): return
     globals()["_ENGINE_TASKS_STARTED"] = True
-    
-    tasks = [
-        asyncio.create_task(monitor_loop()),
-        asyncio.create_task(watchdog())
-    ]
+    tasks = [asyncio.create_task(monitor_loop()), asyncio.create_task(watchdog())]
     await asyncio.gather(*tasks, return_exceptions=True)
-
-# SAFE BOOT
-async def safe_boot():
-    async with GLOBAL_LOCK:
-        print("[BOOT] Sincronizando Memória e Painel...")
-        await load_counters()
-        await update_panel() 
-        await asyncio.sleep(2)
-        print("[BOOT] Pronto para operação.")
-        
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE / SINGLE INSTANCE)
 # =========================
