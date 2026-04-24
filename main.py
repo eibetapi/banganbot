@@ -985,9 +985,9 @@ async def ticket_agenda(url, data, cidade, pais):
     await send_alert("agenda", msg)
     await update_panel()
 
-# =========================================================
+# ===========================================
 # 16 SISTEMA DE TESTE (DIRETO E CONSOLIDADO)
-# =========================================================
+# ===========================================
 
 import os
 import asyncio
@@ -1031,16 +1031,17 @@ async def run_full_test_discord(interaction: discord.Interaction):
     except Exception as e:
         print(f"[TEST ERR] Erro ao responder no canal: {e}")
 
-# =========================================================
+# ===================================
 # EXEMPLO DE CHAMADA NO COMANDO SLASH
-# =========================================================
-# @bot_discord.tree.command(name="teste", description="Valida o funcionamento do bot")
-# async def teste(interaction: discord.Interaction):
-#     await run_full_test_discord(interaction)
+# ====================================
 
-# =========================================================
+ @bot_discord.tree.command(name="teste", description="Valida o funcionamento do bot")
+# async def teste(interaction: discord.Interaction):
+     await run_full_test_discord(interaction)
+ 
+# ==========================================
 # 17 COMMAND ENGINE FRAMEWORK - FINAL (COM FORÇA BRUTA)
-# =========================================================
+# ==========================================
 
 COMMANDS = {}
 
