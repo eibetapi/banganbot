@@ -733,9 +733,7 @@ def is_new_social(cache, key):
     
 # TIKTOK POST #
 async def tiktok_post(url, member_name, title, found):
-
     async with SOCIAL_LOCK:
-
         key = f"post:{member_name}:{url}"
         if not is_new_social(LAST_TIKTOK, key):
             return
@@ -749,13 +747,11 @@ async def tiktok_post(url, member_name, title, found):
         emoji = get_member_emoji(member_name)
 
         msg = f"""
-
 🎵 TIKTOK POST 🎵
 {emoji} {member_name.upper()} publicou um vídeo
 🔗 {url}
-
 """
-       await send_alert("tiktok_post", msg)
+        await send_alert("tiktok_post", msg)
         await update_panel()
 
 # TIKTOK LIVE #
