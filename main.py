@@ -1410,17 +1410,22 @@ async def slash_teste(i: discord.Interaction): await executar_discord("teste", i
 @bot_discord.tree.command(name="comandos")
 async def slash_comandos(i: discord.Interaction): await executar_discord("comandos", i)
 
-# =========================
-# 18 APOIO: PERSISTÊNCIA, CORES E ESTADO
-# =========================
+# =========================================================
+# 18 SISTEMA INTEGRADO: ESTADO, PERSISTÊNCIA E MONITORAMENTO
+# =========================================================
 
-# Inicialização segura das globais
+# Configurações de Arquivos e Inicialização
+COUNTER_DATA_FILE = "counters.json"
+PANEL_DATA_FILE = "panel_ids.json"
+
 for var in ["total_weverse", "total_social", "total_tickets", "total_tickets_found"]:
     if var not in globals():
         globals()[var] = 0
 
+# --- PERSISTÊNCIA DE DADOS ---
+
 async def save_counters():
-    """Salva todos os contadores para não zerar no restart do Railway"""
+    """Salva contadores no disco para evitar perda no Railway"""
     data = {
         "total_weverse": globals().get("total_weverse", 0),
         "total_social": globals().get("total_social", 0),
@@ -1430,27 +1435,25 @@ async def save_counters():
         "last_social_check": globals().get("last_social_check", 0),
         "last_ticket_check": globals().get("last_ticket_check", 0)
     }
-    # Ajustado para usar a sua função de salvar padrão
     save_storage(COUNTER_DATA_FILE, data)
 
 async def load_counters():
-    """Carrega os dados salvos ao iniciar o bot"""
-    # Corrigido de 'carregar_storage' para 'load_storage' ou o nome que você usa no seu Bloco 1
-    # Se o seu comando for 'load_json' ou similar, ajuste aqui:
+    """Carrega os dados salvos no boot"""
     try:
-        data = load_storage(COUNTER_DATA_FILE) 
-    except NameError:
-        # Fallback caso sua função tenha outro nome comum
-        data = carregar_json(COUNTER_DATA_FILE) if 'carregar_json' in globals() else None
+        data = load_storage(COUNTER_DATA_FILE)
+        if data:
+            globals()["total_weverse"] = data.get("total_weverse", 0)
+            globals()["total_social"] = data.get("total_social", 0)
+            globals()["total_tickets"] = data.get("total_tickets", 0)
+            globals()["total_tickets_found"] = data.get("total_tickets_found", 0)
+            globals()["last_weverse_check"] = data.get("last_weverse_check", 0)
+            globals()["last_social_check"] = data.get("last_social_check", 0)
+            globals()["last_ticket_check"] = data.get("last_ticket_check", 0)
+            print(f"[RECOVERY] Dados carregados. Tickets Encontrados: {globals()['total_tickets_found']}")
+    except:
+        print("[RECOVERY] Iniciando novos contadores.")
 
-    if data:
-        globals()["total_weverse"] = data.get("total_weverse", 0)
-        globals()["total_social"] = data.get("total_social", 0)
-        globals()["total_tickets"] = data.get("total_tickets", 0)
-        globals()["total_tickets_found"] = data.get("total_tickets_found", 0)
-        globals()["last_weverse_check"] = data.get("last_weverse_check", 0)
-        globals()["last_social_check"] = data.get("last_social_check", 0)
-        globals()["last_ticket_check"] = data.get("last_ticket_check", 0)
+# --- APOIO VISUAL E CÁLCULOS ---
 
 def status_color(last_check_time, tipo):
     if globals().get(f"is_checking_{tipo}", False):
@@ -1486,9 +1489,8 @@ def get_countdown_data():
         except: continue
     return next_global_date, next_global_local, days_to_next_global, days_to_brazil
 
-# =========================
-# 18.1 GERAÇÃO DE TEXTO (STATUS ATUALIZADO)
-# =========================
+# --- GERAÇÃO E ATUALIZAÇÃO DO PAINEL ---
+
 def gerar_texto_painel(data_show, city, d_prox, d_br):
     lwc = globals().get("last_weverse_check", 0)
     lsc = globals().get("last_social_check", 0)
@@ -1522,9 +1524,6 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 
 •°•👾 Wootteo em rota há: {uptime} ✨"""
 
-# =========================
-# 18.2 SINCRONIZAÇÃO E EVENTO ON_READY
-# =========================
 panel_lock = asyncio.Lock()
 last_panel_update = 0
 
@@ -1576,53 +1575,52 @@ async def on_ready():
     await bot_discord.change_presence(status=discord.Status.online, activity=act)
     try:
         await bot_discord.tree.sync()
-        print(f"[SYNC] Comandos atualizados")
+        print("[SYNC] Slash commands sincronizados")
     except Exception as e: print(f"[SYNC ERROR] {e}")
-
     if globals().get("PANEL_BOOT_DONE", False): return
     print(f"DISCORD CONECTADO: {bot_discord.user}")
-
     try:
-        await load_counters() 
+        await load_counters()
         await ensure_single_panel()
         await update_panel()
         globals()["PANEL_BOOT_DONE"] = True
     except Exception as e: print(f"[INIT ERROR] {e}")
 
-# =========================
-# 18.3 MONITORAMENTO (CHECKERS)
-# =========================
+# --- MOTORES DE MONITORAMENTO (1 MINUTO DE INTERVALO) ---
+
 async def check_ticketmaster(session):
     try:
         globals()["is_checking_ticket"] = True
         await update_panel()
         for url in TICKET_LINKS:
-            await throttle("ticket_" + url, 1)
+            await asyncio.sleep(1)
             html = await fetch_html(session, url)
-            if not html: continue
-            
-            globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
-            globals()["last_ticket_check"] = time.time()
-            
-            await save_counters()
+            if html:
+                globals()["total_tickets"] += 1
+                globals()["last_ticket_check"] = time.time()
+                await save_counters()
         globals()["is_checking_ticket"] = False
         await update_panel()
-    except: globals()["is_checking_ticket"] = False
+        await asyncio.sleep(60)
+    except:
+        globals()["is_checking_ticket"] = False
+        await asyncio.sleep(10)
 
 async def check_weverse(session):
     try:
         globals()["is_checking_weverse"] = True
         await update_panel()
         for url in WEVERSE_LINKS:
-            await throttle("weverse_" + url, 1)
             html = await fetch_html(session, url)
-            if not html: continue
-            globals()["total_weverse"] = globals().get("total_weverse", 0) + 1
-            globals()["last_weverse_check"] = time.time()
-            await save_counters()
+            if html:
+                globals()["total_weverse"] += 1
+                globals()["last_weverse_check"] = time.time()
+                await save_counters()
         globals()["is_checking_weverse"] = False
         await update_panel()
-    except: globals()["is_checking_weverse"] = False
+        await asyncio.sleep(60)
+    except:
+        globals()["is_checking_weverse"] = False
 
 async def check_social(session):
     try:
@@ -1630,15 +1628,16 @@ async def check_social(session):
         await update_panel()
         all_links = list(INSTAGRAM_LINKS.values()) + YOUTUBE_LINKS
         for url in all_links:
-            await throttle("social_" + url, 3)
             html = await fetch_html(session, url)
             if html:
-                globals()["total_social"] = globals().get("total_social", 0) + 1
+                globals()["total_social"] += 1
                 globals()["last_social_check"] = time.time()
                 await save_counters()
         globals()["is_checking_social"] = False
         await update_panel()
-    except: globals()["is_checking_social"] = False        
+        await asyncio.sleep(60)
+    except:
+        globals()["is_checking_social"] = False      
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
 # =========================
