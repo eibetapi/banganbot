@@ -1191,21 +1191,18 @@ async def update_panel():
             d_show, city, d_prox, d_br = get_countdown_data()
             texto = gerar_texto_painel(d_show, city, d_prox, d_br)
 
-            # --- DISCORD: FAXINA E UPDATE ---
             if DISCORD_PANEL_CHANNEL_ID:
                 chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
                 if chan:
                     dc_id = globals().get("discord_panel_msg_id")
                     emb = discord.Embed(description=texto, color=0x8A2BE2)
                     
-                    # FAXINA: Localiza e deleta painéis antigos que não são o ID oficial
                     async for message in chan.history(limit=20):
                         if message.author == bot_discord.user and message.id != dc_id:
                             if "ARIRANG TOUR" in (message.embeds[0].description if message.embeds else ""):
                                 try: await message.delete()
                                 except: pass
 
-                    # TENTA EDITAR
                     success_dc = False
                     if dc_id:
                         try:
@@ -1214,14 +1211,12 @@ async def update_panel():
                             success_dc = True
                         except: globals()["discord_panel_msg_id"] = None
 
-                    # SE NÃO EDITOU, CRIA NOVO E FIXA
                     if not success_dc:
                         m = await chan.send(embed=emb)
                         globals()["discord_panel_msg_id"] = m.id
                         try: await m.pin()
                         except: pass
 
-            # --- TELEGRAM: FAXINA E UPDATE ---
             if bot_ticket and PANEL_CHAT_ID:
                 tg_id = globals().get("panel_message_id")
                 success_tg = False
@@ -1248,8 +1243,10 @@ async def update_panel():
 # --- EVENTOS DE STARTUP ---
 @bot_discord.event
 async def on_ready():
-    act = discord.Activity(type=discord.ActivityType.listening, name="🪭 Arirang Tour")
+    # Presença restaurada exatamente como solicitado
+    act = discord.Activity(type=discord.ActivityType.listening, name="🪭Em tournê - Ouvindo: Arirang")
     await bot_discord.change_presence(status=discord.Status.online, activity=act)
+    
     if globals().get("PANEL_BOOT_DONE", False): return
     print(f"BOT ONLINE: {bot_discord.user}")
     await load_counters()
@@ -1262,12 +1259,14 @@ async def on_ready():
 import asyncio
 import time
 import hashlib
+import aiohttp
 from bs4 import BeautifulSoup
 
 # GLOBAL LOCKS
 MONITOR_LOCK = asyncio.Lock()
 GLOBAL_LOCK = asyncio.Lock()
 THROTTLE_LOCK = asyncio.Lock()
+_PANEL_SYNC_LOCK = asyncio.Lock()
 
 # CACHE SYSTEM
 CONTENT_CACHE = {}
@@ -1277,8 +1276,8 @@ _INITIAL_WARMUP_DONE = False
 _LAST_SOCIAL_RUN = 0          
 _WARMUP_STEPS = 0  
 _ENGINE_STARTED = False
-_PANEL_STARTED = False
 _ENGINE_TASKS_STARTED = False
+_last_panel_sync = 0
 
 # PRIORIDADE DE ALERTAS 
 PRIORITY = {
@@ -1286,7 +1285,8 @@ PRIORITY = {
     "agenda": 2, "weverse_post": 2, "youtube_post": 2,
     "instagram_post": 1, "instagram_reels": 1, "tiktok_post": 1, "social": 1
 }
-# --- FUNÇÕES DE APOIO (Mantenha como estão) ---
+
+# --- FUNÇÕES DE APOIO ---
 def extract_core_signatures(html):
     soup = BeautifulSoup(html or "", "html.parser")
     text = soup.get_text(" ", strip=True)
@@ -1308,64 +1308,92 @@ def is_duplicate_alert(alert_type, message):
     ALERT_CACHE[alert_type] = h
     return False
 
-# --- MONITOR SEGURO COM TRAVA DE RETROATIVO ---
+async def throttle(key, delay=2):
+    async with THROTTLE_LOCK:
+        now = time.time()
+        last = LAST_REQUEST_TIME.get(key, 0)
+        if now - last < delay:
+            await asyncio.sleep(delay - (now - last))
+        LAST_REQUEST_TIME[key] = time.time()
+
+# --- GERENCIAMENTO DE PAINEL ---
+async def locked_update_panel():
+    """Sincroniza o painel respeitando o bloqueio de edição de 10s"""
+    global _last_panel_sync
+    async with _PANEL_SYNC_LOCK:
+        now = time.time()
+        if now - _last_panel_sync < 10: return
+        _last_panel_sync = now
+        if 'update_panel' in globals():
+            await update_panel()
+
+async def trigger_alert(alert_type, url, message):
+    key = f"{alert_type}:{url}"
+    await priority_send(alert_type, message, key=key)
+
+# --- ROUTER DE ALERTAS (TRAVA DE RETROATIVO) ---
 async def priority_send(alert_type, message, key=None):
     global _INITIAL_WARMUP_DONE
-    
-    # BLOQUEIO CRÍTICO: Se não terminou o aquecimento, mata o envio aqui.
-    if not _INITIAL_WARMUP_DONE: 
-        return
+    if not _INITIAL_WARMUP_DONE: return
 
     level = PRIORITY.get(alert_type, 1)
     if is_duplicate_alert(alert_type, message): return
-    if key and not is_real_change(key, message): return
 
     try:
         if level == 3:
             await send_alert(alert_type, message)
             await locked_update_panel()
         else:
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(1.2)
             await send_alert(alert_type, message)
     except Exception as e:
         print(f"[ALERT ERR] {e}")
 
+# --- MONITOR CYCLE ---
 async def safe_monitor_cycle(session):
     global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _WARMUP_STEPS
     now = time.time()
     try:
-        # 1. Ticketmaster e Weverse (Toda volta - 1 min)
+        # 1. Críticos (1 min)
         await throttle("ticket", 3)
         await check_ticketmaster(session)
-        
         await throttle("weverse", 2)
         await check_weverse(session)
 
-        # 2. Redes Sociais (A cada 2 voltas - 2 min)
+        # 2. Sociais (2 min)
         if now - _LAST_SOCIAL_RUN >= 120:
             await throttle("social", 10) 
             await check_social(session)
             _LAST_SOCIAL_RUN = now
         
-        # 3. LÓGICA DE ESCALONAMENTO DO WARMUP
+        # 3. Warmup Logic
         if not _INITIAL_WARMUP_DONE:
-            if _WARMUP_STEPS < 2: # Espera 2 ciclos completos de redes sociais
+            if _WARMUP_STEPS < 2:
                 _WARMUP_STEPS += 1
-                print(f"[WARMUP] Passo {_WARMUP_STEPS}/2: Mapeando conteúdo em silêncio...")
+                print(f"[WARMUP] Passo {_WARMUP_STEPS}/2: Mapeando em silêncio...")
             else:
                 _INITIAL_WARMUP_DONE = True
-                print("✅ [ENGINE] Sistema Blindado. Alertas liberados sem retroativos!")
+                print("✅ [ENGINE] Sistema Blindado. Alertas liberados!")
 
         await locked_update_panel()
     except Exception as e:
         print(f"[MONITOR ERROR] {e}")
 
-# --- RESTANTE DO MOTOR (Mantenha igual) ---
+# --- MOTORES E VIGIA ---
+async def watchdog():
+    """Garante que o painel exista no canal"""
+    await bot_discord.wait_until_ready()
+    while True:
+        await asyncio.sleep(60)
+        if not globals().get("discord_panel_msg_id"):
+            await locked_update_panel()
+
 async def monitor_loop():
     global _ENGINE_STARTED
     await bot_discord.wait_until_ready()
     if _ENGINE_STARTED: return
     _ENGINE_STARTED = True
+    print("[MONITOR] Motor Unificado Iniciado.")
     async with aiohttp.ClientSession() as session:
         while True:
             await safe_monitor_cycle(session)
@@ -1374,7 +1402,10 @@ async def monitor_loop():
 async def start_engine():
     if globals().get("_ENGINE_TASKS_STARTED", False): return
     globals()["_ENGINE_TASKS_STARTED"] = True
-    tasks = [asyncio.create_task(monitor_loop()), asyncio.create_task(watchdog())]
+    tasks = [
+        asyncio.create_task(monitor_loop()),
+        asyncio.create_task(watchdog())
+    ]
     await asyncio.gather(*tasks, return_exceptions=True)
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE / SINGLE INSTANCE)
