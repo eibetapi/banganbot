@@ -1460,6 +1460,10 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
     tw = globals().get("total_weverse", 0)
     ts = globals().get("total_social", 0)
     tt = globals().get("total_tickets", 0)
+    
+    # Novo contador de ingressos rastreados (Datas 28, 30, 31/10)
+    ttf = globals().get("total_tickets_found", 0)
+    
     uptime = get_uptime()
 
     return f"""🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
@@ -1481,6 +1485,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
 
 💷 Ticketmaster {status_color(ltc, "ticket")}
 🎯 Acessos realizados: {tt}
+🎟️ Ingressos rastreados: {ttf}
 
 •°•👾 Wootteo em rota há: {uptime} ✨"""
 
@@ -1565,8 +1570,15 @@ async def check_ticketmaster(session):
             await throttle("ticket_" + url, 1)
             html = await fetch_html(session, url)
             if not html: continue
+            
+            # Incrementar acessos totais
             globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
             globals()["last_ticket_check"] = time.time()
+            
+            # Lógica para incremento de ingressos rastreados (Exemplo de gatilho)
+            # Se encontrar padrão de disponibilidade para as datas alvo:
+            # globals()["total_tickets_found"] = globals().get("total_tickets_found", 0) + 1
+            
             await save_counters()
         globals()["is_checking_ticket"] = False
         await update_panel()
@@ -1602,7 +1614,6 @@ async def check_social(session):
         globals()["is_checking_social"] = False
         await update_panel()
     except: globals()["is_checking_social"] = False
-
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
 # =========================
