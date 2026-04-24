@@ -1411,19 +1411,47 @@ async def slash_teste(i: discord.Interaction): await executar_discord("teste", i
 async def slash_comandos(i: discord.Interaction): await executar_discord("comandos", i)
 
 # =========================
-# 18 APOIO: CORES DINÂMICAS (PULSO VERDE)
+# 18 APOIO: PERSISTÊNCIA, CORES E ESTADO
 # =========================
+
+# Inicialização segura das globais
+for var in ["total_weverse", "total_social", "total_tickets", "total_tickets_found"]:
+    if var not in globals():
+        globals()[var] = 0
+
+async def save_counters():
+    """Salva todos os contadores para não zerar no restart do Railway"""
+    data = {
+        "total_weverse": globals().get("total_weverse", 0),
+        "total_social": globals().get("total_social", 0),
+        "total_tickets": globals().get("total_tickets", 0),
+        "total_tickets_found": globals().get("total_tickets_found", 0),
+        "last_weverse_check": globals().get("last_weverse_check", 0),
+        "last_social_check": globals().get("last_social_check", 0),
+        "last_ticket_check": globals().get("last_ticket_check", 0)
+    }
+    save_storage(COUNTER_DATA_FILE, data)
+
+async def load_counters():
+    """Carrega os dados salvos ao iniciar o bot"""
+    data = carregar_storage(COUNTER_DATA_FILE)
+    if data:
+        globals()["total_weverse"] = data.get("total_weverse", 0)
+        globals()["total_social"] = data.get("total_social", 0)
+        globals()["total_tickets"] = data.get("total_tickets", 0)
+        globals()["total_tickets_found"] = data.get("total_tickets_found", 0)
+        globals()["last_weverse_check"] = data.get("last_weverse_check", 0)
+        globals()["last_social_check"] = data.get("last_social_check", 0)
+        globals()["last_ticket_check"] = data.get("last_ticket_check", 0)
+
 def status_color(last_check_time, tipo):
-    # Se estiver a verificar agora, mostra VERDE (Efeito de piscar/atividade)
     if globals().get(f"is_checking_{tipo}", False):
         return "🟢"
-    
     if not last_check_time or last_check_time == 0:
         return "🔴"
-        
     elapsed = time.time() - last_check_time
-    if elapsed < 600: return "🟣" # Online e Ativo
-    elif elapsed < 1800: return "🟡" # Em espera
+    if elapsed < 600: return "🟣"
+    elif elapsed < 1800: return "🟡"
     else: return "🔴"
 
 def get_countdown_data():
@@ -1460,10 +1488,7 @@ def gerar_texto_painel(data_show, city, d_prox, d_br):
     tw = globals().get("total_weverse", 0)
     ts = globals().get("total_social", 0)
     tt = globals().get("total_tickets", 0)
-    
-    # Novo contador de ingressos rastreados (Datas 28, 30, 31/10)
     ttf = globals().get("total_tickets_found", 0)
-    
     uptime = get_uptime()
 
     return f"""🪭 ⊙⊝⊜ ARIRANG TOUR ⊙⊝⊜ 🪭
@@ -1500,7 +1525,7 @@ async def update_panel():
     async with panel_lock:
         try:
             now = time.time()
-            if (now - last_panel_update) < 3: return # Reduzi para 3s para o pulso ser mais rápido
+            if (now - last_panel_update) < 3: return
             last_panel_update = now
             d_show, city, d_prox, d_br = get_countdown_data()
             texto = gerar_texto_painel(d_show, city, d_prox, d_br)
@@ -1539,28 +1564,25 @@ async def update_panel():
 
 @bot_discord.event
 async def on_ready():
-    # 1. FORÇAR FRASE DE STATUS (Sempre)
     act = discord.Activity(type=discord.ActivityType.listening, name="🪭 Em tournê - Ouvindo Arirang🪭")
     await bot_discord.change_presence(status=discord.Status.online, activity=act)
-
-    # 2. FORÇAR SYNC DE COMANDOS (Para o Bloco 17 aparecer)
     try:
         await bot_discord.tree.sync()
-        print(f"[SYNC] Comandos atualizados para {bot_discord.user}")
+        print(f"[SYNC] Comandos atualizados")
     except Exception as e: print(f"[SYNC ERROR] {e}")
 
-    # 3. TRAVA DE BOOT ÚNICO
     if globals().get("PANEL_BOOT_DONE", False): return
     print(f"DISCORD CONECTADO: {bot_discord.user}")
 
     try:
+        await load_counters() # Carrega os números antes de exibir o painel
         await ensure_single_panel()
         await update_panel()
         globals()["PANEL_BOOT_DONE"] = True
     except Exception as e: print(f"[INIT ERROR] {e}")
 
 # =========================
-# 18.3 MONITORAMENTO (CHECKERS COM PULSO VERDE)
+# 18.3 MONITORAMENTO (CHECKERS)
 # =========================
 async def check_ticketmaster(session):
     try:
@@ -1571,13 +1593,10 @@ async def check_ticketmaster(session):
             html = await fetch_html(session, url)
             if not html: continue
             
-            # Incrementar acessos totais
             globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
             globals()["last_ticket_check"] = time.time()
             
-            # Lógica para incremento de ingressos rastreados (Exemplo de gatilho)
-            # Se encontrar padrão de disponibilidade para as datas alvo:
-            # globals()["total_tickets_found"] = globals().get("total_tickets_found", 0) + 1
+            # ATENÇÃO: Adicione a soma de 'total_tickets_found' aqui quando detectar ingresso.
             
             await save_counters()
         globals()["is_checking_ticket"] = False
@@ -1614,6 +1633,7 @@ async def check_social(session):
         globals()["is_checking_social"] = False
         await update_panel()
     except: globals()["is_checking_social"] = False
+        
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
 # =========================
