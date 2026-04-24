@@ -1348,10 +1348,9 @@ async def priority_send(alert_type, message, key=None):
     except Exception as e:
         print(f"[ALERT ERR] {e}")
 
-# --- MONITOR CYCLE (VERSÃO CORRIGIDA PARA ATUALIZAR STATUS) ---
+# --- MONITOR CYCLE ---
 async def safe_monitor_cycle(session):
     global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _WARMUP_STEPS
-    # Declaramos as globais de tempo para as bolinhas mudarem de cor
     global last_ticket_check, last_weverse_check, last_social_check
     
     now = time.time()
@@ -1364,17 +1363,17 @@ async def safe_monitor_cycle(session):
         # 1. Críticos (1 min)
         await throttle("ticket", 3)
         await check_ticketmaster(session)
-        globals()["last_ticket_check"] = time.time() # Ativa bolinha Ticketmaster
+        globals()["last_ticket_check"] = time.time()
 
         await throttle("weverse", 2)
         await check_weverse(session)
-        globals()["last_weverse_check"] = time.time() # Ativa bolinha Weverse
+        globals()["last_weverse_check"] = time.time()
 
         # 2. Sociais (2 min)
         if now - _LAST_SOCIAL_RUN >= 120:
             await throttle("social", 10) 
             await check_social(session)
-            globals()["last_social_check"] = time.time() # Ativa bolinha Social
+            globals()["last_social_check"] = time.time()
             _LAST_SOCIAL_RUN = now
         
         # 3. Warmup Logic
@@ -1386,10 +1385,46 @@ async def safe_monitor_cycle(session):
                 _INITIAL_WARMUP_DONE = True
                 print("✅ [ENGINE] Sistema Blindado. Alertas liberados!")
 
-        # Força a atualização visual do painel com os novos dados
         await locked_update_panel()
     except Exception as e:
         print(f"[MONITOR ERROR] {e}")
+
+# --- MOTORES E VIGIA ---
+async def watchdog():
+    await bot_discord.wait_until_ready()
+    while True:
+        await asyncio.sleep(60)
+        if not globals().get("discord_panel_msg_id"):
+            await locked_update_panel()
+
+async def monitor_loop():
+    global _ENGINE_STARTED
+    await bot_discord.wait_until_ready()
+    await asyncio.sleep(5) 
+    
+    if _ENGINE_STARTED: return
+    _ENGINE_STARTED = True
+    print("[MONITOR] Motor Unificado Iniciado.")
+    async with aiohttp.ClientSession() as session:
+        while True:
+            await safe_monitor_cycle(session)
+            await asyncio.sleep(60)
+
+async def start_engine():
+    if globals().get("_ENGINE_TASKS_STARTED", False): return
+    globals()["_ENGINE_TASKS_STARTED"] = True
+    tasks = [
+        asyncio.create_task(monitor_loop()),
+        asyncio.create_task(watchdog())
+    ]
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+# Chamada final (Certifique-se de que esta seja a última linha do arquivo)
+if __name__ == "__main__":
+    try:
+        asyncio.run(start_engine())
+    except KeyboardInterrupt:
+        pass
         
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE / SINGLE INSTANCE)
