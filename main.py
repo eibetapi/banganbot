@@ -1411,7 +1411,73 @@ async def check_social(session):
         await save_counters()
     except:
         globals()["is_checking_social"] = False
-  
+
+# =========================================================
+# 18.1 ENGINE: AUTO-RECUPERAÇÃO (REPOST & CLEANUP)
+# =========================================================
+
+async def update_panel():
+    """Atualiza o painel existente ou recria do zero se houver erro"""
+    global last_panel_update
+    async with panel_lock:
+        try:
+            now = time.time()
+            if (now - last_panel_update) < 10: return 
+            last_panel_update = now
+            
+            d_show, city, d_prox, d_br = get_countdown_data()
+            texto = gerar_texto_painel(d_show, city, d_prox, d_br)
+            
+            # --- FLUXO TELEGRAM ---
+            if bot_ticket and PANEL_CHAT_ID:
+                tg_id = globals().get("panel_message_id")
+                success_tg = False
+                
+                if tg_id:
+                    try:
+                        await bot_ticket.edit_message_text(chat_id=PANEL_CHAT_ID, message_id=tg_id, text=texto)
+                        success_tg = True
+                    except Exception:
+                        # Falhou? O ID é inválido. Tentamos deletar por segurança e resetamos.
+                        try: await bot_ticket.delete_message(chat_id=PANEL_CHAT_ID, message_id=tg_id)
+                        except: pass
+                        globals()["panel_message_id"] = None
+
+                if not success_tg:
+                    m = await bot_ticket.send_message(chat_id=PANEL_CHAT_ID, text=texto)
+                    globals()["panel_message_id"] = m.message_id
+                    try: await bot_ticket.pin_chat_message(PANEL_CHAT_ID, m.message_id)
+                    except: pass
+
+            # --- FLUXO DISCORD ---
+            if DISCORD_PANEL_CHANNEL_ID:
+                chan = bot_discord.get_channel(DISCORD_PANEL_CHANNEL_ID) or await bot_discord.fetch_channel(DISCORD_PANEL_CHANNEL_ID)
+                if chan:
+                    dc_id = globals().get("discord_panel_msg_id")
+                    emb = discord.Embed(description=texto, color=0x8A2BE2)
+                    success_dc = False
+                    
+                    if dc_id:
+                        try:
+                            msg = await chan.fetch_message(dc_id)
+                            await msg.edit(embed=emb)
+                            success_dc = True
+                        except Exception:
+                            # ID órfão detectado. Resetamos para postar um novo.
+                            globals()["discord_panel_msg_id"] = None
+
+                    if not success_dc:
+                        m = await chan.send(embed=emb)
+                        globals()["discord_panel_msg_id"] = m.id
+                        try: await m.pin()
+                        except: pass
+            
+            # Persistência imediata dos novos IDs
+            await save_counters()
+            
+        except Exception as e: 
+            print(f"[ENGINE 18.1 ERR] {e}")
+ 
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
 # =========================
@@ -1720,6 +1786,171 @@ async def safe_boot():
 
         await asyncio.sleep(2)
 
+        print("[BOOT] sistema liberado")
+
+# =========================================================
+# 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
+# =========================================================
+
+import asyncio
+import time
+import hashlib
+from bs4 import BeautifulSoup
+
+# --- GLOBAL LOCKS (UNIFICADOS) ---
+MONITOR_LOCK = asyncio.Lock()
+GLOBAL_LOCK = asyncio.Lock()
+THROTTLE_LOCK = asyncio.Lock()
+
+# --- CACHE SYSTEM (UNIFICADO) ---
+CONTENT_CACHE = {}
+ALERT_CACHE = {}
+LAST_REQUEST_TIME = {}
+_INITIAL_WARMUP_DONE = False # Impede alertas retroativos no boot
+
+# --- SINGLE INSTANCE CONTROL ---
+_ENGINE_STARTED = False
+_PANEL_STARTED = False
+
+# --- PRIORIDADE DE ALERTAS ---
+PRIORITY = {
+    "ticket": 3, "reposicao": 3, "weverse_live": 3, "youtube_live": 3,
+    "agenda": 2, "weverse_post": 2, "youtube_post": 2,
+    "instagram_post": 1, "instagram_reels": 1, "tiktok_post": 1, "social": 1
+}
+
+# --- DETECÇÃO INTELIGENTE DE MUDANÇA ---
+def extract_core_signatures(html):
+    soup = BeautifulSoup(html or "", "html.parser")
+    text = soup.get_text(" ", strip=True)
+    links = sorted(set(a.get("href") for a in soup.find_all("a") if a.get("href")))
+    images = sorted(set(img.get("src") for img in soup.find_all("img") if img.get("src")))
+    return {"text": text[:1500], "links": links[:60], "images": images[:60]}
+
+def is_real_change(key, content):
+    signature = extract_core_signatures(content)
+    new_hash = hashlib.md5(str(signature).encode("utf-8")).hexdigest()
+    old = CONTENT_CACHE.get(key)
+    if old == new_hash: return False
+    CONTENT_CACHE[key] = new_hash
+    return True
+
+# --- BLOQUEIO DE ALERTA DUPLICADO ---
+def is_duplicate_alert(alert_type, message):
+    raw = f"{alert_type}:{message}"
+    h = hashlib.md5(raw.encode("utf-8")).hexdigest()
+    if ALERT_CACHE.get(alert_type) == h: return True
+    ALERT_CACHE[alert_type] = h
+    return False
+
+# --- THROTTLE SEGURO ---
+async def throttle(key, delay=2):
+    async with THROTTLE_LOCK:
+        now = time.time()
+        last = LAST_REQUEST_TIME.get(key, 0)
+        if now - last < delay:
+            await asyncio.sleep(delay - (now - last))
+        LAST_REQUEST_TIME[key] = time.time()
+
+# --- PANEL SYNC (TRAVADO PARA ESTABILIDADE) ---
+_PANEL_SYNC_LOCK = asyncio.Lock()
+_last_panel_sync = 0
+
+async def locked_update_panel():
+    global _last_panel_sync
+    async with _PANEL_SYNC_LOCK:
+        now = time.time()
+        # Bloqueia edições se o painel foi atualizado há menos de 30s
+        if now - _last_panel_sync < 30: return
+        _last_panel_sync = now
+        await update_panel()
+
+# --- ALERT ROUTER ---
+async def priority_send(alert_type, message, key=None):
+    global _INITIAL_WARMUP_DONE
+    # Se ainda estiver no warmup, não envia nada para as salas
+    if not _INITIAL_WARMUP_DONE: return
+
+    level = PRIORITY.get(alert_type, 1)
+    if is_duplicate_alert(alert_type, message): return
+    if key and not is_real_change(key, message): return
+
+    if level == 3:
+        await send_alert(alert_type, message)
+        await locked_update_panel()
+    elif level == 2:
+        await asyncio.sleep(0.8)
+        await send_alert(alert_type, message)
+        await locked_update_panel()
+    else:
+        await asyncio.sleep(1.5)
+        await send_alert(alert_type, message)
+
+async def trigger_alert(alert_type, url, message):
+    key = f"{alert_type}:{url}"
+    await priority_send(alert_type, message, key=key)
+
+# --- MONITOR SEGURO ---
+async def safe_monitor_cycle(session):
+    global _INITIAL_WARMUP_DONE
+    try:
+        # MOTORES (Rodam em silêncio se for o primeiro ciclo)
+        await throttle("ticket", 1)
+        await check_ticketmaster(session)
+        await throttle("weverse", 1)
+        await check_weverse(session)
+        await throttle("social", 1)
+        await check_social(session)
+
+        # Libera alertas reais após a primeira varredura completa
+        if not _INITIAL_WARMUP_DONE:
+            _INITIAL_WARMUP_DONE = True
+            print("[ENGINE] Warm-up finalizado. Alertas em tempo real ativados.")
+
+        await locked_update_panel()
+    except Exception as e:
+        print(f"[MONITOR ERROR] {e}")
+
+# --- MONITOR LOOP ---
+async def monitor_loop():
+    global _ENGINE_STARTED
+    await bot_discord.wait_until_ready()
+    if _ENGINE_STARTED: return
+    _ENGINE_STARTED = True
+    print("[MONITOR] RUNNING (SINGLE INSTANCE)")
+
+    async with aiohttp.ClientSession() as session:
+        while True:
+            await safe_monitor_cycle(session)
+            await asyncio.sleep(20)
+
+# --- WATCHDOG ---
+async def watchdog():
+    await bot_discord.wait_until_ready()
+    print("[WATCHDOG] ativo")
+    while True:
+        await asyncio.sleep(60)
+        # Recuperação via 18.1 se IDs sumirem
+        if not globals().get("panel_message_id") or not globals().get("discord_panel_msg_id"):
+            await update_panel()
+
+# --- START & BOOT ---
+async def start_engine():
+    if globals().get("_ENGINE_TASKS_STARTED", False): return
+    globals()["_ENGINE_TASKS_STARTED"] = True
+    print("[ENGINE] FINAL MODE STARTED")
+    tasks = [
+        asyncio.create_task(monitor_loop()),
+        asyncio.create_task(watchdog())
+    ]
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+async def safe_boot():
+    async with GLOBAL_LOCK:
+        print("[BOOT] iniciando sistema")
+        await load_counters()
+        await update_panel() # 18.1 garante o Repost/Cleanup aqui
+        await asyncio.sleep(2)
         print("[BOOT] sistema liberado")
 
 # =========================
