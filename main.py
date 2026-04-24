@@ -1146,64 +1146,52 @@ async def on_ready():
     
     globals()["PANEL_BOOT_DONE"] = True
     
-# =========================================================
-# 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
-# =========================================================
+# =========================
+# 19 MOTOR UNIFICADO (CORREÇÃO DE CONTADORES)
+# =========================
 import asyncio
 import time
-import hashlib
 import aiohttp
-from bs4 import BeautifulSoup
 
-# GLOBAL LOCKS & CACHE
+# GLOBAL LOCKS
 MONITOR_LOCK = asyncio.Lock()
-_PANEL_SYNC_LOCK = asyncio.Lock()
-CONTENT_CACHE = {}
-_INITIAL_WARMUP_DONE = False 
-_LAST_SOCIAL_RUN = 0          
-_WARMUP_STEPS = 0  
-
-# --- AUXILIARES DE MONITORAMENTO ---
-
-async def locked_update_panel():
-    """Garante que o painel atualize de forma segura e sem spam."""
-    async with _PANEL_SYNC_LOCK:
-        if 'update_panel' in globals():
-            await update_panel()
-
-# --- MONITOR CYCLE (CONTADORES E STATUS 🟢) ---
 
 async def safe_monitor_cycle(session):
     global _INITIAL_WARMUP_DONE, _LAST_SOCIAL_RUN, _WARMUP_STEPS
-    # Globais para ativar as bolinhas verdes no painel
     global is_checking_ticket, is_checking_weverse, is_checking_social
     
     try:
-        # 1. TICKETMASTER (CRÍTICO)
+        # 1. TICKETMASTER
         globals()["is_checking_ticket"] = True
         if 'check_ticketmaster' in globals():
             await check_ticketmaster(session)
+            # FIX: Incrementa o contador global após a execução
+            globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
             globals()["last_ticket_check"] = time.time()
         globals()["is_checking_ticket"] = False
 
-        # 2. WEVERSE (CRÍTICO)
+        # 2. WEVERSE
         globals()["is_checking_weverse"] = True
         if 'check_weverse' in globals():
             await check_weverse(session)
+            # FIX: Incrementa o contador global após a execução
+            globals()["total_weverse"] = globals().get("total_weverse", 0) + 1
             globals()["last_weverse_check"] = time.time()
         globals()["is_checking_weverse"] = False
 
-        # 3. SOCIAIS (INTERVALO DE 120s)
+        # 3. SOCIAIS (Intervalo de 120s)
         now = time.time()
         if now - _LAST_SOCIAL_RUN >= 120:
             globals()["is_checking_social"] = True
             if 'check_social' in globals():
                 await check_social(session)
+                # FIX: Incrementa o contador global após a execução
+                globals()["total_social"] = globals().get("total_social", 0) + 1
                 globals()["last_social_check"] = time.time()
                 _LAST_SOCIAL_RUN = now
             globals()["is_checking_social"] = False
         
-        # LÓGICA DE WARMUP (EVITA ALERTAS FALSOS NO BOOT)
+        # LÓGICA DE WARMUP
         if not _INITIAL_WARMUP_DONE:
             if _WARMUP_STEPS < 2:
                 _WARMUP_STEPS += 1
@@ -1212,29 +1200,16 @@ async def safe_monitor_cycle(session):
                 _INITIAL_WARMUP_DONE = True
                 print("✅ [ENGINE] Monitoramento Ativo!")
 
-        # Atualiza o painel ao fim de cada ciclo
-        await locked_update_panel()
+        # 4. ATUALIZAÇÃO DO PAINEL
+        # Força a atualização visual para refletir os novos números imediatamente
+        if 'update_panel' in globals():
+            await update_panel()
 
     except Exception as e:
-        # Emergency Reset: Garante que as bolinhas não fiquem presas no verde
         globals()["is_checking_ticket"] = False
         globals()["is_checking_weverse"] = False
         globals()["is_checking_social"] = False
         print(f"⚠️ [MONITOR ERROR] {e}")
-
-# --- MOTORES E VIGIA ---
-
-async def watchdog():
-    """Verifica se o painel existe. Se cair, recria."""
-    await bot_discord.wait_until_ready()
-    while True:
-        # Busca os IDs unificados do Bloco 18
-        tg_id = globals().get("panel_message_id")
-        dc_id = globals().get("discord_panel_msg_id")
-        
-        if not tg_id or not dc_id:
-            await locked_update_panel()
-        await asyncio.sleep(60)
 
 async def monitor_loop():
     """Loop principal de checagem."""
@@ -1253,10 +1228,12 @@ async def start_engine():
         return
     globals()["_ENGINE_TASKS_STARTED"] = True
     
-    await asyncio.gather(
-        monitor_loop(),
-        watchdog()
-    )
+    # Inicia o loop de monitoramento
+    asyncio.create_task(monitor_loop())
+    
+    # Inicia o watchdog se ele estiver definido no código
+    if 'watchdog' in globals():
+        asyncio.create_task(watchdog())
         
 # =========================
 # 20 STARTUP FINAL (RAILWAY SAFE)
