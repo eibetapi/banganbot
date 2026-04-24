@@ -1430,11 +1430,19 @@ async def save_counters():
         "last_social_check": globals().get("last_social_check", 0),
         "last_ticket_check": globals().get("last_ticket_check", 0)
     }
+    # Ajustado para usar a sua função de salvar padrão
     save_storage(COUNTER_DATA_FILE, data)
 
 async def load_counters():
     """Carrega os dados salvos ao iniciar o bot"""
-    data = carregar_storage(COUNTER_DATA_FILE)
+    # Corrigido de 'carregar_storage' para 'load_storage' ou o nome que você usa no seu Bloco 1
+    # Se o seu comando for 'load_json' ou similar, ajuste aqui:
+    try:
+        data = load_storage(COUNTER_DATA_FILE) 
+    except NameError:
+        # Fallback caso sua função tenha outro nome comum
+        data = carregar_json(COUNTER_DATA_FILE) if 'carregar_json' in globals() else None
+
     if data:
         globals()["total_weverse"] = data.get("total_weverse", 0)
         globals()["total_social"] = data.get("total_social", 0)
@@ -1575,7 +1583,7 @@ async def on_ready():
     print(f"DISCORD CONECTADO: {bot_discord.user}")
 
     try:
-        await load_counters() # Carrega os números antes de exibir o painel
+        await load_counters() 
         await ensure_single_panel()
         await update_panel()
         globals()["PANEL_BOOT_DONE"] = True
@@ -1595,8 +1603,6 @@ async def check_ticketmaster(session):
             
             globals()["total_tickets"] = globals().get("total_tickets", 0) + 1
             globals()["last_ticket_check"] = time.time()
-            
-            # ATENÇÃO: Adicione a soma de 'total_tickets_found' aqui quando detectar ingresso.
             
             await save_counters()
         globals()["is_checking_ticket"] = False
@@ -1632,8 +1638,7 @@ async def check_social(session):
                 await save_counters()
         globals()["is_checking_social"] = False
         await update_panel()
-    except: globals()["is_checking_social"] = False
-        
+    except: globals()["is_checking_social"] = False        
 # =========================
 # 19 FINAL CORE UNIFICADO (PRODUÇÃO ESTÁVEL - BLINDADO)
 # =========================
